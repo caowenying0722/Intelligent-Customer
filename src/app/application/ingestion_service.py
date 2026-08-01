@@ -134,7 +134,7 @@ class DocumentIngestionService:
             def run() -> Any:
                 try:
                     result = operation(path, upload, record)
-                except Exception:
+                except Exception as exc:
                     self.metadata.update_status(
                         tenant_id=tenant_id,
                         document_id=record.document_id,
