@@ -689,5 +689,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 3 第十二个目标完成：Alembic 0003 增加 conversation user/status 和 agent_runs 表，API 重启恢复测试验证 user_id/status；默认请求兼容 local/active。
 - 阶段 3 第十三个目标完成：增加 Agent run 创建、查询、状态更新和失败原因 API，限制状态集合并覆盖跨租户拒绝；Alembic 0004 增加 error 字段。
 - 阶段 3 第十四个目标完成：Chat application service 自动关联 run_id，执行成功/冲突/超时/取消都会更新 run 状态，Chat 响应返回可查询的 run_id。
+- 阶段 3 第十五个目标完成：Agent run 支持 tenant-scoped `Idempotency-Key`，重复 Chat 不创建第二条 run，Alembic 0005 增加唯一索引并通过 API contract 测试。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
