@@ -50,8 +50,8 @@ AGENT_MAX_TOOL_CALLS=5
 - LangGraph 1.2.10（工作流编排）
 - Streamlit 1.54.0 + Pillow 12.3.0（Web UI 与图像处理）
 - ChromaDB 1.3.7（向量数据库）
-- Torch 2.12.0 和 Transformers（本地模型支持）
-- Sentence Transformers（文本嵌入）
+- Torch 2.12.0 和 Transformers 5.14.1（本地模型支持）
+- Sentence Transformers 5.2.0（文本嵌入）
 
 ### 依赖验证
 所有依赖已成功安装，无任何版本冲突（pip check: No broken requirements）

@@ -31,4 +31,4 @@
 | TD-025 | 无 request ID、结构化日志、trace 或 metrics | Medium | 故障无法按请求关联，无法观测模型/RAG/工具耗时 | `utils/logger_handler.py:14-50` | API middleware 注入 request ID；后续 OTel + Prometheus，控制标签基数 | 2/8 | 待处理 |
 | TD-026 | 默认模型和 RAG 仍使用进程内缓存实例 | Medium | import-time 单例已删除且核心构造器可注入，但尚无 API composition root 或生命周期关闭钩子 | `model/factory.py`、`agent/react_agent.py`、`rag/rag_service.py` | 在 FastAPI 应用工厂集中创建/关闭依赖；adapter/interface 继续分离 | 1/2/7 | 部分完成 |
 | TD-027 | 低置信度与域外判断是少量硬编码关键词 | Low | 容易误拒答或漏过，不能作为通用安全 guardrail | `rag/guardrails.py:10-27` | 保留为明确 baseline；用版本化策略、可测试分类器和人工升级路径演进 | 5/9/10 | 待处理 |
-| TD-028 | 当前运行依赖仍有 8 条已知漏洞记录，涉及 4 个直接或传递包 | Blocker | 剩余直接或传递依赖漏洞会阻止依赖安全门禁通过 | `requirements.txt`、`python -m pip_audit -r requirements.txt` | 已完成 PDF、UI 与 LangChain/LangGraph 生态迁移；继续处理 `chromadb`、`ragas`、`transformers`、`diskcache`，不允许无依据 ignore | 1 | 部分完成 |
+| TD-028 | 当前运行依赖仍有 3 条已知漏洞记录，涉及 3 个直接或传递包 | Blocker | 剩余直接或传递依赖漏洞会阻止依赖安全门禁通过 | `requirements.txt`、`python -m pip_audit -r requirements.txt` | 已完成 PDF、UI、LangChain/LangGraph 和 ML 栈迁移；继续处理 `chromadb`、`ragas`、`diskcache`，不允许无依据 ignore | 1 | 部分完成 |

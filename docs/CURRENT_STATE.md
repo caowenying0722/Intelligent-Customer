@@ -15,7 +15,7 @@
 - 目标环境普通导入 `app` 不再加载 Agent、模型、RAG 或 Chroma；Streamlit 执行 `main()` 后才构建 Agent，首次调用 RAG 工具时才同步初始化 Chroma 和扫描知识文件。
 - 旧 `.local_deps/` 目录仍存在但已不再由评测/报告脚本自动插入 `sys.path`；初始行为曾覆盖目标环境中的正确二进制包并导致 RAGAS 导入失败。
 - Python 3.13 下执行完整依赖 dry-run 失败：`langchain-community==0.3.31` 要求 NumPy 2.x，而 `langchain-chroma==0.1.4` 在该解释器组合下要求 NumPy 1.x。
-- `pypdf`、Streamlit、Pillow、LangChain、LangGraph、LangChain-Chroma、ChromaDB、LangChain-OpenAI 和 LangChain-HuggingFace 已分批升级，并通过 PDF、UI、Agent 图编译与临时 Chroma 写入/检索回归；pip-audit 从 84 条/13 包下降到 8 条/4 包。剩余漏洞不能用忽略规则伪装通过。
+- `pypdf`、Streamlit、Pillow、LangChain、LangGraph、LangChain-Chroma、ChromaDB、LangChain-OpenAI、LangChain-HuggingFace、Sentence Transformers 和 Transformers 已分批升级，并通过 PDF、UI、Agent 图编译、HuggingFace adapter 导入与临时 Chroma 写入/检索回归；pip-audit 从 84 条/13 包下降到 3 条/3 包。剩余漏洞不能用忽略规则伪装通过。
 
 ## 当前架构与核心调用链
 
@@ -129,14 +129,14 @@ flowchart LR
 | 命令 | 结果 | 分类与说明 |
 |---|---|---|
 | `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，19 个直接运行依赖精确匹配，`pip check` 成功 |
-| `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 24 个直接运行/开发依赖精确匹配 |
+| `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 25 个直接运行/开发依赖精确匹配 |
 | `pip install --dry-run --ignore-installed -r requirements-dev.txt` | 成功 | Python 3.10 可解析；输出同时证明传递依赖仍会漂移，不能替代 lock |
 | `python -m pytest -q` | 成功：70 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、Agent 上限、模型适配器、PDF/UI、LangGraph/Chroma 兼容和子进程安全测试 |
 | `python -m ruff check .` | 成功 | 仓库 `pyproject.toml` 固定精确规则集，全仓零诊断 |
 | `python -m ruff format --check .` | 成功：67 files already formatted | 已完成全仓 Python 格式基线 |
 | `python -m mypy agent rag model evaluation utils scripts tests app.py` | 成功：58 source files | 仓库配置固定 Python 3.10、缺失类型依赖和包基线规则 |
 | `python -m coverage run -m pytest -q && coverage report` | 成功：40% | 仅统计源码、启用 branch coverage；当前只记录真实基线，尚未设置回归阈值 |
-| `python -m pip_audit -r requirements.txt` | 失败：8 条/4 包 | 剩余涉及 `chromadb`、`ragas`、`transformers` 和 `diskcache`；未使用忽略规则 |
+| `python -m pip_audit -r requirements.txt` | 失败：3 条/3 包 | 剩余涉及 `chromadb`、`ragas` 和 `diskcache`；未使用忽略规则 |
 
 ## 可复现指标基线
 
@@ -162,7 +162,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 完整清单见 [TECH_DEBT.md](TECH_DEBT.md)。优先级最高的风险是：
 
-1. 当前运行依赖仍有 8 条已知漏洞记录，涉及 `chromadb`、`ragas`、`transformers` 和 `diskcache`；其中部分修复需要继续协调 ML/RAG 生态版本。
+1. 当前运行依赖仍有 3 条已知漏洞记录，涉及 `chromadb`、`ragas` 和 `diskcache`；当前公开索引未给出可直接升级的修复版本。
 2. 依赖集合在 Python 3.13 环境不可解，且尚无完整 transitive lock/空环境重建证明。
 3. Agent 步骤和工具调用已有代码级上限，但请求没有全流程 deadline/cancellation，工具副作用也没有幂等控制。
 4. 随机用户身份与本地报告数据没有认证、授权和租户隔离。
