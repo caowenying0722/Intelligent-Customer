@@ -181,7 +181,19 @@ class SqlAlchemyIngestionRepository:
                     created_at=job.created_at,
                 )
             )
-            session.commit()
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                existing = session.scalar(
+                    select(IngestionJobRow).where(
+                        IngestionJobRow.tenant_id == job.tenant_id,
+                        IngestionJobRow.idempotency_key == job.idempotency_key,
+                    )
+                )
+                if existing is None:
+                    raise
+                return self._job(existing)
         return job
 
     def get_job(self, *, tenant_id: str, job_id: UUID) -> IngestionJob | None:

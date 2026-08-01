@@ -4,13 +4,14 @@ import base64
 import binascii
 import json
 from collections.abc import Callable
-from datetime import datetime
-from uuid import UUID
+from datetime import datetime, timezone
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.app.application.chat import ChatApplicationError, ChatApplicationService
+from src.app.application.ingestion import IngestionJob, IngestionJobStatus
 from src.app.application.ingestion_service import DocumentIngestionService
 from src.app.domain.conversations import (
     ConcurrencyConflict,
@@ -57,6 +58,21 @@ def build_router(
             request.state, "tenant_id", request.headers.get("x-tenant-id", "local")
         )
 
+    def ingestion_job_response(job: IngestionJob) -> IngestionJobResponse:
+        return IngestionJobResponse(
+            job_id=str(job.job_id),
+            tenant_id=job.tenant_id,
+            status=job.status.value,
+            error=job.error,
+            created_at=job.created_at.isoformat(),
+            started_at=job.started_at.isoformat() if job.started_at else None,
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+            progress=job.progress,
+            attempt=job.attempt,
+            max_attempts=job.max_attempts,
+            cancel_requested=job.cancel_requested,
+        )
+
     @router.post("/indexes/rebuild", response_model=IngestionJobResponse)
     async def rebuild_index(request: Request, payload: IndexRebuildRequest):
         if ingestion_service is None or index_rebuild_operation is None:
@@ -82,55 +98,52 @@ def build_router(
                 },
             )
         job_store = getattr(ingestion_service, "job_store", None)
-        if job_store is not None:
-            get_persisted = getattr(job_store, "get_job_by_idempotency", None)
-            if callable(get_persisted):
-                persisted = get_persisted(
-                    tenant_id=tenant_id, idempotency_key=idempotency_key
-                )
-                if persisted is not None:
-                    return IngestionJobResponse(
-                        job_id=str(persisted.job_id),
-                        tenant_id=persisted.tenant_id,
-                        status=persisted.status.value,
-                        error=persisted.error,
-                        created_at=persisted.created_at.isoformat(),
-                        started_at=(
-                            persisted.started_at.isoformat()
-                            if persisted.started_at
-                            else None
-                        ),
-                        completed_at=(
-                            persisted.completed_at.isoformat()
-                            if persisted.completed_at
-                            else None
-                        ),
-                        progress=persisted.progress,
-                        attempt=persisted.attempt,
-                        max_attempts=persisted.max_attempts,
-                        cancel_requested=persisted.cancel_requested,
-                    )
         try:
-            job = ingestion_service.jobs.submit(
-                tenant_id=tenant_id,
-                idempotency_key=idempotency_key,
-                operation=lambda: index_rebuild_operation(payload.index_version),
-                task_type="index_rebuild",
-                task_payload=payload.index_version,
-            )
             if job_store is not None:
-                job_store.create_job(job=job)
+                pending = IngestionJob(
+                    job_id=uuid4(),
+                    tenant_id=tenant_id,
+                    idempotency_key=idempotency_key,
+                    status=IngestionJobStatus.QUEUED,
+                    created_at=datetime.now(timezone.utc),
+                    task_type="index_rebuild",
+                    task_payload=payload.index_version,
+                )
+                persisted = job_store.create_job(job=pending)
+                if persisted.job_id != pending.job_id:
+                    return ingestion_job_response(persisted)
+                job = ingestion_service.jobs.submit(
+                    tenant_id=tenant_id,
+                    idempotency_key=idempotency_key,
+                    operation=lambda: index_rebuild_operation(payload.index_version),
+                    job_id=pending.job_id,
+                    task_type="index_rebuild",
+                    task_payload=payload.index_version,
+                )
                 current = (
                     ingestion_service.jobs.get(tenant_id=tenant_id, job_id=job.job_id)
                     or job
                 )
-                if current.status in {"completed", "failed", "cancelled"}:
+                if current.status in {
+                    IngestionJobStatus.RUNNING,
+                    IngestionJobStatus.COMPLETED,
+                    IngestionJobStatus.FAILED,
+                    IngestionJobStatus.CANCELLED,
+                }:
                     job_store.update_job_status(
                         tenant_id=tenant_id,
                         job_id=job.job_id,
                         status=current.status,
                         error=current.error,
                     )
+            else:
+                job = ingestion_service.jobs.submit(
+                    tenant_id=tenant_id,
+                    idempotency_key=idempotency_key,
+                    operation=lambda: index_rebuild_operation(payload.index_version),
+                    task_type="index_rebuild",
+                    task_payload=payload.index_version,
+                )
         except ValueError as exc:
             return JSONResponse(
                 status_code=422,
@@ -140,19 +153,7 @@ def build_router(
                     "request_id": request.state.request_id,
                 },
             )
-        return IngestionJobResponse(
-            job_id=str(job.job_id),
-            tenant_id=job.tenant_id,
-            status=job.status.value,
-            error=job.error,
-            created_at=job.created_at.isoformat(),
-            started_at=job.started_at.isoformat() if job.started_at else None,
-            completed_at=job.completed_at.isoformat() if job.completed_at else None,
-            progress=job.progress,
-            attempt=job.attempt,
-            max_attempts=job.max_attempts,
-            cancel_requested=job.cancel_requested,
-        )
+        return ingestion_job_response(job)
 
     @router.post("/documents", response_model=DocumentUploadResponse)
     async def upload_document(request: Request, payload: DocumentUploadRequest):

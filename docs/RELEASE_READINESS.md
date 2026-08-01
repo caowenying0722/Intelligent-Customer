@@ -28,6 +28,7 @@
 | 入库删除/任务并发幂等 | 通过：1 个测试 | running operation 完成后不会把已删除文档 resurrect 为 active |
 | Blue/Green validation timeout safety | 通过：1 个测试 | 未完成 candidate validation 时 active alias 保持不变 |
 | 持久化 rebuild idempotency reuse | 通过：1 个测试 | 已存在 tenant/idempotency key 时复用持久化 job，不重复调用 operation |
+| Persistent claim-before-worker | 通过：持久化 route 测试 | rebuild 先写唯一 job，再提交进程内 worker；进程崩溃后的 queued job 由 recovery 处理 |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 

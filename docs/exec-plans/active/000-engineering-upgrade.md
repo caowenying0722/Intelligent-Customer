@@ -856,6 +856,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第三十五个目标完成：审计工具副作用与幂等边界，确认天气/用户/报告工具当前为静态或只读读取；修复文档删除与运行中 operation 的竞态，worker 终态不会 resurrect 已删除文档；补充 1 个删除竞态测试，并在 API 文档明确 at-least-once、不宣称 exactly-once。全量 `327 passed`、26 subtests。
 - 阶段 11 第三十六个目标完成：审计 Blue/Green index rebuild 超时后的残余线程和 cleanup 副作用，新增验证超时回归，确认未完成 candidate validation 时 active alias 不切换；明确超时不能强杀同步 builder，残余线程和 cleanup 仍需外部可中止实现。全量 `328 passed`、26 subtests。
 - 阶段 11 第三十七个目标完成：为 SQLAlchemy ingestion repository 增加按 tenant/idempotency key 查询，rebuild route 在提交前复用已持久化 job；新增跨请求复用测试，确认 operation 只调用一次。并发 race 仍不能靠进程内 manager 解决，分布式 claim/锁和 exactly-once 副作用继续作为限制。全量 `329 passed`、26 subtests。
-- 阶段 11 第三十八个目标进行中：建立跨进程 job claim 的设计边界（数据库原子状态跃迁/唯一约束/租约），先补不可重复执行的失败测试，再决定是否引入最小持久化 claim，不引入 Celery/Redis 重框架。
+- 阶段 11 第三十八个目标完成：rebuild route 改为先写持久化 queued job、再提交内存 worker；repository 唯一约束冲突回读已有 job，避免重复请求先启动副作用。新增/更新持久化 idempotency 测试，全量 `329 passed`、26 subtests。进程崩溃后的 queued recovery 已复用现有恢复逻辑，但跨进程 lease/心跳仍未实现。
+- 阶段 11 第三十九个目标进行中：审计并发 claim 的租约/心跳/超时恢复语义，评估是否需要最小数据库状态跃迁，避免把当前唯一约束误称为完整分布式 exactly-once。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
