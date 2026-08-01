@@ -16,6 +16,7 @@ from src.app.infrastructure.factory import (
     build_conversation_repository,
     build_document_ingestion_service,
 )
+from utils.settings import get_settings
 
 ReadinessCheck = Callable[[], bool]
 
@@ -32,6 +33,11 @@ def create_app(
     index_rebuild_operation: Callable | None = None,
     model_health_token: str | None = None,
 ) -> FastAPI:
+    settings = get_settings()
+    if model_health_token is None:
+        model_health_token = settings.model_health_token_value
+    if settings.application_env == "production" and not model_health_token:
+        raise ValueError("MODEL_HEALTH_TOKEN is required in production")
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         if (

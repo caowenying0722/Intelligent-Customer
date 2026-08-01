@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from model.gateway import ModelGateway
 from src.app.application.chat import ChatApplicationService
 from src.app.main import create_app
+from utils.settings import clear_settings_cache
 
 
 class Agent:
@@ -28,3 +29,14 @@ def test_model_health_without_gateway_is_unhealthy():
     response = TestClient(create_app()).get("/health/model")
     assert response.status_code == 200
     assert response.json()["status"] == "unhealthy"
+
+
+def test_settings_supply_health_token(monkeypatch):
+    monkeypatch.setenv("MODEL_HEALTH_TOKEN", "from-env")
+    clear_settings_cache()
+    client = TestClient(create_app())
+    assert client.get("/health/model").status_code == 401
+    assert client.get(
+        "/health/model", headers={"x-model-health-token": "from-env"}
+    ).status_code == 200
+    clear_settings_cache()

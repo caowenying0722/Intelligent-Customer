@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     model_failure_threshold: int = Field(default=5, ge=1, le=100)
     model_cooldown_seconds: float = Field(default=30.0, gt=0, le=3600)
     model_rate_limit_per_second: int | None = Field(default=None, ge=1, le=10000)
+    model_health_token: SecretStr | None = None
     model_ca_bundle: Path | None = None
     agent_max_steps: int = Field(default=10, ge=1, le=50)
     agent_max_tool_calls: int = Field(default=5, ge=1, le=20)
@@ -142,6 +143,10 @@ class Settings(BaseSettings):
     def openai_compatible_api_key_value(self) -> str | None:
         secret = self.openai_api_key or self.deepseek_api_key or self.moonshot_api_key
         return secret.get_secret_value() if secret is not None else None
+
+    @property
+    def model_health_token_value(self) -> str | None:
+        return self.model_health_token.get_secret_value() if self.model_health_token else None
 
 
 @lru_cache(maxsize=1)
