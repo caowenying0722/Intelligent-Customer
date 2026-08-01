@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 from model.cache import ModelCache
 from model.quota import TenantQuota
+from model.cost import CostTracker, UsageRecord
 import threading
 import time
 from collections import deque
@@ -37,6 +38,7 @@ class ModelGateway:
         rate_limit_per_second: int | None = None,
         cache: ModelCache | None = None,
         quota: TenantQuota | None = None,
+        cost_tracker: CostTracker | None = None,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -55,6 +57,7 @@ class ModelGateway:
         self.rate_limit_per_second = rate_limit_per_second
         self.cache = cache
         self.quota = quota
+        self.cost_tracker = cost_tracker
         self._lock = threading.Lock()
         self._consecutive_failures = 0
         self._opened_at: float | None = None
@@ -80,7 +83,14 @@ class ModelGateway:
             }
             if self.cache is not None and hasattr(self.cache, "stats"):
                 snapshot["cache"] = self.cache.stats()
+            if self.cost_tracker is not None:
+                snapshot["usage"] = self.cost_tracker.snapshot()
             return snapshot
+
+    def record_usage(self, **kwargs) -> UsageRecord:
+        if self.cost_tracker is None:
+            raise ModelGatewayError("cost tracking is not configured")
+        return self.cost_tracker.record(**kwargs)
 
     def health_snapshot(self) -> dict[str, object]:
         """Describe configured provider availability without probing upstreams."""
