@@ -860,7 +860,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第三十九个目标完成：审计 queued/running/orphan recovery，确认唯一约束 + claim-before-worker + 启动恢复能证明 at-least-once；新增 `docs/security/job-claim-audit.md`，明确 heartbeat/lease/fencing 和 exactly-once 仍未实现。定向回归 `14 passed`。
 - 阶段 11 第四十个目标完成：复核 SQLAlchemy `IngestionJobRow` 与 Alembic `0008→0010`，增加 migration smoke 对唯一索引 unique/列顺序和 ORM index 的断言，并记录 SQLite 不能替代 PostgreSQL 锁/隔离/lease 验收。相关迁移测试通过。
 - 阶段 11 第四十一个目标完成：复核 Docker/PostgreSQL 集成门禁；`docker info` 124 秒超时，Compose 两套静态 config 和 Docker/migration 测试 `5 passed`，但 PostgreSQL 容器、真实 health/readiness、跨 worker 锁和 OTLP 端到端均未执行，限制已写入 `docs/operations/postgres-container-audit.md`。
-- 阶段 11 第四十二个目标完成：发布前文档/状态/标签一致性审计通过；当前唯一最新基线为 `329 passed`、26 subtests、覆盖率 59%、Ruff format 222 files、Mypy 96 source files，远程 `origin/main` 已到 `a4884a7`，用户未提交 README/删除文件/AGENT.md/todo.md 保持原样。旧阶段数字仅保留在执行计划历史，不作为当前发布结论。
+- 阶段 11 第四十二个目标完成：发布前文档/状态/标签一致性审计通过；当前唯一最新基线为 `329 passed`、26 subtests、覆盖率 59%、Ruff format 225 files、Mypy 96 source files，远程 `origin/main` 已到 `7161fb3`，最新中文标签为 `阶段十一-交付快照基线`，用户未提交 README/删除文件/AGENT.md/todo.md 保持原样。旧阶段数字仅保留在执行计划历史，不作为当前发布结论。
 - 阶段 11 第四十三个目标完成：最终门禁复跑通过 `329 passed`、26 subtests、coverage 59%、Ruff format 225 files、Ruff/Mypy/secret/pip check、dataset/deterministic/red-team/fake load、两套 Compose config；pip-audit 真实保留 3 个无修复漏洞，Python 3.13 环境检查失败，Docker info 34 秒超时。完整 diff/status 仅剩用户未提交 README、两份删除文档、AGENT.md、todo.md。
 - 阶段 11 第四十四个目标完成：建立交付快照并核对 `origin/main=4a59302`、最新中文标签 `阶段十一-最终门禁快照`、工作区只剩用户的 README/删除文档/AGENT.md/todo.md 修改；当前 blocker 和未完成任务已写入发布文档，不把“目标模式”误报为所有 todo 阶段已完成。
 - 阶段 11 第四十五个目标进行中：等待 Docker daemon/Python 3.10 CI 和上游依赖修复等外部状态变化；状态变化后优先重跑 PostgreSQL/容器 health、跨 worker claim/lease 和 clean install，不在外部 blocker 未变化时重复伪造验收。
