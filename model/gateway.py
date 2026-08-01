@@ -114,3 +114,24 @@ class ModelGateway:
             raise ModelGatewayError("model provider retries exhausted")
         finally:
             self._semaphore.release()
+
+    def invoke_routed(
+        self,
+        *,
+        route: str,
+        request: Any,
+        routes: Mapping[str, str],
+        fallbacks: Mapping[str, list[str]] | None = None,
+    ) -> Any:
+        """Resolve a stable model alias and try its bounded fallback chain."""
+        provider = routes.get(route)
+        if provider is None:
+            raise ModelGatewayError(f"model route is not configured: {route}")
+        candidates = [provider, *(fallbacks or {}).get(route, [])]
+        last_error: ModelGatewayError | None = None
+        for candidate in dict.fromkeys(candidates):
+            try:
+                return self.invoke(provider=candidate, request=request)
+            except ModelGatewayError as exc:
+                last_error = exc
+        raise ModelGatewayError(f"all providers failed for model route: {route}") from last_error

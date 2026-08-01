@@ -75,3 +75,19 @@ def test_gateway_success_resets_consecutive_failures():
     state["fail"] = True
     with pytest.raises(ModelGatewayError, match="rejected"):
         gateway.invoke(provider="fake", request={})
+
+
+def test_gateway_routes_alias_to_fallback_provider():
+    gateway = ModelGateway({
+        "primary": lambda _: (_ for _ in ()).throw(PermanentModelError("down")),
+        "backup": lambda request: "backup:" + request,
+    })
+    assert gateway.invoke_routed(
+        route="chat", request="hello", routes={"chat": "primary"},
+        fallbacks={"chat": ["backup"]},
+    ) == "backup:hello"
+
+
+def test_gateway_rejects_unknown_model_route():
+    with pytest.raises(ModelGatewayError, match="route is not configured"):
+        ModelGateway({}).invoke_routed(route="missing", request={}, routes={})
