@@ -79,6 +79,10 @@ class SqlAlchemyConversationRepository:
     def append(
         self, tenant_id: str, conversation_id: UUID, role: str, content: str
     ) -> Message:
+        if role not in {"user", "assistant", "system"}:
+            raise ValueError("unsupported message role")
+        if not content or len(content) > 4000:
+            raise ValueError("message content must contain 1-4000 characters")
         with Session(self.engine) as session:
             row = session.scalar(
                 select(ConversationRow).where(
