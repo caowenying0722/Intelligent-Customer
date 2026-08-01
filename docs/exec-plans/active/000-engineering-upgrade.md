@@ -698,5 +698,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 3 第二十一个目标完成：RRF 以显式 `fusion_strategy=rrf` 接入现有 Chroma/BM25 adapter，默认仍使用 weighted baseline，并增加 adapter smoke 测试与可配置 `rrf_k`。
 - 阶段 3 第二十二个目标完成：新增统一 `RetrievalResult` 契约，强制 tenant、document/index version、chunk/source 和各阶段 score 字段；RRF adapter 提供带 tenant/index metadata 的结果入口。
 - 阶段 3 第二十三个目标完成：RRF 提供带分数的融合结果入口，`RetrievalResult.fused_score` 记录真实 rank 融合分数，原无分数 API 保持兼容。
+- 阶段 3 第二十四个目标完成：新增注入式 Cross-Encoder reranker adapter，限制候选数和 top-k，设置调用超时；超时、异常或非法分数数量会显式降级到确定性 reranker 并标记 `rerank_degraded`。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
