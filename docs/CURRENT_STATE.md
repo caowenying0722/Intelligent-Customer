@@ -137,6 +137,7 @@ flowchart LR
 | `python -m mypy agent rag model evaluation utils scripts tests app.py` | 成功：59 source files | 仓库配置固定 Python 3.10、缺失类型依赖和包基线规则 |
 | `python -m coverage run -m pytest -q && coverage report` | 成功：42% | 仅统计源码、启用 branch coverage；`fail_under=41` 已设置为当前真实基线 |
 | `python -m pip_audit -r requirements.txt` | 失败：3 条/3 包 | 剩余涉及 `chromadb`、`ragas` 和 `diskcache`；未使用忽略规则 |
+| 最终依赖修复后 `python -m pytest -q` | 成功：254 passed，23 subtests | 按 `requirements.txt` 补齐并对齐 LangGraph/LangChain/Chroma/Streamlit；secret scan、compileall、应用 import smoke、`git diff --check` 同步通过 |
 | 本轮增量验收 | 成功：167 passed，23 subtests | 新增 `IngestionWorker.recover_queued()` queued 任务原 job_id 恢复、tenant 隔离与 running orphan 不重复执行测试；上方 165 条为审计时历史基线 |
 
 ## 可复现指标基线

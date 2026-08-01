@@ -792,6 +792,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 8 第四个目标完成：IdempotencyStore 增加 TTL 过期与 per-key 并发锁；同租户/key 并发请求只执行一次 provider，过期后允许新执行。
 - 阶段 8 第五个目标完成：新增 Redis-compatible `RedisIdempotencyStore`，跨进程保存 tenant/key fingerprint/result/TTL；后端不可用时 fail-closed，不静默放弃幂等保护。
 - 阶段 8 第六个目标完成：审计 trace、模型契约、错误映射、内存/Redis 幂等和 Chat 普通/流式组合 smoke 通过，共 39 passed；编译、diff 和用户修改保护检查通过。
-- 阶段 8 第七个目标完成：最终相关门禁通过，模型/Chat/入库/index 相关测试共 133 passed、6 subtests，secret scan、compile、import smoke、diff check 全部实际通过；全量 pytest 仍受环境缺失 LangGraph/Chroma/Streamlit 依赖阻塞。
+- 阶段 8 第七个目标完成：初次发布门禁完成，模型/Chat/入库/index 相关测试共 133 passed、6 subtests；当时全量 pytest 受环境缺失 LangGraph/Chroma/Streamlit 依赖阻塞，后续已在第八个目标修复。
+- 阶段 8 第八个目标完成：按仓库 `requirements.txt` 对齐运行环境并修复残留 OpenTelemetry 版本冲突；最终全量 `python -m pytest -q` 成功 254 passed、23 subtests，secret scan/compile/import/diff/pip check 全部通过。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
