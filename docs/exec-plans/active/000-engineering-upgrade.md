@@ -795,5 +795,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 8 第七个目标完成：初次发布门禁完成，模型/Chat/入库/index 相关测试共 133 passed、6 subtests；当时全量 pytest 受环境缺失 LangGraph/Chroma/Streamlit 依赖阻塞，后续已在第八个目标修复。
 - 阶段 8 第八个目标完成：按仓库 `requirements.txt` 对齐运行环境并修复残留 OpenTelemetry 版本冲突；最终全量 `python -m pytest -q` 成功 254 passed、23 subtests，secret scan/compile/import/diff/pip check 全部通过。
 - 阶段 9 首个目标完成：新增 HS256-only `JWTAuthenticator`、TokenClaims、role/tenant authorization helpers；强制 issuer/audience/exp/sub/tenant_id，稳定区分认证失败与授权失败，不自行实现密码学。
+- 阶段 9 第二个目标完成：新增 FastAPI `auth_dependency`、`role_dependency`、`tenant_dependency`；Bearer 解析统一返回 401，角色/租户不足返回 403，业务路由不承担权限逻辑。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
