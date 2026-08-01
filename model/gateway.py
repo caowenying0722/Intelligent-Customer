@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable, Mapping
 from typing import Any
 from model.cache import ModelCache
+from model.quota import TenantQuota
 import threading
 import time
 from collections import deque
@@ -35,6 +36,7 @@ class ModelGateway:
         cooldown_seconds: float = 30.0,
         rate_limit_per_second: int | None = None,
         cache: ModelCache | None = None,
+        quota: TenantQuota | None = None,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -52,6 +54,7 @@ class ModelGateway:
         self.cooldown_seconds = cooldown_seconds
         self.rate_limit_per_second = rate_limit_per_second
         self.cache = cache
+        self.quota = quota
         self._lock = threading.Lock()
         self._consecutive_failures = 0
         self._opened_at: float | None = None
@@ -198,6 +201,8 @@ class ModelGateway:
         prompt_version: str = "v1",
     ) -> Any:
         if self.cache is None:
+            if self.quota is not None and not self.quota.consume(tenant_id):
+                raise ModelGatewayError("tenant model quota exceeded")
             return self.invoke(provider=provider, request=request)
         key = self.cache.key(
             tenant_id=tenant_id, model=model, prompt=prompt, prompt_version=prompt_version
@@ -205,6 +210,8 @@ class ModelGateway:
         cached = self.cache.get(key)
         if cached is not None:
             return cached
+        if self.quota is not None and not self.quota.consume(tenant_id):
+            raise ModelGatewayError("tenant model quota exceeded")
         result = self.invoke(provider=provider, request=request)
         self.cache.set(key, result)
         return result
