@@ -879,5 +879,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第五十八个目标完成：为 VectorStore 入库增加 `DocumentLoadSummary`、MD5 marker flush/fsync、摘要缺失分类和失败类型聚合；新增 append-only marker/summary 回归与状态边界文档。TD-012 保持部分完成，未宣称向量与 marker 原子或 exactly-once。当前门禁为 348 tests、62% coverage、235 formatted files。
 - 阶段 11 第五十九个目标完成：评测 runner/config/CLI 增加默认 `redacted` artifact profile，samples/CSV 去除问题、答案、参考答案、上下文、来源路径和 metadata；`full` 仅显式受控调试可用，新增隐私回归并将 TD-020 标记完成。当前门禁为 349 tests、62% coverage、235 formatted files。
 - 阶段 11 第六十个目标完成：将 RAG 域外关键词规则封装为版本化可注入 `GuardrailPolicy`，保留 `out-of-scope-v1` 默认行为并覆盖自定义/非法策略测试；文档明确其只是 deterministic baseline，TD-027 标记部分完成。当前门禁为 353 tests、62% coverage、237 formatted files。
+- 阶段 11 第六十一个目标完成：新增真实 fake ToolNode sync/async 执行回归，确认已接线的 `monitor_tool` 只记录工具名和参数元数据，不记录 `do-not-log` 参数正文；未改变 ToolPolicy allowlist/approval 行为。
+- 阶段 11 第六十二个目标完成：修复真实 async ToolNode 运行时发现的 middleware 缺口；新增 `monitor_tool_async` 独立异步 wrapper，ReactAgent/测试不再把仅有 sync 实现误当成 async 实现，sync/async 日志均保持脱敏。当前门禁为 355 tests、63% coverage、238 formatted files。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

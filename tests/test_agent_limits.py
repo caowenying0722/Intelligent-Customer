@@ -16,7 +16,7 @@ from agent.react_agent import (
     AGENT_TOOL_LIMIT_MESSAGE,
     ReactAgent,
 )
-from agent.tools.middleware import monitor_tool
+from agent.tools.middleware import monitor_tool, monitor_tool_async
 from src.app.security.prompt_guard import PromptSafetyPolicy
 from utils.settings import Settings
 
@@ -56,7 +56,7 @@ class AgentLimitsTest(unittest.TestCase):
         self.assertIsNotNone(graph)
         self.assertIs(graph.nodes["tools"].bound._wrap_tool_call.__self__, monitor_tool)
         self.assertIs(
-            graph.nodes["tools"].bound._awrap_tool_call.__self__, monitor_tool
+            graph.nodes["tools"].bound._awrap_tool_call.__self__, monitor_tool_async
         )
 
     def test_execute_stream_passes_recursion_limit(self) -> None:

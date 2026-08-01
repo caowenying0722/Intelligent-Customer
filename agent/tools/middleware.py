@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from langchain.agents import AgentState
 from langchain.agents.middleware import (
@@ -46,6 +46,35 @@ def monitor_tool(
             "工具%s调用失败，异常类型=%s",
             request.tool_call["name"],
             type(e).__name__,
+        )
+        raise
+
+
+@wrap_tool_call
+async def monitor_tool_async(
+    request: ToolCallRequest,
+    handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command]],
+) -> ToolMessage | Command:
+    """Async counterpart used by ToolNode with the same safe logging policy."""
+
+    logger.info(f"[tool monitor]执行工具：{request.tool_call['name']}")
+    logger.info(
+        "[tool monitor]参数摘要：%s",
+        safe_argument_summary(request.tool_call.get("args")),
+    )
+    try:
+        result = await handler(request)
+        logger.info(f"[tool monitor]工具{request.tool_call['name']}调用成功")
+        if request.tool_call["name"] == "fill_context_for_report":
+            context = request.runtime.context
+            if context is not None:
+                context["report"] = True
+        return result
+    except Exception as error:
+        logger.error(
+            "工具%s调用失败，异常类型=%s",
+            request.tool_call["name"],
+            type(error).__name__,
         )
         raise
 

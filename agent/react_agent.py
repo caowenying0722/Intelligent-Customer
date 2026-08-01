@@ -16,7 +16,7 @@ from agent.tools.agent_tools import (
     get_weather,
     rag_summarize,
 )
-from agent.tools.middleware import monitor_tool
+from agent.tools.middleware import monitor_tool, monitor_tool_async
 from agent.tools.policy import ToolPolicy
 from model.factory import get_chat_model
 from src.app.security.prompt_guard import PromptInjectionError, PromptSafetyPolicy
@@ -138,7 +138,7 @@ class ReactAgent:
         tool_node = ToolNode(
             getattr(self, "guarded_tools", self.tools),
             wrap_tool_call=monitor_tool.wrap_tool_call,
-            awrap_tool_call=monitor_tool.awrap_tool_call,
+            awrap_tool_call=monitor_tool_async.awrap_tool_call,
         )
 
         graph = StateGraph(MessagesState)
