@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import yaml
@@ -41,3 +42,20 @@ def test_observability_profile_is_explicit_and_configured_without_secrets() -> N
     assert "health_check" in collector
     assert "metrics_path: /metrics/prometheus" in prometheus
     assert "api:8000" in prometheus
+
+
+def test_grafana_dashboard_uses_only_existing_bounded_metrics() -> None:
+    dashboard = json.loads(
+        Path("deploy/observability/grafana/dashboards/api-overview.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    serialized = json.dumps(dashboard)
+
+    assert dashboard["uid"] == "intelligent-customer-api"
+    assert '"uid": "Prometheus"' in serialized
+    assert "http_requests_total" in serialized
+    assert "http_request_duration_seconds_bucket" in serialized
+    assert "model_gateway_calls_total" in serialized
+    assert "tenant_id" not in serialized
+    assert "conversation_id" not in serialized
