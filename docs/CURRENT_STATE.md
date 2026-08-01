@@ -73,13 +73,13 @@ flowchart LR
 - YAML 中的 Chroma 持久化目录、数据、MD5、Prompt 和 CSV 路径统一相对项目根目录解析为绝对路径，不再依赖启动 cwd；配置仍在首次相关模块加载时读取，完整 composition-root 加载留到 FastAPI 阶段。
 - 模型请求默认验证 TLS；企业私有 CA 只能通过 `MODEL_CA_BUNDLE` 指向已有 PEM 文件，非法路径启动即失败，不提供关闭验证的开关。
 - 工具包括本地 RAG、静态天气、随机位置、随机用户 ID、当前月份和本地 CSV 报告数据；API 可注入 JWT authenticator/audit sink，开发模式仍允许显式 `x-tenant-id`，高风险工具审批和副作用幂等仍未完成。
-- `agent/tools/middleware.py` 在当前 LangChain 版本下可以导入，但没有接入当前 Agent；若启用仍会记录完整工具参数和消息正文，必须先做脱敏和白名单。
+- `agent/tools/middleware.py` 在当前 LangChain 版本下可以导入，但没有接入当前 Agent；已有脱敏 metadata 测试，正式接线仍需单独验证白名单和运行时边界。
 
 ### 评测链路
 
 1. `scripts/evaluate_rag.py` 读取 YAML 与 JSONL 数据集。
 2. 可选择 Chroma hybrid 或不依赖 embedding 的 BM25；答案可来自 LLM、参考答案或本地抽取器。
-3. 本地指标按来源文件名或预期关键词判定相关性，并计算若干启发式/代理指标。
+3. 本地指标按来源标签（仅离线 `expected_sources`）或预期关键词判定相关性，并计算若干启发式/代理指标；这些标签不进入重排。
 4. RAGAS 默认关闭；显式启用时要求 `--ack-external-judge`，minimal 模式仍会向外部评审发送问题、回答和参考答案，需要业务数据出境审批。
 5. 结果写入被 `.gitignore` 排除的 `output/`，仍可能包含问题、答案、参考答案、召回全文、元数据和本机路径；不得把本地 artifact 当作可提交报告。
 
@@ -114,9 +114,9 @@ flowchart LR
 
 | 命令 | 实际结果 |
 |---|---|
-| `python -m pytest -q` | 通过：329 passed，26 subtests |
-| `coverage run -m pytest -q` / `coverage report` | 通过：329 passed，26 subtests；总覆盖率 59% |
-| `python -m ruff format --check .` | 通过：225 个 Python 文件已格式化 |
+| `python -m pytest -q` | 通过：337 passed，26 subtests |
+| `coverage run -m pytest -q` / `coverage report` | 通过：337 passed，26 subtests；总覆盖率 59% |
+| `python -m ruff format --check .` | 通过：231 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 |
 | `python scripts/scan_secrets.py` | 通过：Secret scan OK |
@@ -209,7 +209,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：当前 pytest 为 329 passed、26 subtests，覆盖 API/SSE/断开、配置/路径、RAG/Agent、SQLAlchemy/Alembic、入库恢复/关闭/删除竞态、持久化 rebuild idempotency/claim-before-worker、Blue/Green 验证超时、JWT/租户、OTel/Prometheus/Worker metrics、Chat timeout/cancellation、REQUEST_TIMEOUT_SECONDS、红队和评测辅助；源码分支覆盖率为 59%。真实 provider、PostgreSQL 容器和生产负载仍未验证。
+- 测试：当前 pytest 为 337 passed、26 subtests，覆盖 API/SSE/断开、配置/路径、RAG/Agent、SQLAlchemy/Alembic、入库恢复/关闭/删除竞态、持久化 rebuild idempotency/claim-before-worker、Blue/Green 验证超时、JWT/租户、OTel/Prometheus/Worker metrics、Chat timeout/cancellation、REQUEST_TIMEOUT_SECONDS、提示词/模型错误脱敏、无泄漏重排、红队和评测辅助；源码分支覆盖率为 59%。真实 provider、PostgreSQL 容器和生产负载仍未验证。
 - 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；Collector/backend 端到端传输和业务日志全面脱敏仍有限制。
 - 部署：FastAPI 应用工厂、liveness/readiness、SSE、优雅关闭和 Compose observability profile 已有静态/隔离健康验证；API 镜像构建被 Docker daemon EOF/无法启动阻塞，完整生产栈未验收。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
