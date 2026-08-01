@@ -12,7 +12,7 @@
 | TD-006 | 用户位置和 ID 随机生成，报告工具无认证和租户校验 | High | 任意用户可能读取随机他人记录；无法形成可审计身份链 | `agent/tools/agent_tools.py:45-55,116-125` | 从认证 tenant/user context 注入；repository 默认强制 tenant；增加跨租户拒绝测试 | 3/9 | 待处理 |
 | TD-007 | 中间件若启用会记录完整工具参数和消息正文 | High | Prompt、PII、报告参数或文档内容进入日志 | `agent/tools/middleware.py:19-20,40-42` | 结构化日志白名单、字段脱敏和长度限制；安全测试不得出现敏感字段 | 8/9 | 待处理 |
 | TD-008 | 模型错误包含完整供应商响应正文 | High | 上游错误可能带请求片段或敏感信息，被 API/日志继续传播 | `model/anthropic_compatible.py:240-241` | 定义安全错误类型，仅保留状态码/请求 ID；原始响应受控采样且脱敏 | 2/7/9 | 待处理 |
-| TD-009 | 没有 FastAPI、稳定 schema、错误映射、健康检查或 SSE | High | 无法形成 API-first 服务和可测试的客户端/服务边界 | `app.py:1-43` | 按执行计划引入应用工厂、v1 路由、application service、fake adapter 与协议测试 | 2 | 待处理 |
+| TD-009 | FastAPI 聊天 schema、错误映射和 SSE 尚未实现 | High | 当前只有健康检查边界，尚不能形成 API-first 聊天服务 | `src/app/main.py`、`app.py` | 应用工厂、request ID、liveness/readiness 已完成；继续增加 application service、稳定 schema、fake Agent 和 SSE | 2 | 部分完成 |
 | TD-010 | 会话只存在 Streamlit 内存，且历史消息不传回 Agent | High | 刷新/重启丢失状态，所谓多轮只展示不推理，无法横向扩容 | `app.py:12-18,26-43`、`agent/react_agent.py:48-53` | 先定义 conversation repository，再用内存实现兼容，后续 PostgreSQL + checkpoint | 2/3/4 | 待处理 |
 | TD-011 | Chroma persist path 曾相对当前工作目录 | Medium | 从不同 cwd 启动曾会创建/读取不同数据库 | `utils/config_handler.py`、`utils/path_tool.py`、`config/chroma.yml` | 所有业务路径现由 schema loader 相对项目根解析为绝对路径，并覆盖非根 cwd 测试 | 1 | 已完成 |
 | TD-012 | 入库 MD5 记录和向量写入非原子，异常被吞后继续 | Medium | 崩溃/并发下可能重复或遗漏；调用者不知道部分失败 | `rag/vector_store.py:73-136` | 显式任务状态、内容哈希唯一约束、批次幂等、分类错误和有限重试 | 6 | 待处理 |
@@ -28,7 +28,7 @@
 | TD-022 | QUICKSTART 包含开发者个人绝对路径 | Low | 其他机器按文档命令无法启动 | `QUICKSTART.md:107,116` | 改成从仓库根目录运行的相对命令 | 1 | 本轮完成 |
 | TD-023 | `listdir_with_allowed_type` 在目录无效时返回后缀 tuple | Medium | 调用方会把 `txt/pdf` 当文件路径，错误含糊 | `utils/file_handler.py:28-37` | 返回空 tuple 或抛专用配置错误；增加不存在目录测试 | 1 | 待处理 |
 | TD-024 | 模拟“流式”通过阻塞 sleep 逐字符输出 | Medium | 占用 Streamlit 执行线程，不支持上游取消/背压/TTFT | `app.py:32-41` | FastAPI SSE 传稳定事件，Streamlit HTTP 客户端消费；取消传播到 Agent | 2 | 待处理 |
-| TD-025 | 无 request ID、结构化日志、trace 或 metrics | Medium | 故障无法按请求关联，无法观测模型/RAG/工具耗时 | `utils/logger_handler.py:14-50` | API middleware 注入 request ID；后续 OTel + Prometheus，控制标签基数 | 2/8 | 待处理 |
+| TD-025 | 尚无结构化日志、trace 或 metrics | Medium | 故障无法按请求关联，无法观测模型/RAG/工具耗时 | `utils/logger_handler.py:14-50`、`src/app/main.py` | API middleware 已注入并回传 request ID；后续 OTel + Prometheus，控制标签基数 | 2/8 | 部分完成 |
 | TD-026 | 默认模型和 RAG 仍使用进程内缓存实例 | Medium | import-time 单例已删除且核心构造器可注入，但尚无 API composition root 或生命周期关闭钩子 | `model/factory.py`、`agent/react_agent.py`、`rag/rag_service.py` | 在 FastAPI 应用工厂集中创建/关闭依赖；adapter/interface 继续分离 | 1/2/7 | 部分完成 |
 | TD-027 | 低置信度与域外判断是少量硬编码关键词 | Low | 容易误拒答或漏过，不能作为通用安全 guardrail | `rag/guardrails.py:10-27` | 保留为明确 baseline；用版本化策略、可测试分类器和人工升级路径演进 | 5/9/10 | 待处理 |
 | TD-028 | 当前运行依赖仍有 3 条已知漏洞记录，涉及 3 个直接或传递包 | Blocker | 剩余直接或传递依赖漏洞会阻止依赖安全门禁通过 | `requirements.txt`、`requirements.lock`、`python -m pip_audit -r requirements.txt` | 已完成 PDF、UI、LangChain/LangGraph 和 ML 栈迁移；锁文件保留受影响版本，不使用 ignore 掩盖；等待上游修复或替换依赖前，发布门禁必须保持失败 | 1 | 外部阻塞，已记录风险 |
