@@ -1,3 +1,5 @@
+from typing import cast
+
 import pytest
 from pydantic import BaseModel
 
@@ -31,4 +33,4 @@ def test_gateway_rejects_malformed_output_without_retry():
 
 def test_structured_validator_rejects_non_schema():
     with pytest.raises(TypeError):
-        validate_structured({}, dict)  # type: ignore[arg-type]
+        validate_structured({}, cast(type[BaseModel], dict))

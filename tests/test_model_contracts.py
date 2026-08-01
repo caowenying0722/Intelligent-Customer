@@ -26,7 +26,11 @@ def test_gateway_returns_provider_neutral_contract():
 def test_request_contract_rejects_extra_fields():
     with pytest.raises(ValueError):
         ModelRequest(
-            tenant_id="t", provider="fake", model="m", prompt="x", secret="bad"
+            tenant_id="t",
+            provider="fake",
+            model="m",
+            prompt="x",
+            secret="bad",  # type: ignore[call-arg]
         )
 
 

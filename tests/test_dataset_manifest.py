@@ -2,6 +2,7 @@ import hashlib
 import json
 import tempfile
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -14,7 +15,8 @@ def test_repository_evaluation_manifest_is_valid() -> None:
     assert summary["dataset_version"] == "rag-eval-v1"
     assert summary["split"] == "dev"
     assert summary["sample_count"] == 28
-    assert "fault" in summary["categories"]
+    categories = cast(list[str], summary["categories"])
+    assert "fault" in categories
 
 
 def test_manifest_rejects_duplicate_ids_and_hash_mismatch() -> None:

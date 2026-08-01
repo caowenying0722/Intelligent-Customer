@@ -26,3 +26,5 @@ python -m mypy agent rag model evaluation utils scripts src/app app.py
 目标 68 完成第二批回调收窄：将 ingestion/worker/index 测试中的 `Event.set()`、`Event.wait()` 和 `time.sleep()` tuple/lambda 改为显式函数。相关 29 个行为测试通过，`python -m mypy tests` 诊断从 33 项降至 24 项、分布在 11 个文件；剩余主要是 Optional 收窄、schema/Protocol 和 RRF key 类型。
 
 目标 69 完成 ingestion Optional 收窄：对 job、document metadata 和 submission 的 repository 返回值在使用前增加显式非空断言，相关 24 个 ingestion 测试通过。`python -m mypy tests` 诊断从 24 项降至 8 项、分布在 5 个文件；剩余是 schema/Protocol、dataset manifest 和 RRF key 类型。
+
+目标 70 完成剩余 schema/Protocol、dataset manifest 和 RRF key 收窄：`python -m mypy tests` 实际通过 102 个测试源码文件。CI 已新增独立的测试类型门禁，源码与测试分别执行；不再把测试 Mypy 结果扩大解释为运行时质量指标。

@@ -1,3 +1,7 @@
+from typing import cast
+
+from langchain_core.language_models.chat_models import BaseChatModel
+
 from model.factory import build_chat_gateway
 from model.runtime_config import ModelRuntimeConfig
 from utils.settings import Settings
@@ -10,7 +14,7 @@ class FakeModel:
 
 def test_factory_adapts_explicit_model_without_loading_provider():
     gateway = build_chat_gateway(
-        FakeModel(),
+        cast(BaseChatModel, FakeModel()),
         provider="fake",
         runtime=ModelRuntimeConfig(request_timeout_seconds=0.1, max_retries=0),
     )
@@ -19,7 +23,7 @@ def test_factory_adapts_explicit_model_without_loading_provider():
 
 def test_factory_injects_configured_memory_cache():
     gateway = build_chat_gateway(
-        FakeModel(),
+        cast(BaseChatModel, FakeModel()),
         provider="fake",
         settings=Settings.model_validate({"model_cache_max_entries": 2}),
     )
@@ -31,7 +35,7 @@ def test_factory_injects_configured_memory_cache():
 
 def test_factory_injects_configured_tenant_quota():
     gateway = build_chat_gateway(
-        FakeModel(),
+        cast(BaseChatModel, FakeModel()),
         provider="fake",
         settings=Settings.model_validate({"model_quota_max_calls": 1}),
     )

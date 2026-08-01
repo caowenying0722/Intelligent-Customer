@@ -25,7 +25,7 @@ def test_rrf_supports_empty_rankings_and_limit() -> None:
 def test_rrf_uses_custom_key_and_rejects_invalid_parameters() -> None:
     result = reciprocal_rank_fusion(
         [[{"id": "a", "value": 1}], [{"id": "a", "value": 2}]],
-        key_fn=lambda item: item["id"],
+        key_fn=lambda item: str(item["id"]),
     )
     assert result == [{"id": "a", "value": 1}]
     with pytest.raises(ValueError):

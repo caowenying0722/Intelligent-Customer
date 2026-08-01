@@ -10,7 +10,8 @@
 | `coverage run -m pytest -q && coverage report` | 通过：364 passed，26 subtests；总覆盖率 63%，门槛 41% | 当前本地基线 |
 | `python -m ruff format --check .` | 通过 | 239 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
-| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 | 测试动态 mock 不纳入源码类型门禁 |
+| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 | 生产源码类型门禁 |
+| `python -m mypy tests` | 通过：102 个测试源码文件 | 独立测试类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
 | `python -m pip check` | 通过 | 依赖元数据无破损；PyJWT 2.13.0 已显式锁定 |
 | `docker compose config --quiet` | 通过 | API 单服务 Compose 配置有效，镜像使用 `requirements.lock` |
