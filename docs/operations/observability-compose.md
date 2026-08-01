@@ -14,6 +14,6 @@ profile 包含：
 
 `deploy/observability/grafana/` 同时提供 Prometheus datasource 和 API overview dashboard provisioning artifact；dashboard 的 PromQL 只引用仓库已有的有界指标。Grafana profile 是本地只读展示，不创建初始管理员、不允许注册；生产必须关闭匿名模式并接入组织认证/secret。
 
-镜像版本固定在 Compose 文件中，首次启动仍需要拉取外部镜像；本仓库未宣称当前网络下镜像已成功拉取或健康运行。执行 `docker compose --profile observability config --quiet` 可先验证静态配置。
+镜像版本固定在 Compose 文件中，首次启动仍需要拉取外部镜像；Collector、Prometheus、Grafana 镜像已在本机独立 health smoke 中返回 200，但 API 镜像 build 在 BuildKit 导出阶段遇到 daemon EOF，不能宣称完整 profile 已健康运行。执行 `docker compose --profile observability config --quiet` 可先验证静态配置。
 
 该 profile 面向本地开发。API 生产环境要求 `METRICS_TOKEN`，当前 Prometheus 示例没有注入认证 header，因此生产部署必须通过受控网络、反向代理或专用 Prometheus authentication 配置保护抓取端点。Collector 的 `debug` exporter 也不是生产 trace backend。
