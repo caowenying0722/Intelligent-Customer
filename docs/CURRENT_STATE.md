@@ -121,6 +121,7 @@ flowchart LR
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 |
 | `python scripts/scan_secrets.py` | 通过：Secret scan OK |
 | `python -m pip check` | 通过：No broken requirements found |
+| 外部调用 timeout 定向审计 | 通过：51 passed，6 subtests；未发现需立即补齐的生产 timeout 缺口 |
 | `python scripts/run_deterministic_regression.py` | 通过并生成 deterministic summary |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 |
 | `python scripts/run_load_smoke.py --requests 10 --concurrency 2` | 通过：fake API smoke，错误率 0 |

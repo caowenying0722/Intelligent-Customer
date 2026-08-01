@@ -852,6 +852,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第三十一个目标完成：补齐 Chat 超时/取消回归覆盖，验证同步 Agent 线程超时只结束请求等待、异步 SSE runner 传播取消且不映射为业务错误；未宣称可以强杀同步线程。新增 2 个 fake Agent 测试，全量 `324 passed`、25 subtests。
 - 阶段 11 第三十二个目标完成：为 SSE 客户端断开增加真实 `APIRoute` body-iterator 回归测试，验证 metadata 后断开不再发送 token、completed 或 error，且不重复调用 Agent。全量 `325 passed`、25 subtests，覆盖率 59%，Ruff/Mypy/secret scan、pip check 均通过。
 - 阶段 11 第三十三个目标完成：新增并校验 `REQUEST_TIMEOUT_SECONDS`（默认 30 秒，0-600），让 `create_app(chat_agent=...)` 自动构造的 Chat 服务读取统一 timeout；新增 fake Agent 配置回归测试，未宣称可以强杀同步线程。全量 `326 passed`、26 subtests。
-- 阶段 11 第三十四个目标进行中：为所有外部 HTTP/模型调用建立 timeout 配置审计，逐个核对同步/异步 adapter、RAG/Qdrant、OTLP exporter 和工具调用；发现缺口时只补最小 timeout 与测试，不扩大到无关重构。
+- 阶段 11 第三十四个目标完成：审计所有生产外部调用点，确认 OpenAI/Anthropic、Model Gateway、Qdrant、RAG/重排/索引重建、PostgreSQL pool 和 OTLP exporter 均有 timeout；静态天气工具没有外部网络调用。定向门禁 `51 passed`、6 subtests，未发现需立即补齐的 timeout 缺口，并记录线程池不能强杀同步调用的限制。
+- 阶段 11 第三十五个目标进行中：审计工具副作用与幂等边界，区分当前只读工具、文档/索引写入和取消/重试路径；补充重复调用不会扩大副作用的测试，避免宣称 exactly-once。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
