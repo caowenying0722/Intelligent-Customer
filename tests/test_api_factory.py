@@ -1,6 +1,7 @@
 import asyncio
 from uuid import UUID
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.app.application.chat import ChatApplicationService
@@ -122,3 +123,26 @@ def test_chat_sse_emits_metadata_tokens_and_single_completed_event() -> None:
     assert response.text.count('"type": "metadata"') == 1
     assert response.text.count('"type": "token"') == 2
     assert response.text.count('"type": "completed"') == 1
+
+
+def test_async_runner_cancellation_is_not_mapped_to_chat_failure() -> None:
+    cancelled = asyncio.Event()
+
+    async def blocking_runner(_agent: object, _message: str) -> str:
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+        return "never"
+
+    async def exercise() -> None:
+        service = ChatApplicationService(FakeAgent(), async_runner=blocking_runner)
+        task = asyncio.create_task(service.chat("cancel"))
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(exercise())
+    assert cancelled.is_set()

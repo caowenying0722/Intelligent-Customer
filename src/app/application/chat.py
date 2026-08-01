@@ -25,6 +25,9 @@ class ChatApplicationService:
         *,
         timeout_seconds: float = 30.0,
         run_in_thread: Callable[[ChatAgent, str], Awaitable[str]] | None = None,
+        async_runner: Callable[[ChatAgent, str], Awaitable[str]] | None = None,
+        async_stream_runner: Callable[[ChatAgent, str], Awaitable[list[str]]]
+        | None = None,
         conversation_repository: ConversationRepository | None = None,
     ) -> None:
         if timeout_seconds <= 0:
@@ -32,6 +35,8 @@ class ChatApplicationService:
         self.agent = agent
         self.timeout_seconds = timeout_seconds
         self._run_in_thread = run_in_thread
+        self._async_runner = async_runner
+        self._async_stream_runner = async_stream_runner
         self.conversation_repository = (
             conversation_repository or ConversationRepository()
         )
@@ -53,13 +58,17 @@ class ChatApplicationService:
         resolved_id = self._conversation_id(conversation_id)
         self.conversation_repository.append(resolved_id, "user", message)
         try:
-            if self._run_in_thread is not None:
+            if self._async_runner is not None:
+                result = self._async_runner(self.agent, message)
+            elif self._run_in_thread is not None:
                 result = self._run_in_thread(self.agent, message)
             else:
                 result = asyncio.to_thread(self.agent.run, message)
             answer = await asyncio.wait_for(result, timeout=self.timeout_seconds)
             self.conversation_repository.append(resolved_id, "assistant", answer)
             return answer, resolved_id
+        except asyncio.CancelledError:
+            raise
         except (TimeoutError, asyncio.TimeoutError) as exc:
             raise ChatApplicationError("chat execution timed out") from exc
         except Exception as exc:  # noqa: BLE001 - map provider details to safe error.
@@ -68,12 +77,20 @@ class ChatApplicationService:
     async def stream(self, message: str) -> list[str]:
         """Return bounded fake/provider chunks for the transport SSE adapter."""
         try:
-            chunks = await asyncio.wait_for(
-                asyncio.to_thread(self.agent.stream, message),
-                timeout=self.timeout_seconds,
-            )
-            return chunks
+            if self._async_stream_runner is not None:
+                chunks = await asyncio.wait_for(
+                    self._async_stream_runner(self.agent, message),
+                    timeout=self.timeout_seconds,
+                )
+            else:
+                chunks = await asyncio.wait_for(
+                    asyncio.to_thread(self.agent.stream, message),
+                    timeout=self.timeout_seconds,
+                )
+        except asyncio.CancelledError:
+            raise
         except (TimeoutError, asyncio.TimeoutError) as exc:
             raise ChatApplicationError("chat execution timed out") from exc
         except Exception as exc:  # noqa: BLE001 - map provider details to safe error.
             raise ChatApplicationError("chat execution failed") from exc
+        return chunks

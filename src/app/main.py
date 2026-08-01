@@ -87,6 +87,8 @@ def create_app(
     async def chat_stream(request: Request, payload: ChatRequest):
         async def events():
             request_id = request.state.request_id
+            if await request.is_disconnected():
+                return
             yield f"data: {json.dumps({'type': 'metadata', 'request_id': request_id}, ensure_ascii=False)}\n\n"
             if chat_service is None:
                 yield f"data: {json.dumps({'type': 'error', 'code': 'chat_unavailable', 'request_id': request_id})}\n\n"
@@ -94,6 +96,8 @@ def create_app(
             try:
                 chunks = await chat_service.stream(payload.message)
                 for chunk in chunks:
+                    if await request.is_disconnected():
+                        return
                     yield f"data: {json.dumps({'type': 'token', 'text': chunk}, ensure_ascii=False)}\n\n"
                 yield f"data: {json.dumps({'type': 'completed', 'request_id': request_id})}\n\n"
             except Exception as exc:  # noqa: BLE001 - stable SSE error envelope.
