@@ -20,6 +20,8 @@
 | `docker compose config --quiet` | 通过 | API 单服务 Compose 配置有效，镜像使用 `requirements.lock` |
 | `docker compose --profile observability config --quiet` | 通过 | 仅验证静态 profile 配置；Collector/Prometheus 镜像拉取与健康尚未在当前网络完成 |
 | Grafana dashboard/profile config | 通过：静态测试 | 已验证 PromQL、datasource 挂载和本地只读端口；镜像拉取与健康尚未在当前网络完成 |
+| `python -m compileall -q agent evaluation model rag scripts src app.py` | 通过 | 近期 server/RAG metrics 改动无语法导入错误 |
+| `python -c "import app; ... build_server_app"` | 通过 | 普通 app import 不加载真实 Agent，server composition root 可导入 |
 | Collector/Prometheus/Grafana isolated health smoke | 通过：3 个 HTTP 200 | 三个镜像已拉取并以 `--no-deps` 启动；未包含 API，因此不是端到端 scrape/OTLP smoke |
 | `/metrics/prometheus` 集成测试 | 通过：8 个测试 | 有界 HTTP/模型网关聚合指标，生产 token 保护，无 tenant/user/request/prompt 内容 |
 | W3C/HTTP/Agent/LLM/SSE/RAG/Tool/Worker/OTLP config smoke | 通过：14 个测试 | 当前进程线程池捕获 parent context；生产拒绝明文 OTLP，未执行真实 Collector 网络调用 |

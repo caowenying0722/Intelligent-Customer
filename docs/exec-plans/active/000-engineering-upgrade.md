@@ -893,6 +893,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第七十二个目标完成：新增 `build_rag_summarize_tool()` 和 `ReactAgent(rag_service=...)` 注入边界；`build_server_app()` 将显式 RAG service 同时传给 Agent 工具和 FastAPI readiness，保持默认全局工具兼容。新增 fake RAG/Agent 和 server readiness 回归，TD-026 更新为 RAG 注入边界已接入但默认模型/RAG 集中构造仍待后续。当前门禁为 367 tests、63% coverage、240 formatted files。
 - 阶段 11 第七十四个目标完成：新增无 query/identity 标签的 `RagMetrics`，记录 retrieval 调用/失败/空结果/候选数/固定延迟桶，并接入 `/metrics` 与 `/metrics/prometheus`；RagSummarizeService 在 dense/rerank 成功和异常路径均观测一次。新增 2 个指标回归，TD-025 更新为 RAG metrics 已接入但工具专用 metrics/Collector backend 仍待后续。当前门禁为 369 tests、63% coverage、240 formatted files。
 - 阶段 11 第七十五个目标完成：实际运行 `evaluation.quality_gate` 消费 target73 deterministic artifact，命令返回 `quality gate passed`；文档明确该门禁只证明冻结本地 fake regression 阈值，不代表真实模型、生产负载或无 dirty workspace。
+- 阶段 11 第七十六个目标完成：实际复核默认/observability 两套 `docker compose config --quiet`、`compileall` 和 app/server import smoke 均通过；未把静态 Compose 通过扩大为 Docker daemon/容器 health 通过。
 - 阶段 11 第七十三个目标完成：复核发布安全/环境/评测门禁；`pip-audit` 真实保留 3 条 PYSEC 无修复漏洞，Python 3.13 环境检查失败，`docker info` 45 秒超时；deterministic 3/3、red-team 4/4、fake load 10/10 均实际通过并记录 artifact，不把 smoke 结果扩大为生产结论。当前代码门禁为 367 tests、63% coverage、240 formatted files。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
