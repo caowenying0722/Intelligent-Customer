@@ -16,6 +16,7 @@ from agent.react_agent import (
     AGENT_TOOL_LIMIT_MESSAGE,
     ReactAgent,
 )
+from agent.tools.agent_tools import RagService
 from agent.tools.middleware import monitor_tool, monitor_tool_async
 from src.app.security.prompt_guard import PromptSafetyPolicy
 from utils.settings import Settings
@@ -26,6 +27,28 @@ def tool_call(call_id: str) -> dict[str, object]:
 
 
 class AgentLimitsTest(unittest.TestCase):
+    def test_agent_uses_explicit_rag_service_for_default_tool(self) -> None:
+        class FakeRag:
+            def rag_summarize(self, query: str) -> str:
+                return f"rag:{query}"
+
+        settings = Settings.model_validate({"agent_max_steps": 3})
+        model = Mock(spec=BaseChatModel)
+        model.bind_tools.return_value = Mock()
+
+        with (
+            patch.object(ReactAgent, "_build_graph", return_value=Mock()),
+            patch("agent.react_agent.load_system_prompts", return_value="prompt"),
+        ):
+            agent = ReactAgent(
+                model=cast(BaseChatModel, model),
+                settings=settings,
+                rag_service=cast(RagService, FakeRag()),
+            )
+
+        self.assertEqual(agent.tools[0].name, "rag_summarize")
+        self.assertEqual(agent.tools[0].invoke({"query": "wifi"}), "rag:wifi")
+
     def test_constructor_reads_bounded_settings(self) -> None:
         settings = Settings.model_validate(
             {"agent_max_steps": 7, "agent_max_tool_calls": 3}

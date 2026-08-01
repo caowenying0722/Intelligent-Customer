@@ -3,19 +3,22 @@
 import uvicorn
 from fastapi import FastAPI
 
+from agent.tools.agent_tools import RagService
 from src.app.application.chat import ChatAgent
 from src.app.main import create_app
 from utils.settings import get_settings
 
 
-def build_server_app(agent: ChatAgent | None = None) -> FastAPI:
+def build_server_app(
+    agent: ChatAgent | None = None, rag_service: RagService | None = None
+) -> FastAPI:
     """Build the runnable API composition root without import-time model loading."""
 
     if agent is None:
         from agent.react_agent import ReactAgent
 
-        agent = ReactAgent()
-    return create_app(chat_agent=agent)
+        agent = ReactAgent(rag_service=rag_service)
+    return create_app(chat_agent=agent, rag_service=rag_service)
 
 
 def main() -> None:

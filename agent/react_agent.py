@@ -8,6 +8,8 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from agent.tools.agent_tools import (
+    RagService,
+    build_rag_summarize_tool,
     fetch_external_data,
     fill_context_for_report,
     get_current_month,
@@ -39,6 +41,7 @@ class ReactAgent:
         settings: Settings | None = None,
         tool_policy: ToolPolicy | None = None,
         prompt_policy: PromptSafetyPolicy | None = None,
+        rag_service: RagService | None = None,
     ):
         runtime_settings = settings if settings is not None else get_settings()
         self.max_steps = runtime_settings.agent_max_steps
@@ -46,11 +49,16 @@ class ReactAgent:
         self.max_input_chars = runtime_settings.agent_max_input_chars
         self.max_context_chars = runtime_settings.agent_max_context_chars
         self.prompt_policy = prompt_policy or PromptSafetyPolicy()
-        self.tools = (
-            list(tools)
-            if tools is not None
-            else [
-                rag_summarize,
+        if tools is not None:
+            self.tools = list(tools)
+        else:
+            rag_tool = (
+                build_rag_summarize_tool(rag_service)
+                if rag_service is not None
+                else rag_summarize
+            )
+            self.tools = [
+                rag_tool,
                 get_weather,
                 get_user_location,
                 get_user_id,
@@ -58,7 +66,6 @@ class ReactAgent:
                 fetch_external_data,
                 fill_context_for_report,
             ]
-        )
         self.tool_policy = tool_policy or ToolPolicy.for_tools(self.tools)
         self.guarded_tools = self.tool_policy.guard(self.tools)
         chat_model = model if model is not None else get_chat_model()

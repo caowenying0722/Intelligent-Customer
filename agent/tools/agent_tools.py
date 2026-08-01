@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Protocol
 
-from langchain_core.tools import tool
+from langchain_core.tools import BaseTool, tool
 
 from src.app.observability.tracing import get_current_tracer
 from utils.logger_handler import logger
@@ -113,6 +113,22 @@ def rag_summarize(query: str) -> str:
         if span is not None:
             span.set_attribute("tool.status", "completed")
         return result
+
+
+def build_rag_summarize_tool(service: RagService) -> BaseTool:
+    """Build the same RAG tool contract around an explicitly scoped service."""
+
+    @tool("rag_summarize")
+    def scoped_rag_summarize(query: str) -> str:
+        """从注入的向量服务中检索参考资料"""
+
+        with _tool_span("tool.rag_summarize") as span:
+            result = service.rag_summarize(query)
+            if span is not None:
+                span.set_attribute("tool.status", "completed")
+            return result
+
+    return scoped_rag_summarize
 
 
 @tool
