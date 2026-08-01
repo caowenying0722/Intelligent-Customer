@@ -23,6 +23,8 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.model_max_retries, 2)
         self.assertEqual(settings.agent_max_steps, 10)
         self.assertEqual(settings.agent_max_tool_calls, 5)
+        self.assertEqual(settings.agent_max_input_chars, 4000)
+        self.assertEqual(settings.agent_max_context_chars, 32000)
         self.assertEqual(settings.allowed_origins, ["http://localhost:8501"])
         self.assertEqual(settings.api_host, "127.0.0.1")
         self.assertEqual(settings.api_port, 8000)
@@ -101,6 +103,8 @@ class SettingsTest(unittest.TestCase):
             {"agent_max_steps": 0},
             {"agent_max_tool_calls": 0},
             {"agent_max_tool_calls": 21},
+            {"agent_max_input_chars": 0},
+            {"agent_max_context_chars": 0},
             {"api_port": 70000},
             {"database_pool_size": 0},
             {"database_pool_timeout_seconds": 0},

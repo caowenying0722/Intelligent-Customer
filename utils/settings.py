@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     model_ca_bundle: Path | None = None
     agent_max_steps: int = Field(default=10, ge=1, le=50)
     agent_max_tool_calls: int = Field(default=5, ge=1, le=20)
+    agent_max_input_chars: int = Field(default=4000, ge=1, le=100_000)
+    agent_max_context_chars: int = Field(default=32_000, ge=1, le=1_000_000)
     allowed_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:8501"]
     )

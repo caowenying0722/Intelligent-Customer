@@ -24,6 +24,8 @@ from utils.settings import Settings, get_settings
 
 AGENT_STEP_LIMIT_MESSAGE = "本次请求已达到处理步骤上限，请缩小问题范围后重试。"
 AGENT_TOOL_LIMIT_MESSAGE = "本次请求已达到工具调用上限，请缩小问题范围后重试。"
+AGENT_INPUT_LIMIT_MESSAGE = "本次请求内容过长，请缩短问题后重试。"
+AGENT_CONTEXT_LIMIT_MESSAGE = "本次对话上下文过长，请开启新会话后重试。"
 
 
 class ReactAgent:
@@ -37,6 +39,8 @@ class ReactAgent:
         runtime_settings = settings if settings is not None else get_settings()
         self.max_steps = runtime_settings.agent_max_steps
         self.max_tool_calls = runtime_settings.agent_max_tool_calls
+        self.max_input_chars = runtime_settings.agent_max_input_chars
+        self.max_context_chars = runtime_settings.agent_max_context_chars
         self.tools = (
             list(tools)
             if tools is not None
@@ -65,6 +69,13 @@ class ReactAgent:
             if isinstance(message, AIMessage)
         )
 
+    @staticmethod
+    def _context_chars(messages: Sequence[BaseMessage]) -> int:
+        return sum(
+            len(message.content) if isinstance(message.content, str) else 0
+            for message in messages
+        )
+
     def _call_model(self, state: MessagesState):
         messages = state["messages"]
         tool_call_count = self._count_tool_calls(messages)
@@ -82,6 +93,16 @@ class ReactAgent:
             for m in messages
         )
         prompt = load_report_prompts() if report_triggered else self.system_prompt
+
+        max_context_chars = getattr(self, "max_context_chars", None)
+        if (
+            max_context_chars is not None
+            and self._context_chars(messages) + len(prompt) > max_context_chars
+        ):
+            logger.warning(
+                "[agent]达到上下文字符上限 max_context_chars=%s", max_context_chars
+            )
+            return {"messages": [AIMessage(content=AGENT_CONTEXT_LIMIT_MESSAGE)]}
 
         if not any(isinstance(m, SystemMessage) for m in messages):
             messages = [SystemMessage(content=prompt)] + messages
@@ -116,6 +137,13 @@ class ReactAgent:
         return graph.compile()
 
     def execute_stream(self, query: str):
+        max_input_chars = getattr(self, "max_input_chars", None)
+        if max_input_chars is not None and len(query) > max_input_chars:
+            logger.warning(
+                "[agent]输入超过字符上限 max_input_chars=%s", max_input_chars
+            )
+            yield AGENT_INPUT_LIMIT_MESSAGE + "\n"
+            return
         input_dict = {
             "messages": [
                 {"role": "user", "content": query},

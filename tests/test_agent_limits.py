@@ -10,6 +10,8 @@ from langgraph.errors import GraphRecursionError
 from langgraph.graph import MessagesState
 
 from agent.react_agent import (
+    AGENT_CONTEXT_LIMIT_MESSAGE,
+    AGENT_INPUT_LIMIT_MESSAGE,
     AGENT_STEP_LIMIT_MESSAGE,
     AGENT_TOOL_LIMIT_MESSAGE,
     ReactAgent,
@@ -76,6 +78,27 @@ class AgentLimitsTest(unittest.TestCase):
 
         self.assertEqual(chunks, [AGENT_STEP_LIMIT_MESSAGE + "\n"])
         self.assertNotIn("internal graph detail", chunks[0])
+
+    def test_input_limit_short_circuits_graph(self) -> None:
+        agent = ReactAgent.__new__(ReactAgent)
+        agent.max_input_chars = 3
+        agent.graph = Mock()
+
+        self.assertEqual(list(agent.execute_stream("long")), [AGENT_INPUT_LIMIT_MESSAGE + "\n"])
+        agent.graph.stream.assert_not_called()
+
+    def test_context_limit_short_circuits_model(self) -> None:
+        agent = ReactAgent.__new__(ReactAgent)
+        agent.max_tool_calls = 2
+        agent.max_context_chars = 5
+        agent.system_prompt = "prompt"
+        agent.model_with_tools = Mock()
+        state = cast(MessagesState, {"messages": [HumanMessage(content="question")]})
+
+        result = agent._call_model(state)
+
+        self.assertEqual(result["messages"][0].content, AGENT_CONTEXT_LIMIT_MESSAGE)
+        agent.model_with_tools.invoke.assert_not_called()
 
     def test_model_is_not_called_after_tool_limit_is_reached(self) -> None:
         agent = ReactAgent.__new__(ReactAgent)
