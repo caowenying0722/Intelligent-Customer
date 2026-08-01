@@ -1,6 +1,7 @@
-import pytest
 from pathlib import Path
 import tempfile
+
+import pytest
 
 from evaluation.quality_gate import evaluate_quality_gate, load_quality_gate_config
 
@@ -32,6 +33,20 @@ def test_quality_gate_reports_incomplete_and_regression() -> None:
     assert any("missing metric" in failure for failure in result.failures)
 
 
+def test_quality_gate_rejects_model_calls_in_deterministic_mode() -> None:
+    summary = _summary()
+    summary["retriever"] = {"model_calls": 1}
+
+    result = evaluate_quality_gate(
+        summary,
+        minimum_metrics={},
+        require_model_free=True,
+    )
+
+    assert result.passed is False
+    assert "model calls" in result.failures[0]
+
+
 def test_quality_gate_rejects_non_numeric_threshold_value() -> None:
     with pytest.raises(ValueError):
         evaluate_quality_gate(
@@ -49,4 +64,8 @@ def test_quality_gate_config_is_versioned_and_cli_overrides() -> None:
 
         loaded = load_quality_gate_config(config)
 
-    assert loaded == {"require_complete": False, "minimum_metrics": {"recall@1": 0.7}}
+    assert loaded == {
+        "require_complete": False,
+        "require_model_free": False,
+        "minimum_metrics": {"recall@1": 0.7},
+    }

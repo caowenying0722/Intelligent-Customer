@@ -47,7 +47,14 @@ def load_quality_gate_config(path: str | Path) -> dict[str, Any]:
     require_complete = raw.get("require_complete", True)
     if not isinstance(require_complete, bool):
         raise ValueError("require_complete must be boolean")
-    return {"minimum_metrics": normalized, "require_complete": require_complete}
+    require_model_free = raw.get("require_model_free", False)
+    if not isinstance(require_model_free, bool):
+        raise ValueError("require_model_free must be boolean")
+    return {
+        "minimum_metrics": normalized,
+        "require_complete": require_complete,
+        "require_model_free": require_model_free,
+    }
 
 
 def evaluate_quality_gate(
@@ -56,6 +63,7 @@ def evaluate_quality_gate(
     minimum_metrics: dict[str, float],
     require_complete: bool = True,
     require_candidate_not_worse: bool = True,
+    require_model_free: bool = False,
 ) -> GateResult:
     regression = summary.get("retrieval_regression", {})
     failures: list[str] = []
@@ -64,6 +72,11 @@ def evaluate_quality_gate(
             raise ValueError(f"minimum metric threshold must be finite: {name}")
     if require_complete and regression.get("complete") is not True:
         failures.append("retrieval regression dataset is incomplete")
+    if require_model_free:
+        retriever = summary.get("retriever", {})
+        model_calls = retriever.get("model_calls") if isinstance(retriever, dict) else None
+        if model_calls != 0:
+            failures.append("deterministic evaluation reported model calls")
     metrics = regression.get("metrics", {})
     for name, minimum in minimum_metrics.items():
         value = metrics.get(name)
@@ -121,6 +134,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.allow_incomplete
             else bool(config.get("require_complete", True))
         ),
+        require_model_free=bool(config.get("require_model_free", False)),
     )
     if result.passed:
         print("quality gate passed")
