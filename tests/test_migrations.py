@@ -4,7 +4,10 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect
 
-from src.app.infrastructure.postgres import SqlAlchemyConversationRepository
+from src.app.infrastructure.postgres import (
+    IngestionJobRow,
+    SqlAlchemyConversationRepository,
+)
 
 
 def test_migration_upgrade_and_downgrade_on_empty_sqlite_database() -> None:
@@ -31,10 +34,26 @@ def test_migration_upgrade_and_downgrade_on_empty_sqlite_database() -> None:
         "ix_documents_tenant_hash",
         "ix_documents_tenant_status_created",
     } <= {index["name"] for index in inspect(engine).get_indexes("documents")}
+    ingestion_indexes = inspect(engine).get_indexes("ingestion_jobs")
     assert {
         "ix_ingestion_jobs_tenant_status_created",
         "ux_ingestion_jobs_tenant_idempotency",
-    } <= {index["name"] for index in inspect(engine).get_indexes("ingestion_jobs")}
+    } <= {index["name"] for index in ingestion_indexes}
+    idempotency_index = next(
+        index
+        for index in ingestion_indexes
+        if index["name"] == "ux_ingestion_jobs_tenant_idempotency"
+    )
+    assert bool(idempotency_index["unique"])
+    assert idempotency_index["column_names"] == ["tenant_id", "idempotency_key"]
+    model_indexes = getattr(IngestionJobRow.__table__, "indexes", ())
+    assert any(
+        index.name == "ux_ingestion_jobs_tenant_idempotency"
+        and index.unique
+        and [column.name for column in index.columns]
+        == ["tenant_id", "idempotency_key"]
+        for index in model_indexes
+    )
     index_names = {index["name"] for index in inspect(engine).get_indexes("agent_runs")}
     assert {
         "ix_agent_runs_tenant_status_created",

@@ -30,6 +30,7 @@
 | 持久化 rebuild idempotency reuse | 通过：1 个测试 | 已存在 tenant/idempotency key 时复用持久化 job，不重复调用 operation |
 | Persistent claim-before-worker | 通过：持久化 route 测试 | rebuild 先写唯一 job，再提交进程内 worker；进程崩溃后的 queued job 由 recovery 处理 |
 | Job claim/recovery audit | 通过：14 个定向测试 | queued 恢复、running orphan fail、取消、租户隔离和持久化幂等；heartbeat/lease fencing 未实现 |
+| Schema claim consistency | 通过：migration smoke + ORM/index assertions | 唯一索引列顺序/unique 与 0008→0010 nullable 迁移一致；SQLite 不替代 PostgreSQL 并发验收 |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 
