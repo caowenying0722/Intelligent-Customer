@@ -170,7 +170,8 @@ class SqlAlchemyIngestionRepository:
             return self._job(row) if row else None
 
     def update_job_status(
-        self, *, tenant_id: str, job_id: UUID, status: IngestionJobStatus, error: str | None = None
+        self, *, tenant_id: str, job_id: UUID, status: IngestionJobStatus,
+        error: str | None = None, attempt: int | None = None
     ) -> IngestionJob:
         with Session(self.engine) as session:
             row = session.scalar(
@@ -183,6 +184,8 @@ class SqlAlchemyIngestionRepository:
                 raise KeyError("ingestion job not found")
             row.status = status.value
             row.error = error[:500] if error else None
+            if attempt is not None:
+                row.attempt = attempt
             if status == IngestionJobStatus.RUNNING:
                 row.started_at = datetime.now(timezone.utc)
             if status in {

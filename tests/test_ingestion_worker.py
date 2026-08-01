@@ -104,6 +104,7 @@ def test_worker_persists_retryable_failure_only_after_exhaustion() -> None:
             time.sleep(0.01)
         assert store.updated[-1]["status"] == IngestionJobStatus.FAILED
         assert store.updated[-1]["error"] == "temporary"
+        assert store.updated[-1]["attempt"] == 2
     finally:
         manager.close()
 

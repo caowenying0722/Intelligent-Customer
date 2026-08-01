@@ -18,7 +18,8 @@ class RecoverableJobStore(Protocol):
     def list_recoverable_jobs(self, *, tenant_id: str | None = None) -> list[IngestionJob]: ...
 
     def update_job_status(
-        self, *, tenant_id: str, job_id: UUID, status: IngestionJobStatus, error: str | None = None
+        self, *, tenant_id: str, job_id: UUID, status: IngestionJobStatus,
+        error: str | None = None, attempt: int | None = None
     ) -> IngestionJob: ...
 
     def update_progress(self, *, tenant_id: str, job_id: UUID, progress: int) -> IngestionJob: ...
@@ -66,6 +67,7 @@ class IngestionWorker:
                             job_id=persisted.job_id,
                             status=IngestionJobStatus.FAILED,
                             error=str(exc),
+                            attempt=current.attempt if current is not None else None,
                         )
                     raise
                 self._progress(tenant_id=persisted.tenant_id, job_id=persisted.job_id, progress=100)

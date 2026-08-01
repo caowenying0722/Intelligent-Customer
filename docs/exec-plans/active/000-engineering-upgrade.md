@@ -741,5 +741,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 4 第二十五个目标完成：新增 Alembic 0010 保存受限 `task_payload`，应用 lifespan 仅恢复 queued 的 `index_rebuild` 任务并按版本执行；running orphan 不重复执行，恢复测试通过。
 - 阶段 4 第二十六个目标完成：恢复 worker 区分永久错误与可重试错误；可重试错误在达到 `max_attempts` 前不提前写入 failed，耗尽后持久化安全错误消息并通过回归测试验证。
 - 阶段 4 第二十七个目标完成：恢复 worker 在任务开始/成功时同步回写 progress 0/100 到内存 manager 与持久化 store，API 查询不再长期显示完成任务的零进度。
+- 阶段 4 第二十八个目标完成：失败终态回写同步真实 `attempt`，SQLAlchemy 仓储更新失败任务时保留重试次数；重试耗尽测试验证 `attempt=max_attempts`。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
