@@ -43,6 +43,14 @@ class AgentLimitsTest(unittest.TestCase):
         self.assertEqual(agent.max_tool_calls, 3)
         model.bind_tools.assert_called_once_with([])
 
+    def test_graph_compiles_with_configured_tools(self) -> None:
+        agent = ReactAgent.__new__(ReactAgent)
+        agent.tools = []
+
+        graph = agent._build_graph()
+
+        self.assertIsNotNone(graph)
+
     def test_execute_stream_passes_recursion_limit(self) -> None:
         agent = ReactAgent.__new__(ReactAgent)
         agent.max_steps = 6

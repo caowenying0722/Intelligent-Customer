@@ -32,6 +32,9 @@ class EnvironmentCheckTest(unittest.TestCase):
 
         self.assertEqual(sys.path, original_path)
 
+    def test_agent_middleware_imports_with_locked_langchain(self) -> None:
+        importlib.import_module("agent.tools.middleware")
+
     def test_repository_declares_supported_python_and_pinned_dev_tools(self) -> None:
         self.assertEqual(
             (PROJECT_ROOT / ".python-version").read_text(encoding="utf-8").strip(),
@@ -43,9 +46,18 @@ class EnvironmentCheckTest(unittest.TestCase):
         )
 
         self.assertEqual(len(pins), 24)
+        self.assertEqual(pins["langchain"].version, "1.3.9")
+        self.assertEqual(pins["langchain-core"].version, "1.4.7")
+        self.assertEqual(pins["langchain-community"].version, "0.3.31")
+        self.assertEqual(pins["langchain-chroma"].version, "1.1.0")
+        self.assertEqual(pins["chromadb"].version, "1.3.7")
+        self.assertEqual(pins["langchain-text-splitters"].version, "1.1.2")
+        self.assertEqual(pins["langgraph"].version, "1.2.10")
         self.assertEqual(pins["streamlit"].version, "1.54.0")
         self.assertEqual(pins["pillow"].version, "12.3.0")
         self.assertEqual(pins["pypdf"].version, "6.14.2")
+        self.assertEqual(pins["langchain-openai"].version, "1.1.14")
+        self.assertEqual(pins["langchain-huggingface"].version, "1.2.2")
         self.assertEqual(pins["pytest"].version, "9.1.1")
         self.assertEqual(pins["ruff"].version, "0.16.1")
         self.assertEqual(pins["mypy"].version, "2.3.0")

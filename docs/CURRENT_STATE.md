@@ -15,7 +15,7 @@
 - 目标环境普通导入 `app` 不再加载 Agent、模型、RAG 或 Chroma；Streamlit 执行 `main()` 后才构建 Agent，首次调用 RAG 工具时才同步初始化 Chroma 和扫描知识文件。
 - 旧 `.local_deps/` 目录仍存在但已不再由评测/报告脚本自动插入 `sys.path`；初始行为曾覆盖目标环境中的正确二进制包并导致 RAGAS 导入失败。
 - Python 3.13 下执行完整依赖 dry-run 失败：`langchain-community==0.3.31` 要求 NumPy 2.x，而 `langchain-chroma==0.1.4` 在该解释器组合下要求 NumPy 1.x。
-- `pypdf`、Streamlit 和 Pillow 已升级到已知修复版本，并分别通过 PDF 与 UI 启动回归；pip-audit 从 84 条/13 包下降到 22 条/10 包。LangChain/LangGraph 等剩余修复涉及生态大版本迁移，必须分批回归，不能用忽略规则伪装通过。
+- `pypdf`、Streamlit、Pillow、LangChain、LangGraph、LangChain-Chroma、ChromaDB、LangChain-OpenAI 和 LangChain-HuggingFace 已分批升级，并通过 PDF、UI、Agent 图编译与临时 Chroma 写入/检索回归；pip-audit 从 84 条/13 包下降到 8 条/4 包。剩余漏洞不能用忽略规则伪装通过。
 
 ## 当前架构与核心调用链
 
@@ -66,7 +66,7 @@ flowchart LR
 - YAML 中的 Chroma 持久化目录、数据、MD5、Prompt 和 CSV 路径统一相对项目根目录解析为绝对路径，不再依赖启动 cwd；配置仍在首次相关模块加载时读取，完整 composition-root 加载留到 FastAPI 阶段。
 - 模型请求默认验证 TLS；企业私有 CA 只能通过 `MODEL_CA_BUNDLE` 指向已有 PEM 文件，非法路径启动即失败，不提供关闭验证的开关。
 - 工具包括本地 RAG、静态天气、随机位置、随机用户 ID、当前月份和本地 CSV 报告数据。没有认证上下文、租户边界、审批或幂等控制。
-- `agent/tools/middleware.py` 没有接入当前 Agent，且其导入依赖与锁定的 LangChain API 不兼容。
+- `agent/tools/middleware.py` 在当前 LangChain 版本下可以导入，但没有接入当前 Agent；若启用仍会记录完整工具参数和消息正文，必须先做脱敏和白名单。
 
 ### 评测链路
 
@@ -112,8 +112,8 @@ flowchart LR
 | `python -m pytest -q` | 成功：25/25 | 与 unittest 覆盖相同测试集 |
 | `python -m compileall -q agent rag model evaluation utils scripts tests` | 成功 | 仅语法编译，不证明导入或运行正确 |
 | `python -c "import app"` | 失败 | 环境问题：`streamlit` 未安装 |
-| 使用 `.local_deps` 导入 `agent.react_agent` | 失败 | 环境冲突：LangGraph 1.2.0 需要当前路径中不存在的新 `langchain-core` API |
-| 使用 `.local_deps` 导入 `agent.tools.middleware` | 失败 | 代码/依赖不兼容：LangChain 0.3.30 无 `AgentState` 导出 |
+| 使用 `.local_deps` 导入 `agent.react_agent` | 失败 | 历史审计结果；`.local_deps` 已不再由脚本注入，受支持环境改为 `ics` |
+| 使用 `.local_deps` 导入 `agent.tools.middleware` | 失败 | 历史审计结果；当前受支持环境下 `agent.tools.middleware` 可导入但未接线 |
 | `python scripts/scan_secrets.py` | 成功 | 扫描当前源码；未发现疑似有效凭证 |
 | `python scripts/scan_secrets.py --include-private-env` | 失败：1 条 | 本地 `.env` 有疑似真实凭证；文件已忽略且未进入 Git，建议轮换 |
 | Git 历史 blob 脱敏扫描 | 成功 | 三个可达提交中未发现当前规则可识别的凭证 |
@@ -131,12 +131,12 @@ flowchart LR
 | `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，19 个直接运行依赖精确匹配，`pip check` 成功 |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 24 个直接运行/开发依赖精确匹配 |
 | `pip install --dry-run --ignore-installed -r requirements-dev.txt` | 成功 | Python 3.10 可解析；输出同时证明传递依赖仍会漂移，不能替代 lock |
-| `python -m pytest -q` | 成功：67 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、Agent 上限、模型适配器、PDF/UI 兼容和子进程安全测试 |
+| `python -m pytest -q` | 成功：70 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、Agent 上限、模型适配器、PDF/UI、LangGraph/Chroma 兼容和子进程安全测试 |
 | `python -m ruff check .` | 成功 | 仓库 `pyproject.toml` 固定精确规则集，全仓零诊断 |
-| `python -m ruff format --check .` | 成功：66 files already formatted | 已完成全仓 Python 格式基线 |
-| `python -m mypy agent rag model evaluation utils scripts tests app.py` | 成功：57 source files | 仓库配置固定 Python 3.10、缺失类型依赖和包基线规则 |
-| `python -m coverage run -m pytest -q && coverage report` | 成功：39% | 仅统计源码、启用 branch coverage；当前只记录真实基线，尚未设置回归阈值 |
-| `python -m pip_audit -r requirements.txt` | 失败：22 条/10 包 | PDF 与 UI 兼容组共消除 62 条记录；剩余风险未忽略，继续分兼容组修复 |
+| `python -m ruff format --check .` | 成功：67 files already formatted | 已完成全仓 Python 格式基线 |
+| `python -m mypy agent rag model evaluation utils scripts tests app.py` | 成功：58 source files | 仓库配置固定 Python 3.10、缺失类型依赖和包基线规则 |
+| `python -m coverage run -m pytest -q && coverage report` | 成功：40% | 仅统计源码、启用 branch coverage；当前只记录真实基线，尚未设置回归阈值 |
+| `python -m pip_audit -r requirements.txt` | 失败：8 条/4 包 | 剩余涉及 `chromadb`、`ragas`、`transformers` 和 `diskcache`；未使用忽略规则 |
 
 ## 可复现指标基线
 
@@ -144,7 +144,7 @@ flowchart LR
 
 | 指标 | 当前值 | 可用性说明 |
 |---|---:|---|
-| 测试数量 / 通过率 | 67 / 100% | 覆盖环境/配置/路径、惰性初始化、Agent 上限、模型传输、PDF/UI 兼容和子进程安全；仍没有完整 Agent/API/RAG 集成覆盖 |
+| 测试数量 / 通过率 | 70 / 100% | 覆盖环境/配置/路径、惰性初始化、Agent 上限、模型传输、PDF/UI、LangGraph/Chroma 兼容和子进程安全；仍没有完整 Agent/API/RAG 集成覆盖 |
 | 主评测集样本 | 28 | 非冻结、无 dataset version |
 | Focus 评测集样本 | 6 | 非隐藏集 |
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
@@ -162,7 +162,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 完整清单见 [TECH_DEBT.md](TECH_DEBT.md)。优先级最高的风险是：
 
-1. 当前运行依赖仍存在 22 条已知漏洞记录，部分修复需要 LangChain/LangGraph 大版本迁移；`ragas`、`transformers` 和 `diskcache` 还有无可用修复版本的记录。
+1. 当前运行依赖仍有 8 条已知漏洞记录，涉及 `chromadb`、`ragas`、`transformers` 和 `diskcache`；其中部分修复需要继续协调 ML/RAG 生态版本。
 2. 依赖集合在 Python 3.13 环境不可解，且尚无完整 transitive lock/空环境重建证明。
 3. Agent 步骤和工具调用已有代码级上限，但请求没有全流程 deadline/cancellation，工具副作用也没有幂等控制。
 4. 随机用户身份与本地报告数据没有认证、授权和租户隔离。
@@ -172,7 +172,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：67 个单元测试集中在环境/YAML 配置、路径、惰性初始化、Agent 上限、模型传输/协议转换、PDF/UI 兼容、子进程安全、评测辅助函数和 secret scanner；源码分支覆盖率为 39%。Agent 业务路由、RAG 核心、文档入库交互、取消与并发仍缺自动化测试。
+- 测试：70 个单元测试集中在环境/YAML 配置、路径、惰性初始化、Agent 上限、模型传输/协议转换、PDF/UI 兼容、LangGraph/Chroma 兼容、子进程安全、评测辅助函数和 secret scanner；源码分支覆盖率为 40%。Agent 业务路由、RAG 核心、文档入库交互、取消与并发仍缺自动化测试。
 - 可观测性：普通文本日志写控制台和每日文件；没有 request ID、trace、metrics 或字段脱敏。
 - 部署：只有本地 Streamlit 命令；没有 API 服务、进程模型、容器、健康检查、优雅关闭或 CI。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
@@ -185,7 +185,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 4. 随机 user ID 如何代表真实登录用户，如何防止读取其他人的报告？当前没有安全边界。
 5. 如何部署、扩容和恢复会话？当前首次 RAG 请求仍写本地 Chroma，session 只在单进程内存。
 6. 企业私有 CA 如何接入而不关闭 TLS？当前通过显式 PEM 路径创建验证客户端，路径无效时 fail-fast。
-7. 67 个环境/配置/路径/惰性初始化/Agent 上限/模型适配/PDF/UI 兼容测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
+7. 70 个环境/配置/路径/惰性初始化/Agent 上限/模型适配/PDF/UI/LangGraph/Chroma 兼容测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
 
 ## 当前是否适合继续自动修改
 

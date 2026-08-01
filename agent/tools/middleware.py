@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 
 from langchain.agents import AgentState
 from langchain.agents.middleware import (
@@ -31,7 +32,9 @@ def monitor_tool(
         logger.info(f"[tool monitor]工具{request.tool_call['name']}调用成功")
 
         if request.tool_call["name"] == "fill_context_for_report":
-            request.runtime.context["report"] = True
+            context = request.runtime.context
+            if context is not None:
+                context["report"] = True
 
         return result
     except Exception as e:
@@ -46,14 +49,22 @@ def log_before_model(
 ):  # 在模型执行前输出日志
     logger.info(f"[log_before_model]即将调用模型，带有{len(state['messages'])}条消息。")
 
+    latest_message = state["messages"][-1]
+    content = latest_message.content
+    if isinstance(content, str):
+        content_preview: Any = content.strip()
+    else:
+        content_preview = type(content).__name__
+
     logger.debug(
-        f"[log_before_model]{type(state['messages'][-1]).__name__} | {state['messages'][-1].content.strip()}"
+        f"[log_before_model]{type(latest_message).__name__} | {content_preview}"
     )
 
 
 @dynamic_prompt  # 每一次在生成提示词之前，调用此函数
 def report_prompt_switch(request: ModelRequest):  # 动态切换提示词
-    is_report = request.runtime.context.get("report", False)
+    context = request.runtime.context
+    is_report = context.get("report", False) if context is not None else False
     if is_report:  # 是报告生成场景，返回报告生成提示词内容
         return load_report_prompts()
 
