@@ -653,7 +653,8 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 轻量文档路径与评测产物忽略修复。
 - 固定并验证 Python 3.10.20 与 16 个直接运行依赖；新增开发依赖、环境检查器及其 7 个单元测试。
 - 建立 Ruff、Mypy、Coverage 和 pip-audit 工具版本；新增文件的格式、lint 和类型检查通过。
-- 删除 5 个质量/评测脚本对 `.local_deps` 的隐式 `sys.path` 注入，并收窄会掩盖损坏安装的 RAGAS 测试跳过条件；完整测试 32 项通过。
+- 删除 5 个质量/评测脚本对 `.local_deps` 的隐式 `sys.path` 注入，并收窄会掩盖损坏安装的 RAGAS 测试跳过条件。
 - 首次依赖审计发现 13 个包共 84 条已知漏洞记录，未使用忽略规则掩盖，列为下一修复目标。
+- 删除全局 TLS 验证绕过；模型调用默认验证证书，支持显式私有 CA，并统一校验请求超时和 OpenAI-compatible 重试上限；完整测试 41 项通过。
 
-阶段 1 尚未完成：从空环境重建、transitive lock、依赖漏洞修复、TLS 代码修复、Settings、延迟初始化、Agent 上限、全仓静态检查/覆盖率门禁。这些是开始阶段 2 前的阻塞项。
+阶段 1 尚未完成：从空环境重建、transitive lock、依赖漏洞修复、完整 Settings、延迟初始化、Agent 上限、全仓静态检查/覆盖率门禁。这些是开始阶段 2 前的阻塞项。

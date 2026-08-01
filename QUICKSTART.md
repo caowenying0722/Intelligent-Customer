@@ -15,6 +15,14 @@ python scripts/check_environment.py --requirements requirements-dev.txt
 
 `requirements.txt` 是运行依赖，`requirements-dev.txt` 在其基础上增加固定版本的测试、静态检查、覆盖率和依赖审计工具。
 
+模型请求默认启用 TLS 证书验证，超时为 120 秒，OpenAI-compatible 最大重试次数为 2。企业私有 CA 应配置 PEM 文件，禁止通过关闭证书验证解决连接问题：
+
+```dotenv
+MODEL_REQUEST_TIMEOUT_SECONDS=120
+MODEL_MAX_RETRIES=2
+MODEL_CA_BUNDLE=config/company-ca.pem
+```
+
 ### 已安装的关键组件
 - Python 3.10
 - LangChain 0.3.7 和相关组件

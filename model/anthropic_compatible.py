@@ -6,7 +6,13 @@ from typing import Any
 
 import requests
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.utils.function_calling import convert_to_openai_tool
 
@@ -17,7 +23,8 @@ class AnthropicCompatibleChatModel(BaseChatModel):
     api_key: str
     max_tokens: int = 4096
     temperature: float = 0.0
-    timeout: int = 120
+    timeout: float = 120.0
+    verify: bool | str = True
 
     @property
     def _llm_type(self) -> str:
@@ -62,9 +69,13 @@ class AnthropicCompatibleChatModel(BaseChatModel):
                 return value
             return [{"type": "text", "text": value}]
 
-        messages[-1]["content"] = as_blocks(messages[-1]["content"]) + as_blocks(content)
+        messages[-1]["content"] = as_blocks(messages[-1]["content"]) + as_blocks(
+            content
+        )
 
-    def _convert_messages(self, messages: list[BaseMessage]) -> tuple[str | None, list[dict[str, Any]]]:
+    def _convert_messages(
+        self, messages: list[BaseMessage]
+    ) -> tuple[str | None, list[dict[str, Any]]]:
         system_parts: list[str] = []
         converted: list[dict[str, Any]] = []
 
@@ -122,7 +133,9 @@ class AnthropicCompatibleChatModel(BaseChatModel):
         return {}
 
     @classmethod
-    def _extract_response(cls, data: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    def _extract_response(
+        cls, data: dict[str, Any]
+    ) -> tuple[str, list[dict[str, Any]]]:
         text_parts: list[str] = []
         tool_calls: list[dict[str, Any]] = []
 
@@ -236,9 +249,12 @@ class AnthropicCompatibleChatModel(BaseChatModel):
             headers=headers,
             json=payload,
             timeout=self.timeout,
+            verify=self.verify,
         )
         if response.status_code >= 400:
-            raise RuntimeError(f"Anthropic-compatible chat request failed: {response.status_code} {response.text}")
+            raise RuntimeError(
+                f"Anthropic-compatible chat request failed: {response.status_code} {response.text}"
+            )
 
         data = response.json()
         text, tool_calls = self._extract_response(data)

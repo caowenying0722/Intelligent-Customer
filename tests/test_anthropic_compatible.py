@@ -36,12 +36,16 @@ class AnthropicCompatibleChatModelTest(unittest.TestCase):
             "stop_reason": "tool_use",
         }
 
-        with patch("model.anthropic_compatible.requests.post", return_value=response) as post:
+        with patch(
+            "model.anthropic_compatible.requests.post", return_value=response
+        ) as post:
             message = self.model.bind_tools([get_weather]).invoke(
                 [HumanMessage(content="深圳天气如何？")]
             )
 
         payload = post.call_args.kwargs["json"]
+        self.assertEqual(post.call_args.kwargs["timeout"], 120.0)
+        self.assertIs(post.call_args.kwargs["verify"], True)
         self.assertEqual(payload["tools"][0]["name"], "get_weather")
         self.assertEqual(payload["tools"][0]["input_schema"]["required"], ["city"])
         self.assertEqual(

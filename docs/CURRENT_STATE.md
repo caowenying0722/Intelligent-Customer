@@ -9,7 +9,7 @@
 ## 运行环境与依赖
 
 - 初始审计 shell 的解释器为 Python 3.13.13；该环境混用全局 site-packages 与 `.local_deps/`，不作为受支持运行环境。
-- 受支持开发版本现由 `.python-version` 固定为 Python 3.10.20；本机 `ics` 环境已验证 16 个直接运行依赖与 `requirements.txt` 精确一致，`app` 可以导入。
+- 受支持开发版本现由 `.python-version` 固定为 Python 3.10.20；本机 `ics` 环境已验证 17 个直接运行依赖与 `requirements.txt` 精确一致，`app` 可以导入。
 - `requirements-dev.txt` 在运行依赖上固定 pytest、Ruff、Mypy、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
 - 当前只有直接依赖和开发工具精确固定，尚无完整的跨平台 transitive lock；因此不能把它描述为完全可重复的供应链锁定。
 - 目标环境导入 `app` 仍会立即访问 Chroma、扫描知识文件并产生本地/遥测输出；可导入不代表无副作用。
@@ -43,7 +43,7 @@ flowchart LR
 2. 导入 `agent.tools.agent_tools` 时会在模块顶层创建 `RagSummarizeService`。
 3. `RagSummarizeService.__init__` 立即创建 Chroma 客户端、扫描文档、按 MD5 判断并可能同步解析、切分、嵌入和写入向量库，然后构建 retriever。
 4. `ReactAgent` 创建 `agent -> tools -> agent` 的 LangGraph 循环。代码未显式传入最大步骤、工具次数或全流程超时。
-5. 模型按工具调用结果继续循环。普通模型调用是同步 `invoke`；Anthropic-compatible 适配器设置了 120 秒请求超时，OpenAI-compatible 初始化未显式设置请求超时。
+5. 模型按工具调用结果继续循环。普通模型调用是同步 `invoke`；两类 provider 共享 120 秒默认超时，OpenAI-compatible 还显式设置最多 2 次 SDK 重试。
 6. `execute_stream` 使用 LangGraph 的 value stream，把每轮最新消息的完整内容作为块返回；UI 再逐字符 `sleep(0.01)` 模拟流式输出。这不是上游 token streaming。
 7. Streamlit 只把消息保存在当前进程 session state 中，而且后续调用 Agent 时只提交当前问题，不会把 UI 中显示的历史消息传给 Agent。
 
@@ -60,7 +60,7 @@ flowchart LR
 
 - `model.factory` 在导入时读取根目录 `.env`、设置离线 Hugging Face 环境变量并创建全局聊天模型。
 - Provider 选择依赖环境变量；支持 OpenAI-compatible 和仓库自定义 Anthropic-compatible 同步适配器。
-- `model.factory` 全局替换 Python 默认 HTTPS context 为“不验证证书”，影响同一进程内所有使用默认 context 的 HTTPS 调用。
+- 模型请求默认验证 TLS；企业私有 CA 只能通过 `MODEL_CA_BUNDLE` 指向已有 PEM 文件，非法路径启动即失败，不提供关闭验证的开关。
 - 工具包括本地 RAG、静态天气、随机位置、随机用户 ID、当前月份和本地 CSV 报告数据。没有认证上下文、租户边界、审批或幂等控制。
 - `agent/tools/middleware.py` 没有接入当前 Agent，且其导入依赖与锁定的 LangChain API 不兼容。
 
@@ -124,10 +124,10 @@ flowchart LR
 
 | 命令 | 结果 | 分类与说明 |
 |---|---|---|
-| `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，16 个直接运行依赖精确匹配，`pip check` 成功 |
-| `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 21 个直接运行/开发依赖精确匹配 |
+| `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，17 个直接运行依赖精确匹配，`pip check` 成功 |
+| `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 22 个直接运行/开发依赖精确匹配 |
 | `pip install --dry-run --ignore-installed -r requirements-dev.txt` | 成功 | Python 3.10 可解析；输出同时证明传递依赖仍会漂移，不能替代 lock |
-| `python -m pytest -q` | 成功：32 passed | 收窄错误跳过条件、移除 `.local_deps` 污染，并增加脚本导入不修改 `sys.path` 的回归测试 |
+| `python -m pytest -q` | 成功：41 passed | 包含依赖隔离、TLS 默认验证、CA bundle、超时/重试边界和模型适配器测试 |
 | Ruff lint/format（本目标新增文件） | 成功 | 仓库全量格式化和 lint 门禁仍待单独目标完成 |
 | Mypy（本目标新增文件） | 成功 | 使用 `--explicit-package-bases`；全仓类型门禁仍未建立 |
 | `python -m pip_audit -r requirements.txt` | 失败：84 条/13 包 | 真实安全基线；未忽略，进入阶段 1 下一修复目标 |
@@ -138,7 +138,7 @@ flowchart LR
 
 | 指标 | 当前值 | 可用性说明 |
 |---|---:|---|
-| 测试数量 / 通过率 | 32 / 100% | 新增 7 个环境/依赖隔离测试；仍没有核心 Agent/API/RAG 集成覆盖 |
+| 测试数量 / 通过率 | 41 / 100% | 新增环境/依赖隔离与模型传输安全测试；仍没有核心 Agent/API/RAG 集成覆盖 |
 | 主评测集样本 | 28 | 非冻结、无 dataset version |
 | Focus 评测集样本 | 6 | 非隐藏集 |
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
@@ -156,8 +156,8 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 完整清单见 [TECH_DEBT.md](TECH_DEBT.md)。优先级最高的风险是：
 
-1. 全局关闭 TLS 证书校验。
-2. 依赖集合在当前 Python 3.13 环境不可解，运行路径混用不兼容包。
+1. 当前运行依赖存在 84 条已知漏洞记录，部分修复需要 LangChain/LangGraph 大版本迁移。
+2. 依赖集合在 Python 3.13 环境不可解，且尚无完整 transitive lock/空环境重建证明。
 3. Agent、工具和请求没有显式的步骤、次数和总截止时间上限。
 4. 随机用户身份与本地报告数据没有认证、授权和租户隔离。
 5. 重排使用评测来源文件名，README 质量提升不能视为独立证据。
@@ -166,7 +166,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：32 个单元测试集中在环境约束、模型协议转换、评测辅助函数和 secret scanner。Agent 状态机、RAG 核心、文档入库、UI、故障路径、取消与并发均没有自动化测试。
+- 测试：41 个单元测试集中在环境约束、模型传输/协议转换、评测辅助函数和 secret scanner。Agent 状态机、RAG 核心、文档入库、UI、故障路径、取消与并发均没有自动化测试。
 - 可观测性：普通文本日志写控制台和每日文件；没有 request ID、trace、metrics 或字段脱敏。
 - 部署：只有本地 Streamlit 命令；没有 API 服务、进程模型、容器、健康检查、优雅关闭或 CI。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
@@ -178,8 +178,8 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 3. Agent 如何防止无限工具循环、超时和重复副作用？当前仅 Prompt 声明“五次”，代码没有确定性保证。
 4. 随机 user ID 如何代表真实登录用户，如何防止读取其他人的报告？当前没有安全边界。
 5. 如何部署、扩容和恢复会话？当前导入时写本地 Chroma，session 只在单进程内存。
-6. 为什么关闭 TLS 校验？这是不可接受的生产安全配置。
-7. 32 个环境/辅助函数测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
+6. 企业私有 CA 如何接入而不关闭 TLS？当前通过显式 PEM 路径创建验证客户端，路径无效时 fail-fast。
+7. 41 个环境/模型适配/辅助函数测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
 
 ## 当前是否适合继续自动修改
 
@@ -187,5 +187,5 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 - 保留并避开当前用户未提交修改；
 - 先建立干净、可复现的 Python 3.10/3.11 开发环境和开发工具链；
-- 先修复 TLS、依赖冲突、导入副作用和 Agent 上限；
+- 先修复依赖漏洞、导入副作用和 Agent 上限；
 - 将 FastAPI 阶段限定在无数据库的可替换接口与 fake Agent 测试，不同时引入 PostgreSQL、Qdrant 或 Celery。
