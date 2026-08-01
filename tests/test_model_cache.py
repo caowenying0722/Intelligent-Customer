@@ -31,3 +31,16 @@ def test_cache_expires_and_evicts_oldest():
 def test_cache_rejects_invalid_limits(kwargs):
     with pytest.raises(ValueError):
         ModelCache(**kwargs)
+
+
+def test_cache_enforces_tenant_entry_quota():
+    cache = ModelCache(max_entries=10, max_entries_per_tenant=1)
+    first = cache.key(tenant_id="a", model="m", prompt="one")
+    second = cache.key(tenant_id="a", model="m", prompt="two")
+    other = cache.key(tenant_id="b", model="m", prompt="one")
+    cache.set(first, 1)
+    cache.set(second, 2)
+    cache.set(other, 3)
+    assert cache.get(first) is None
+    assert cache.get(second) == 2
+    assert cache.get(other) == 3

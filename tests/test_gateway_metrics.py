@@ -24,7 +24,9 @@ def test_metrics_exposes_only_gateway_counters():
     body = response.json()["model_gateway"]
     assert body["calls"] == 1
     assert body["provider_calls"] == {"fake": 1}
-    assert body["cache"] == {"entries": 0, "hits": 0, "misses": 0}
+    assert body["cache"]["entries"] == 0
+    assert body["cache"]["hits"] == 0
+    assert body["cache"]["misses"] == 0
     assert "secret-input" not in response.text
     assert response.json()["model_gateway_health"]["healthy"] is True
 

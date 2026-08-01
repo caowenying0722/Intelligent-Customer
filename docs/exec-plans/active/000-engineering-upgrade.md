@@ -765,5 +765,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 6 第三个目标完成：新增注入式 `RedisCacheAdapter`，支持 namespace/TTL/JSON 序列化；Redis 读写异常 fail-open 为 miss，不依赖真实 Redis 服务。
 - 阶段 6 第四个目标完成：Gateway `invoke_cached()` 兼容 Redis adapter；Redis 正常时命中跳过 provider，Redis 不可用时安全降级为 provider 调用并不阻断请求。
 - 阶段 6 第五个目标完成：Gateway 审计快照与 `/metrics` 纳入 cache entries/hits/misses 统计，兼容内存与 Redis adapter，绝不输出缓存内容。
+- 阶段 6 第六个目标完成：内存 ModelCache 增加可选 `max_entries_per_tenant` 配额，租户超额按最旧项淘汰，同时保留全局容量限制；租户隔离测试通过。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
