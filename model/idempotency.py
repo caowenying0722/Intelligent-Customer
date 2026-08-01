@@ -25,6 +25,21 @@ class IdempotencyStore:
         self.ttl_seconds = ttl_seconds
         self._records: dict[tuple[str, str], IdempotencyRecord] = {}
         self._lock = threading.Lock()
+        self._key_locks: dict[tuple[str, str], threading.Lock] = {}
+
+    def get_or_compute(
+        self, *, tenant_id: str, key: str, fingerprint: str, producer
+    ) -> object:
+        identity = (tenant_id, key)
+        with self._lock:
+            lock = self._key_locks.setdefault(identity, threading.Lock())
+        with lock:
+            cached = self.get(tenant_id=tenant_id, key=key, fingerprint=fingerprint)
+            if cached is not None:
+                return cached
+            return self.set(
+                tenant_id=tenant_id, key=key, fingerprint=fingerprint, result=producer()
+            )
 
     def get_or_set(self, *, tenant_id: str, key: str, fingerprint: str, result: object) -> object:
         now = time.monotonic()

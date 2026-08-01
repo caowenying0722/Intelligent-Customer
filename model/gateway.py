@@ -190,14 +190,11 @@ class ModelGateway:
             raise ValueError("idempotency_key must not be empty")
         fingerprint = request_fingerprint(request)
         try:
-            cached = self.idempotency_store.get(
-                tenant_id=request.tenant_id, key=idempotency_key, fingerprint=fingerprint
-            )
-            if cached is not None:
-                return cached  # type: ignore[return-value]
-            result = self.idempotency_store.set(
-                tenant_id=request.tenant_id, key=idempotency_key,
-                fingerprint=fingerprint, result=self.invoke_contract(request),
+            result = self.idempotency_store.get_or_compute(
+                tenant_id=request.tenant_id,
+                key=idempotency_key,
+                fingerprint=fingerprint,
+                producer=lambda: self.invoke_contract(request),
             )
         except IdempotencyConflictError as exc:
             raise ModelGatewayError("idempotency key conflict") from exc

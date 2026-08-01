@@ -789,5 +789,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 8 首个目标完成：新增 privacy-preserving `request_fingerprint()` 与 `AuditTrace`，按 tenant/provider/model/prompt-version 生成不可逆 hash；trace 不保存 prompt 或凭据原文。
 - 阶段 8 第二个目标完成：Gateway `invoke_contract()` 接入 AuditTrace，将 request_id 与 64 位 fingerprint 写入 trace metadata；契约测试验证 prompt 不进入 trace。
 - 阶段 8 第三个目标完成：新增 tenant+idempotency key 的 `IdempotencyStore` 与 Gateway `invoke_idempotent()`；相同 fingerprint 复用结果，冲突请求返回稳定错误并避免重复 provider 调用。
+- 阶段 8 第四个目标完成：IdempotencyStore 增加 TTL 过期与 per-key 并发锁；同租户/key 并发请求只执行一次 provider，过期后允许新执行。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
