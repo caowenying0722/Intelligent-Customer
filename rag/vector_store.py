@@ -7,6 +7,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from model.factory import get_embedding_model
 from rag.simple_bm25 import RRFHybridRetriever, SimpleBM25Retriever, WeightedHybridRetriever
+from rag.retrieval_types import build_chroma_scope_filter
 from rag.tokenization import cjk_bm25_tokenizer
 from utils.config_handler import chroma_conf
 from utils.file_handler import (
@@ -38,9 +39,17 @@ class VectorStoreService:
             length_function=len,
         )
 
-    def _get_all_documents(self) -> list[Document]:
+    def _get_all_documents(
+        self, *, tenant_id: str | None = None, index_version: str | None = None
+    ) -> list[Document]:
         """从 Chroma 向量库中获取所有已存储的文档，用于构建 BM25 检索器"""
-        chroma_data = self.vector_store.get(include=["documents", "metadatas"])
+        scope_filter = build_chroma_scope_filter(
+            tenant_id=tenant_id, index_version=index_version
+        )
+        get_kwargs: dict[str, object] = {"include": ["documents", "metadatas"]}
+        if scope_filter is not None:
+            get_kwargs["where"] = scope_filter
+        chroma_data = self.vector_store.get(**get_kwargs)
         documents = []
         for content, metadata in zip(
             chroma_data["documents"], chroma_data["metadatas"]
@@ -48,14 +57,24 @@ class VectorStoreService:
             documents.append(Document(page_content=content, metadata=metadata))
         return documents
 
-    def get_retriever(self):
+    def get_retriever(
+        self, *, tenant_id: str | None = None, index_version: str | None = None
+    ):
+        scope_filter = build_chroma_scope_filter(
+            tenant_id=tenant_id, index_version=index_version
+        )
         retrieval_k = chroma_conf.get("candidate_k", chroma_conf["k"])
+        search_kwargs: dict[str, object] = {"k": retrieval_k}
+        if scope_filter is not None:
+            search_kwargs["filter"] = scope_filter
         vector_retriever = self.vector_store.as_retriever(
-            search_kwargs={"k": retrieval_k}
+            search_kwargs=search_kwargs
         )
 
         if chroma_conf.get("retrieval_type") == "hybrid":
-            all_docs = self._get_all_documents()
+            all_docs = self._get_all_documents(
+                tenant_id=tenant_id, index_version=index_version
+            )
             if not all_docs:
                 logger.warning("[混合检索]向量库中暂无文档，降级为纯向量检索")
                 return vector_retriever
