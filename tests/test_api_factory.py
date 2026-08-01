@@ -67,6 +67,10 @@ def test_chat_route_uses_injected_agent_and_stable_response() -> None:
     assert body["request_id"] == "req-chat"
     assert body["answer"] == "echo:你好"
     assert body["conversation_id"]
+    assert body["run_id"]
+    run = client.get(f"/api/v1/runs/{body['run_id']}")
+    assert run.status_code == 200
+    assert run.json()["status"] == "completed"
 
 
 def test_chat_route_reuses_conversation_id() -> None:

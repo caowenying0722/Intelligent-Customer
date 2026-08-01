@@ -38,7 +38,7 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
                 },
             )
         try:
-            answer, conversation_id = await chat_service.chat(
+            answer, conversation_id, run_id = await chat_service.chat(
                 payload.message,
                 payload.conversation_id,
                 request.headers.get("x-tenant-id", "local"),
@@ -68,6 +68,7 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
             request_id=request.state.request_id,
             answer=answer,
             conversation_id=str(conversation_id),
+            run_id=str(run_id),
         )
 
     @router.post("/chat/stream")

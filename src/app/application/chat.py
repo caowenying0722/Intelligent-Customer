@@ -6,6 +6,7 @@ from typing import Protocol
 from uuid import UUID
 
 from src.app.domain.conversations import (
+    ConcurrencyConflict,
     ConversationRepository,
     ConversationRepositoryProtocol,
 )
@@ -66,16 +67,18 @@ class ChatApplicationService:
         tenant_id: str = "local",
         user_id: str = "local",
         expected_version: int | None = None,
-    ) -> tuple[str, UUID]:
+    ) -> tuple[str, UUID, UUID]:
         resolved_id = self._conversation_id(tenant_id, conversation_id, user_id)
-        self.conversation_repository.append(
-            tenant_id,
-            resolved_id,
-            "user",
-            message,
-            expected_version=expected_version,
-        )
+        run = self.conversation_repository.create_run(tenant_id, resolved_id)
+        self.conversation_repository.update_run(tenant_id, run.run_id, "running")
         try:
+            self.conversation_repository.append(
+                tenant_id,
+                resolved_id,
+                "user",
+                message,
+                expected_version=expected_version,
+            )
             if self._async_runner is not None:
                 result = self._async_runner(self.agent, message)
             elif self._run_in_thread is not None:
@@ -86,12 +89,25 @@ class ChatApplicationService:
             self.conversation_repository.append(
                 tenant_id, resolved_id, "assistant", answer
             )
-            return answer, resolved_id
+            self.conversation_repository.update_run(tenant_id, run.run_id, "completed")
+            return answer, resolved_id, run.run_id
+        except ConcurrencyConflict:
+            self.conversation_repository.update_run(
+                tenant_id, run.run_id, "failed", "conversation conflict"
+            )
+            raise
         except asyncio.CancelledError:
+            self.conversation_repository.update_run(tenant_id, run.run_id, "cancelled")
             raise
         except (TimeoutError, asyncio.TimeoutError) as exc:
+            self.conversation_repository.update_run(
+                tenant_id, run.run_id, "failed", str(exc)
+            )
             raise ChatApplicationError("chat execution timed out") from exc
         except Exception as exc:  # noqa: BLE001 - map provider details to safe error.
+            self.conversation_repository.update_run(
+                tenant_id, run.run_id, "failed", str(exc)
+            )
             raise ChatApplicationError("chat execution failed") from exc
 
     async def stream(self, message: str) -> list[str]:

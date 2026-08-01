@@ -15,6 +15,7 @@ class ChatResponse(BaseModel):
     request_id: str
     answer: str
     conversation_id: str
+    run_id: str
 
 
 class ErrorResponse(BaseModel):
