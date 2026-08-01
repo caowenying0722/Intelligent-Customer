@@ -36,6 +36,7 @@ class ChatApplicationService:
         conversation_repository: ConversationRepositoryProtocol | None = None,
         model_gateway: ModelGateway | None = None,
         model_provider: str = "default",
+        stream_gateway: ModelGateway | None = None,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -49,6 +50,7 @@ class ChatApplicationService:
         )
         self.model_gateway = model_gateway
         self.model_provider = model_provider
+        self.stream_gateway = stream_gateway
 
     def _conversation_id(
         self, tenant_id: str, conversation_id: str | None, user_id: str
@@ -134,6 +136,17 @@ class ChatApplicationService:
                     self._async_stream_runner(self.agent, message),
                     timeout=self.timeout_seconds,
                 )
+            elif self.stream_gateway is not None:
+                chunks = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.stream_gateway.invoke,
+                        provider=self.model_provider,
+                        request=message,
+                    ),
+                    timeout=self.timeout_seconds,
+                )
+                if isinstance(chunks, str):
+                    chunks = [chunks]
             else:
                 chunks = await asyncio.wait_for(
                     asyncio.to_thread(self.agent.stream, message),
