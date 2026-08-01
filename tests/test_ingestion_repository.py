@@ -40,6 +40,12 @@ def test_sqlalchemy_ingestion_repository_recovers_documents_and_jobs() -> None:
         assert second.update_document_status(
             tenant_id="tenant-a", document_id=record.document_id, status=DocumentStatus.ACTIVE
         ).status == DocumentStatus.ACTIVE
+        assert second.delete(
+            tenant_id="tenant-a", document_id=record.document_id
+        ).status == DocumentStatus.DELETED
+        assert second.get_document(
+            tenant_id="tenant-b", document_id=record.document_id
+        ) is None
     finally:
         second.close()
         database.unlink()
