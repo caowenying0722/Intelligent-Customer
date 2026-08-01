@@ -14,6 +14,8 @@ from langchain_openai import ChatOpenAI
 from model.anthropic_compatible import AnthropicCompatibleChatModel
 from model.runtime_config import ModelRuntimeConfig
 from model.gateway import ModelGateway
+from model.cache import ModelCache
+from model.redis_cache import RedisCacheAdapter
 from utils.settings import Settings, get_settings
 
 
@@ -173,6 +175,8 @@ def build_chat_gateway(
     runtime: ModelRuntimeConfig | None = None,
     settings: Settings | None = None,
     max_concurrency: int = 8,
+    cache: object | None = None,
+    redis_client: object | None = None,
 ) -> ModelGateway:
     """Adapt an explicitly selected chat model behind the bounded gateway."""
     selected = model if model is not None else get_chat_model()
@@ -183,6 +187,13 @@ def build_chat_gateway(
         if settings is not None
         else max_concurrency
     )
+    selected_cache = cache
+    if selected_cache is None and settings is not None:
+        selected_cache = (
+            RedisCacheAdapter.from_settings(redis_client, selected_settings)
+            if redis_client is not None
+            else ModelCache.from_settings(selected_settings)
+        )
     return ModelGateway(
         {provider: selected.invoke},
         timeout_seconds=config.request_timeout_seconds,
@@ -191,6 +202,7 @@ def build_chat_gateway(
         failure_threshold=selected_settings.model_failure_threshold,
         cooldown_seconds=selected_settings.model_cooldown_seconds,
         rate_limit_per_second=selected_settings.model_rate_limit_per_second,
+        cache=selected_cache,
     )
 
 
