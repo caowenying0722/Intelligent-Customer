@@ -81,6 +81,8 @@ class IngestionJobManager:
         tenant_id: str,
         idempotency_key: str,
         operation: Callable[[], Any],
+        job_id: UUID | None = None,
+        max_attempts: int | None = None,
     ) -> IngestionJob:
         if not tenant_id.strip() or not idempotency_key.strip():
             raise ValueError("tenant_id and idempotency_key must not be empty")
@@ -90,12 +92,12 @@ class IngestionJobManager:
             if existing_id is not None:
                 return self._jobs[existing_id]
             job = IngestionJob(
-                job_id=uuid4(),
+                job_id=job_id or uuid4(),
                 tenant_id=tenant_id,
                 idempotency_key=idempotency_key,
                 status=IngestionJobStatus.QUEUED,
                 created_at=datetime.now(timezone.utc),
-                max_attempts=self._max_attempts,
+                max_attempts=max_attempts or self._max_attempts,
             )
             self._jobs[job.job_id] = job
             self._idempotency[key] = job.job_id
