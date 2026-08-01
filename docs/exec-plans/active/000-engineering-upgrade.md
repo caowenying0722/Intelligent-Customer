@@ -776,5 +776,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 5/6 成本控制目标完成：新增显式 `CostTracker`/`UsageRecord`，按 tenant/provider/model 记录 token 与 Decimal 估算成本；Gateway 仅在显式 `record_usage()` 时记账，不猜测供应商 token。
 - 阶段 6 第十四个目标完成：CostTracker 增加可选 tenant 累计成本预算，超限抛出 `BudgetExceededError` 且不追加伪造记录；快照保留总成本与租户数量。
 - 阶段 6 第十五个目标完成：Gateway `record_usage()` 将预算超限映射为稳定 `ModelGatewayError`，业务层不依赖 CostTracker 内部异常类型；预算错误测试通过。
+- 阶段 6 第十六个目标完成：CostTracker usage snapshot 接入 `/metrics`，暴露 aggregate records/tokens/cost/tenant count，不暴露 tenant ID 或请求内容。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
