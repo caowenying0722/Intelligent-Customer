@@ -24,7 +24,7 @@
 
 ## 发布阻塞
 
-1. `pip-audit -r requirements.txt` 真实发现 3 个无修复版本漏洞：ChromaDB `CVE-2026-45829`、RAGAS `CVE-2026-6587`、DiskCache `CVE-2025-69872`。CI 必须继续失败，不使用 ignore。
+1. `pip-audit -r requirements.txt` 真实发现 3 个无修复版本漏洞：ChromaDB `CVE-2026-45829`、RAGAS `CVE-2026-6587`、DiskCache `CVE-2025-69872`。本轮已复核可见最新版本仍无 fix；CI 必须继续失败，不使用 ignore。
 2. `docker build --tag intelligent-customer-api:local .` 已重新执行：Python 3.10 基础镜像和依赖下载/安装完成，但约 889 秒后在 BuildKit 镜像导出阶段收到 Docker daemon EOF；最终没有生成可用镜像。随后 `docker desktop start/restart` 复核仍报 daemon unable to start/超时，不能宣称 Docker 镜像可发布。
 3. 本机解释器是 Python 3.13，`scripts/check_environment.py` 按支持矩阵拒绝；远端 CI 使用 Python 3.10，仍需在 CI 上验证完整 clean install。
 

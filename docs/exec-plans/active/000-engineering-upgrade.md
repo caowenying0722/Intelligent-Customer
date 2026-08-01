@@ -843,5 +843,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第二十二个目标完成：在镜像代理可用后重新执行 API Docker build；基础镜像和全部锁定依赖下载/安装完成，但 BuildKit 导出阶段约 889 秒后因 Docker daemon EOF 失败，随后 Docker Desktop 无法启动。结果已记录为发布阻塞，未伪称镜像成功。
 - 阶段 11 第二十三个目标完成：复核 `docker desktop start/restart` 和 daemon 状态，仍出现 unable to start/超时；确认阻塞重复来自 Docker Desktop 外部状态，代码与 Compose 静态配置不构成原因，保留为发布 blocker。
 - 阶段 11 第二十四个目标完成：强化 OTLP endpoint 安全策略，production Settings 拒绝明文 HTTP，仅允许 HTTPS。全量 `315 passed`、25 subtests，覆盖率 59%，Ruff/Mypy/secret scan、pip check、dataset、deterministic、red-team、load smoke 均通过。
+- 阶段 11 第二十五个目标进行中：复核 ChromaDB/RAGAS/DiskCache 可见最新版本与 pip-audit advisory，确认无可用 fix 后不盲目升级或 ignore；更新安全审计与发布阻塞文档并推送中文标签。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
