@@ -6,11 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-LOCAL_DEPS = PROJECT_ROOT / ".local_deps"
-if LOCAL_DEPS.exists() and str(LOCAL_DEPS) not in sys.path:
-    sys.path.insert(0, str(LOCAL_DEPS))
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -46,7 +42,9 @@ def load_comparison(path: Path) -> dict[str, Any]:
         return json.load(f)
 
 
-def metric_rows(comparison: dict[str, Any], focus_metrics: list[str]) -> list[tuple[str, float, float, float, float, int | None]]:
+def metric_rows(
+    comparison: dict[str, Any], focus_metrics: list[str]
+) -> list[tuple[str, float, float, float, float, int | None]]:
     metrics = comparison.get("metrics", {})
     rows = []
     for name in focus_metrics:
@@ -60,7 +58,9 @@ def metric_rows(comparison: dict[str, Any], focus_metrics: list[str]) -> list[tu
                 float(item.get("improved", 0.0)),
                 float(item.get("percentage_point_delta", 0.0)),
                 float(item.get("relative_percent_delta", 0.0)),
-                item.get("paired_sample_count") if isinstance(item.get("paired_sample_count"), int) else None,
+                item.get("paired_sample_count")
+                if isinstance(item.get("paired_sample_count"), int)
+                else None,
             )
         )
     return rows
@@ -71,7 +71,11 @@ def available_metrics(comparison: dict[str, Any], names: list[str]) -> list[str]
     return [name for name in names if name in metrics]
 
 
-def build_markdown(comparison_path: Path, comparison: dict[str, Any], rows: list[tuple[str, float, float, float, float, int | None]]) -> str:
+def build_markdown(
+    comparison_path: Path,
+    comparison: dict[str, Any],
+    rows: list[tuple[str, float, float, float, float, int | None]],
+) -> str:
     baseline_config = comparison.get("baseline_config", {})
     improved_config = comparison.get("improved_config", {})
     sample_count = comparison.get("sample_count", "unknown")
@@ -114,8 +118,17 @@ def build_markdown(comparison_path: Path, comparison: dict[str, Any], rows: list
 
     lines.extend(["", "## Interview Bullets", ""])
     if best_positive:
-        for name, baseline, improved, point_delta, relative_delta, paired_count in best_positive[:5]:
-            paired_note = f", paired n={paired_count}" if paired_count is not None else ""
+        for (
+            name,
+            baseline,
+            improved,
+            point_delta,
+            relative_delta,
+            paired_count,
+        ) in best_positive[:5]:
+            paired_note = (
+                f", paired n={paired_count}" if paired_count is not None else ""
+            )
             lines.append(
                 f"- {name}: {baseline:.4f} -> {improved:.4f}, +{point_delta:.2f} pts ({relative_delta:+.2f}%{paired_note})."
             )
@@ -132,8 +145,12 @@ def build_markdown(comparison_path: Path, comparison: dict[str, Any], rows: list
             ]
         )
     elif len(official_metrics) < len(OFFICIAL_RAGAS_METRICS):
-        missing_metrics = [name for name in OFFICIAL_RAGAS_METRICS if name not in official_metrics]
-        ragas_error = comparison.get("improved_ragas_error") or comparison.get("baseline_ragas_error")
+        missing_metrics = [
+            name for name in OFFICIAL_RAGAS_METRICS if name not in official_metrics
+        ]
+        ragas_error = comparison.get("improved_ragas_error") or comparison.get(
+            "baseline_ragas_error"
+        )
         lines.extend(
             [
                 "",
@@ -151,11 +168,27 @@ def build_markdown(comparison_path: Path, comparison: dict[str, Any], rows: list
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Summarize a RAG comparison report for interview/demo use.")
-    parser.add_argument("--comparison", type=Path, default=None, help="Path to comparison.json.")
-    parser.add_argument("--output-dir", type=Path, default=Path("output"), help="Directory used to auto-discover comparison.json.")
-    parser.add_argument("--markdown-out", type=Path, default=None, help="Optional markdown output path.")
-    parser.add_argument("--focus-metric", action="append", default=None, help="Metric to include. Can be repeated.")
+    parser = argparse.ArgumentParser(
+        description="Summarize a RAG comparison report for interview/demo use."
+    )
+    parser.add_argument(
+        "--comparison", type=Path, default=None, help="Path to comparison.json."
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("output"),
+        help="Directory used to auto-discover comparison.json.",
+    )
+    parser.add_argument(
+        "--markdown-out", type=Path, default=None, help="Optional markdown output path."
+    )
+    parser.add_argument(
+        "--focus-metric",
+        action="append",
+        default=None,
+        help="Metric to include. Can be repeated.",
+    )
     args = parser.parse_args()
 
     comparison_path = args.comparison or find_latest_comparison(args.output_dir)

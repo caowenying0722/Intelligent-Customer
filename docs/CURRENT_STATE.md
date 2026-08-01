@@ -8,12 +8,14 @@
 
 ## 运行环境与依赖
 
-- 当前解释器：Python 3.13.13。
-- 依赖管理：仅有 `requirements.txt` 和 `requirements-ragas-lite.txt`，没有锁文件、`pyproject.toml`、统一开发依赖或受支持 Python 版本的机器可读声明。
-- 当前环境混用全局 site-packages 与 `.local_deps/`。正常导入路径缺少 Streamlit、ChromaDB、`langchain-chroma`、`langchain-huggingface` 等应用依赖。
-- 将 `.local_deps/` 放到 `sys.path` 后，声明的 `langgraph==0.2.50` 仍解析到全局 1.2.0，并与本地 `langchain-core==0.3.86` 不兼容。
+- 初始审计 shell 的解释器为 Python 3.13.13；该环境混用全局 site-packages 与 `.local_deps/`，不作为受支持运行环境。
+- 受支持开发版本现由 `.python-version` 固定为 Python 3.10.20；本机 `ics` 环境已验证 16 个直接运行依赖与 `requirements.txt` 精确一致，`app` 可以导入。
+- `requirements-dev.txt` 在运行依赖上固定 pytest、Ruff、Mypy、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
+- 当前只有直接依赖和开发工具精确固定，尚无完整的跨平台 transitive lock；因此不能把它描述为完全可重复的供应链锁定。
+- 目标环境导入 `app` 仍会立即访问 Chroma、扫描知识文件并产生本地/遥测输出；可导入不代表无副作用。
+- 旧 `.local_deps/` 目录仍存在但已不再由评测/报告脚本自动插入 `sys.path`；初始行为曾覆盖目标环境中的正确二进制包并导致 RAGAS 导入失败。
 - Python 3.13 下执行完整依赖 dry-run 失败：`langchain-community==0.3.31` 要求 NumPy 2.x，而 `langchain-chroma==0.1.4` 在该解释器组合下要求 NumPy 1.x。
-- README 推荐 Python 3.10；在建立干净的 Python 3.10 环境并验证前，不能据此声称完整安装可复现。
+- pip-audit 对当前运行依赖报告 13 个包共 84 条已知漏洞记录；其中 LangChain/LangGraph 修复版本涉及大版本迁移，必须单独升级和回归，不能用忽略规则伪装通过。
 
 ## 当前架构与核心调用链
 
@@ -118,13 +120,25 @@ flowchart LR
 | `python -m coverage ...` | 未执行成功 | 工具未安装 |
 | 离线 BM25 全量评测 | 成功：28/28 | 未调用 LLM/RAGAS；产物见 `output/audit_baseline_offline/20260801_131255/` |
 
+阶段 1 后续验证使用 Python 3.10.20 `ics` 环境：
+
+| 命令 | 结果 | 分类与说明 |
+|---|---|---|
+| `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，16 个直接运行依赖精确匹配，`pip check` 成功 |
+| `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 21 个直接运行/开发依赖精确匹配 |
+| `pip install --dry-run --ignore-installed -r requirements-dev.txt` | 成功 | Python 3.10 可解析；输出同时证明传递依赖仍会漂移，不能替代 lock |
+| `python -m pytest -q` | 成功：32 passed | 收窄错误跳过条件、移除 `.local_deps` 污染，并增加脚本导入不修改 `sys.path` 的回归测试 |
+| Ruff lint/format（本目标新增文件） | 成功 | 仓库全量格式化和 lint 门禁仍待单独目标完成 |
+| Mypy（本目标新增文件） | 成功 | 使用 `--explicit-package-bases`；全仓类型门禁仍未建立 |
+| `python -m pip_audit -r requirements.txt` | 失败：84 条/13 包 | 真实安全基线；未忽略，进入阶段 1 下一修复目标 |
+
 ## 可复现指标基线
 
 审计时执行的是 `--retriever bm25 --no-generate --no-ragas`。答案直接取参考答案，因此只有检索类数字可作为当前实现的 smoke 观测；答案 F1、相似度、引用和正确性不能作为模型质量。
 
 | 指标 | 当前值 | 可用性说明 |
 |---|---:|---|
-| 测试数量 / 通过率 | 25 / 100% | 现有测试；没有核心 Agent/API/RAG 集成覆盖 |
+| 测试数量 / 通过率 | 32 / 100% | 新增 7 个环境/依赖隔离测试；仍没有核心 Agent/API/RAG 集成覆盖 |
 | 主评测集样本 | 28 | 非冻结、无 dataset version |
 | Focus 评测集样本 | 6 | 非隐藏集 |
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
@@ -152,7 +166,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：25 个单元测试集中在模型协议转换、评测辅助函数和 secret scanner。Agent 状态机、RAG 核心、文档入库、UI、故障路径、取消与并发均没有自动化测试。
+- 测试：32 个单元测试集中在环境约束、模型协议转换、评测辅助函数和 secret scanner。Agent 状态机、RAG 核心、文档入库、UI、故障路径、取消与并发均没有自动化测试。
 - 可观测性：普通文本日志写控制台和每日文件；没有 request ID、trace、metrics 或字段脱敏。
 - 部署：只有本地 Streamlit 命令；没有 API 服务、进程模型、容器、健康检查、优雅关闭或 CI。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
@@ -165,7 +179,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 4. 随机 user ID 如何代表真实登录用户，如何防止读取其他人的报告？当前没有安全边界。
 5. 如何部署、扩容和恢复会话？当前导入时写本地 Chroma，session 只在单进程内存。
 6. 为什么关闭 TLS 校验？这是不可接受的生产安全配置。
-7. 25 个辅助函数测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
+7. 32 个环境/辅助函数测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
 
 ## 当前是否适合继续自动修改
 

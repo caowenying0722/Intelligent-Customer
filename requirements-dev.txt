@@ -1,0 +1,8 @@
+-r requirements.txt
+
+# Development quality gates. Keep these exact so local and CI results use the same tools.
+pytest==9.1.1
+ruff==0.16.1
+mypy==2.3.0
+coverage==7.15.2
+pip-audit==2.10.1

@@ -8,11 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-LOCAL_DEPS = PROJECT_ROOT / ".local_deps"
-if LOCAL_DEPS.exists() and str(LOCAL_DEPS) not in sys.path:
-    sys.path.insert(0, str(LOCAL_DEPS))
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -88,8 +84,10 @@ def validate(comparison_path: Path | None) -> list[CheckResult]:
         CheckResult(
             "rerank_config",
             bool(chroma_config.get("rerank_enabled"))
-            and int(chroma_config.get("candidate_k", 0)) > int(chroma_config.get("k", 0))
-            and int(chroma_config.get("rerank_top_k", 0)) == int(chroma_config.get("k", 0)),
+            and int(chroma_config.get("candidate_k", 0))
+            > int(chroma_config.get("k", 0))
+            and int(chroma_config.get("rerank_top_k", 0))
+            == int(chroma_config.get("k", 0)),
             (
                 f"candidate_k={chroma_config.get('candidate_k')}, "
                 f"k={chroma_config.get('k')}, "
@@ -135,6 +133,8 @@ def validate(comparison_path: Path | None) -> list[CheckResult]:
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
+        check=False,
+        timeout=120,
     )
     results.append(
         CheckResult(
@@ -145,8 +145,14 @@ def validate(comparison_path: Path | None) -> list[CheckResult]:
     )
 
     dataset_path = PROJECT_ROOT / "data" / "evaluation" / "rag_eval_dataset.jsonl"
-    dataset_lines = [line for line in read_text(dataset_path).splitlines() if line.strip()]
-    ood_count = sum(1 for line in dataset_lines if json.loads(line).get("metadata", {}).get("expect_low_confidence"))
+    dataset_lines = [
+        line for line in read_text(dataset_path).splitlines() if line.strip()
+    ]
+    ood_count = sum(
+        1
+        for line in dataset_lines
+        if json.loads(line).get("metadata", {}).get("expect_low_confidence")
+    )
     results.append(
         CheckResult(
             "evaluation_dataset",
@@ -156,7 +162,9 @@ def validate(comparison_path: Path | None) -> list[CheckResult]:
     )
 
     if comparison_path is None:
-        results.append(CheckResult("comparison_report", False, "no comparison.json found"))
+        results.append(
+            CheckResult("comparison_report", False, "no comparison.json found")
+        )
         return results
 
     comparison = read_json(comparison_path)
@@ -175,7 +183,8 @@ def validate(comparison_path: Path | None) -> list[CheckResult]:
             "ablation_design",
             bool(improved_config.get("rerank_enabled"))
             and not bool(baseline_config.get("rerank_enabled"))
-            and int(improved_config.get("candidate_k", 0)) > int(baseline_config.get("candidate_k", 0)),
+            and int(improved_config.get("candidate_k", 0))
+            > int(baseline_config.get("candidate_k", 0)),
             f"baseline={baseline_config}, improved={improved_config}",
         )
     )
@@ -215,11 +224,22 @@ def validate(comparison_path: Path | None) -> list[CheckResult]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Validate whether the RAG quality-engineering goal is fully satisfied.")
-    parser.add_argument("--comparison", type=Path, default=None, help="Path to comparison.json.")
-    parser.add_argument("--output-dir", type=Path, default=PROJECT_ROOT / "output", help="Search root for comparison.json.")
+    parser = argparse.ArgumentParser(
+        description="Validate whether the RAG quality-engineering goal is fully satisfied."
+    )
+    parser.add_argument(
+        "--comparison", type=Path, default=None, help="Path to comparison.json."
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=PROJECT_ROOT / "output",
+        help="Search root for comparison.json.",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON.")
-    parser.add_argument("--strict", action="store_true", help="Exit 1 if any required check fails.")
+    parser.add_argument(
+        "--strict", action="store_true", help="Exit 1 if any required check fails."
+    )
     args = parser.parse_args()
 
     comparison_path = args.comparison or find_latest_comparison(args.output_dir)

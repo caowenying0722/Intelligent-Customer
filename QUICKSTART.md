@@ -4,6 +4,17 @@
 
 Conda 环境 `ics` 已成功创建并配置！
 
+仓库当前支持并验证 Python 3.10，`.python-version` 固定到 3.10.20。新环境建议使用：
+
+```bash
+conda create -n ics python=3.10.20 -y
+conda activate ics
+python -m pip install -r requirements-dev.txt
+python scripts/check_environment.py --requirements requirements-dev.txt
+```
+
+`requirements.txt` 是运行依赖，`requirements-dev.txt` 在其基础上增加固定版本的测试、静态检查、覆盖率和依赖审计工具。
+
 ### 已安装的关键组件
 - Python 3.10
 - LangChain 0.3.7 和相关组件

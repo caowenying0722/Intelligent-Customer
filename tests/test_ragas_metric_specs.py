@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import importlib.util
 import unittest
 
 from evaluation.ragas_runner import (
+    RagasEvaluationError,
     _build_new_metrics,
     _new_ragas_row,
     _normalize_requested_metric_names,
@@ -23,26 +25,37 @@ class RagasMetricSpecTest(unittest.TestCase):
     def test_normalize_factual_correctness_alias(self) -> None:
         spec = parse_ragas_metric_spec("factual_correctness(mode=f1)")
 
-        normalized = _normalize_requested_metric_names({"factual_correctness": 0.91}, [spec])
+        normalized = _normalize_requested_metric_names(
+            {"factual_correctness": 0.91}, [spec]
+        )
 
         self.assertEqual(normalized["factual_correctness(mode=f1)"], 0.91)
 
     def test_normalize_answer_relevancy_alias(self) -> None:
         spec = parse_ragas_metric_spec("answer_relevancy")
 
-        normalized = _normalize_requested_metric_names({"response_relevancy": 0.73}, [spec])
+        normalized = _normalize_requested_metric_names(
+            {"response_relevancy": 0.73}, [spec]
+        )
 
         self.assertEqual(normalized["answer_relevancy"], 0.73)
 
-    def test_build_new_metrics_sets_factual_correctness_f1_when_ragas_installed(self) -> None:
-        try:
-            import ragas  # noqa: F401
-        except ImportError:
+    def test_build_new_metrics_sets_factual_correctness_f1_when_ragas_installed(
+        self,
+    ) -> None:
+        if importlib.util.find_spec("ragas") is None:
             self.skipTest("ragas is not installed")
 
-        metrics = _build_new_metrics(["answer_relevancy", "factual_correctness(mode=f1)"])
+        import ragas  # noqa: F401
 
-        self.assertEqual([type(metric).__name__ for metric in metrics], ["AnswerRelevancy", "FactualCorrectness"])
+        metrics = _build_new_metrics(
+            ["answer_relevancy", "factual_correctness(mode=f1)"]
+        )
+
+        self.assertEqual(
+            [type(metric).__name__ for metric in metrics],
+            ["AnswerRelevancy", "FactualCorrectness"],
+        )
         self.assertEqual(getattr(metrics[1], "mode", None), "f1")
 
     def test_minimal_data_mode_omits_contexts_for_target_metrics(self) -> None:
@@ -67,7 +80,7 @@ class RagasMetricSpecTest(unittest.TestCase):
         self.assertEqual(resolve_ragas_eval_mode(None), "per_sample")
 
     def test_invalid_eval_mode_is_rejected(self) -> None:
-        with self.assertRaises(Exception):
+        with self.assertRaises(RagasEvaluationError):
             resolve_ragas_eval_mode("whole_dataset")
 
 
