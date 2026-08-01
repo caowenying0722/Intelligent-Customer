@@ -5,6 +5,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable, Mapping
 from typing import Any
+from model.cache import ModelCache
 import threading
 import time
 from collections import deque
@@ -33,6 +34,7 @@ class ModelGateway:
         failure_threshold: int = 5,
         cooldown_seconds: float = 30.0,
         rate_limit_per_second: int | None = None,
+        cache: ModelCache | None = None,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -49,6 +51,7 @@ class ModelGateway:
         self.failure_threshold = failure_threshold
         self.cooldown_seconds = cooldown_seconds
         self.rate_limit_per_second = rate_limit_per_second
+        self.cache = cache
         self._lock = threading.Lock()
         self._consecutive_failures = 0
         self._opened_at: float | None = None
@@ -180,3 +183,25 @@ class ModelGateway:
             except ModelGatewayError as exc:
                 last_error = exc
         raise ModelGatewayError(f"all providers failed for model route: {route}") from last_error
+
+    def invoke_cached(
+        self,
+        *,
+        provider: str,
+        model: str,
+        tenant_id: str,
+        prompt: str,
+        request: Any,
+        prompt_version: str = "v1",
+    ) -> Any:
+        if self.cache is None:
+            return self.invoke(provider=provider, request=request)
+        key = self.cache.key(
+            tenant_id=tenant_id, model=model, prompt=prompt, prompt_version=prompt_version
+        )
+        cached = self.cache.get(key)
+        if cached is not None:
+            return cached
+        result = self.invoke(provider=provider, request=request)
+        self.cache.set(key, result)
+        return result

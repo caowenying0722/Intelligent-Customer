@@ -8,6 +8,7 @@ from model.gateway import (
     PermanentModelError,
     RetryableModelError,
 )
+from model.cache import ModelCache
 
 
 def test_gateway_routes_to_provider_and_retries_bounded_failure():
@@ -112,3 +113,16 @@ def test_gateway_rate_limit_rejects_excess_calls_before_provider():
     with pytest.raises(ModelGatewayError, match="rate limit"):
         gateway.invoke(provider="fake", request="second")
     assert calls == ["first"]
+
+
+def test_gateway_cache_hit_skips_provider_and_scopes_tenant():
+    calls = []
+    gateway = ModelGateway(
+        {"fake": lambda request: calls.append(request) or "answer"},
+        cache=ModelCache(),
+    )
+    kwargs = dict(provider="fake", model="m", tenant_id="tenant-a", prompt="hello", request="hello")
+    assert gateway.invoke_cached(**kwargs) == "answer"
+    assert gateway.invoke_cached(**kwargs) == "answer"
+    assert gateway.invoke_cached(**{**kwargs, "tenant_id": "tenant-b"}) == "answer"
+    assert calls == ["hello", "hello"]
