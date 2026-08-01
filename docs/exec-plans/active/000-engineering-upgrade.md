@@ -729,5 +729,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 4 第十三个目标完成：ingestion job 增加显式 retryable/permanent 错误分类、最大尝试次数、指数退避上限和 attempt 记录；永久错误不重试，临时错误耗尽后失败，不允许无限循环。
 - 阶段 4 第十四个目标完成：job/API/repository 传播 progress、attempt、max_attempts 和 cancel_requested；queued 可取消，running 取消变为协作式请求，状态查询返回真实进度字段。
 - 阶段 4 第十五个目标完成：新增 `IngestionWorker.recover_queued()`，从持久化 store 按原 job_id/idempotency_key 恢复 queued 任务；running orphan 不重复执行，tenant 由 operation resolver 显式绑定。
+- 阶段 4 第十六个目标完成：修复入库 operation 异常分支，持久化原始失败消息并补回归测试，避免未定义异常覆盖根因。
+- 阶段 4 第十七个目标完成：恢复 worker 以包装 operation 同步持久化 completed/failed 终态，避免快速任务被错误留在 running。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
