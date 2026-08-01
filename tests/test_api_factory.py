@@ -96,6 +96,29 @@ def test_chat_route_reuses_conversation_id() -> None:
     ]
 
 
+def test_history_aware_agent_receives_prior_messages() -> None:
+    class HistoryAgent(FakeAgent):
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, list[tuple[str, str]]]] = []
+
+        def run_with_history(self, message: str, history: list[tuple[str, str]]) -> str:
+            self.calls.append((message, history))
+            return f"answer:{message}"
+
+    agent = HistoryAgent()
+    service = ChatApplicationService(agent)
+    client = TestClient(create_app(chat_service=service))
+
+    first = client.post("/api/v1/chat", json={"message": "one"}).json()
+    second = client.post(
+        "/api/v1/chat",
+        json={"message": "two", "conversation_id": first["conversation_id"]},
+    )
+
+    assert second.status_code == 200
+    assert agent.calls == [("two", [("user", "one"), ("assistant", "echo:one")])]
+
+
 def test_conversation_query_returns_messages_and_stable_404() -> None:
     service = ChatApplicationService(FakeAgent())
     client = TestClient(create_app(chat_service=service))

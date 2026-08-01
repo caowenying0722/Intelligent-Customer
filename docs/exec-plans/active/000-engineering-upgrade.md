@@ -871,5 +871,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第五十个目标完成：在当前用户工作区保持 dirty 的前提下重跑 deterministic regression，确认 artifact 记录提交 `44a5fee`、`dirty=true`、model_calls=0；同步更新 `CURRENT_STATE.md`/`RELEASE_READINESS.md` 为 337 tests、59% coverage、231 formatted files，并补列提示词、模型错误和无泄漏重排门禁。未覆盖用户 README 或删除文件。
 - 阶段 11 第五十一个目标完成：将引用评测拆分为 coverage、编号 validity 和确定性 `answer_citation_support` lexical proxy；factual correctness proxy 改用支持度而非单纯编号范围，新增错误引用回归。文档明确该指标不是 entailment/人工标签，TD-017 保持部分完成；当前门禁同步为 339 tests、60% coverage、232 formatted files。
 - 阶段 11 第五十二个目标完成：评测 runner 为每条样本记录 `duration_ms`、有界 `error_type` 和 summary 错误计数，失败样本不写异常正文；CSV 同步包含字段并新增 fake service 回归，quality gate 增加 `require_no_errors` 并在版本化配置启用，TD-016 标记完成。当前门禁同步为 342 tests、63% coverage、233 formatted files。
+- 阶段 11 第五十三个目标完成：非流式 ChatApplicationService 读取当前 tenant conversation 的有界历史，并在 Agent 支持 `run_with_history` 时传入；ModelGateway 请求/缓存也使用同一上下文，ReactAgent 增加兼容实现。旧单消息 Agent 保持原行为，新增历史回归；SSE/Streamlit 历史仍保留为后续目标，TD-010 标记部分完成。当前门禁为 343 tests、63% coverage、233 formatted files。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
