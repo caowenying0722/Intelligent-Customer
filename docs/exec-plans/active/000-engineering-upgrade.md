@@ -711,5 +711,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 3 第三十四个目标完成：新增 GitHub Actions deterministic-quality workflow，执行环境检查、format/lint/type/test、无模型 retrieval regression 和显式 baseline quality gate，并始终上传 summary artifact；不接入付费模型或外部 Qdrant。
 - 阶段 3 第三十五个目标完成：CI 接入 secret scan 和 pip-audit JSON artifact；secret scan 阻断疑似凭证，依赖审计不使用忽略规则，当前已知漏洞会使 workflow 明确失败并保留报告。
 - 阶段 3 第三十六个目标完成：基于真实调用链确认项目只使用本地嵌入式 Chroma；新增 `storage_mode=embedded` 严格配置，拒绝 remote 模式并记录补偿控制，但 pip-audit 漏洞仍保持发布阻塞。
+- 阶段 3 第三十七个目标完成：新增 ChromaDB 漏洞处置 ADR，明确当前补偿控制、Qdrant 替换门槛和回滚路径；在真实迁移与回归完成前不删除 Chroma 依赖、不宣称漏洞已修复。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
