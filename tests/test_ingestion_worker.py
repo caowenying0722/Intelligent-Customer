@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from src.app.application.ingestion import IngestionJob, IngestionJobManager, IngestionJobStatus
+from src.app.application.ingestion import IngestionJob, IngestionJobManager, IngestionJobStatus, RetryableIngestionError
 from src.app.application.ingestion_worker import IngestionWorker
 
 
@@ -77,5 +77,27 @@ def test_worker_persists_fast_terminal_state_instead_of_stale_running() -> None:
         time.sleep(0.05)
         assert manager.get(tenant_id="tenant-a", job_id=job.job_id).status == IngestionJobStatus.COMPLETED
         assert store.updated[-1]["status"] == IngestionJobStatus.COMPLETED
+    finally:
+        manager.close()
+
+
+def test_worker_persists_retryable_failure_only_after_exhaustion() -> None:
+    job = IngestionJob(
+        job_id=uuid4(), tenant_id="tenant-a", idempotency_key="retry",
+        status=IngestionJobStatus.QUEUED, created_at=datetime.now(timezone.utc),
+        max_attempts=2,
+    )
+    store = FakeStore([job])
+    manager = IngestionJobManager(max_workers=1, max_attempts=2, retry_backoff_seconds=0)
+    try:
+        IngestionWorker(manager, store).recover_queued(
+            tenant_id="tenant-a",
+            operation_for=lambda _: lambda: (_ for _ in ()).throw(RetryableIngestionError("temporary")),
+        )
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline and manager.get(tenant_id="tenant-a", job_id=job.job_id).status != IngestionJobStatus.FAILED:
+            time.sleep(0.01)
+        assert store.updated[-1]["status"] == IngestionJobStatus.FAILED
+        assert store.updated[-1]["error"] == "temporary"
     finally:
         manager.close()

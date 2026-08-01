@@ -6,7 +6,12 @@ from collections.abc import Callable
 from typing import Any, Protocol
 from uuid import UUID
 
-from src.app.application.ingestion import IngestionJob, IngestionJobManager, IngestionJobStatus
+from src.app.application.ingestion import (
+    IngestionJob,
+    IngestionJobManager,
+    IngestionJobStatus,
+    RetryableIngestionError,
+)
 
 
 class RecoverableJobStore(Protocol):
@@ -42,12 +47,17 @@ class IngestionWorker:
                 try:
                     result = operation()
                 except Exception as exc:
-                    self.store.update_job_status(
-                        tenant_id=persisted.tenant_id,
-                        job_id=persisted.job_id,
-                        status=IngestionJobStatus.FAILED,
-                        error=str(exc),
+                    current = self.manager.get(
+                        tenant_id=persisted.tenant_id, job_id=persisted.job_id
                     )
+                    exhausted = current is None or current.attempt >= current.max_attempts
+                    if not isinstance(exc, RetryableIngestionError) or exhausted:
+                        self.store.update_job_status(
+                            tenant_id=persisted.tenant_id,
+                            job_id=persisted.job_id,
+                            status=IngestionJobStatus.FAILED,
+                            error=str(exc),
+                        )
                     raise
                 self.store.update_job_status(
                     tenant_id=persisted.tenant_id,
