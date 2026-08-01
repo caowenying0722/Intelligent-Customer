@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import (
     DateTime,
     ForeignKey,
+    Index,
     String,
     create_engine,
     inspect,
@@ -24,7 +25,7 @@ from src.app.domain.conversations import (
     RunStateConflict,
 )
 
-EXPECTED_SCHEMA_REVISION = "0006_add_run_timing"
+EXPECTED_SCHEMA_REVISION = "0007_add_run_query_indexes"
 
 
 class Base(DeclarativeBase):
@@ -61,6 +62,10 @@ class MessageRow(Base):
 
 class AgentRunRow(Base):
     __tablename__ = "agent_runs"
+    __table_args__ = (
+        Index("ix_agent_runs_tenant_status_created", "tenant_id", "status", "created_at"),
+        Index("ix_agent_runs_tenant_created", "tenant_id", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(128), index=True)
