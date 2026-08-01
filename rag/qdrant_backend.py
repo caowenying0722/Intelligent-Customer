@@ -153,3 +153,42 @@ class QdrantVectorBackend:
             )
 
         self._run_bounded(call_backend, "alias switch")
+
+    def rollback_active_alias(self, *, alias_name: str, previous_collection: str) -> None:
+        """Rollback by atomically pointing the alias at a known-good collection."""
+        self.switch_active_alias(
+            alias_name=alias_name, target_collection=previous_collection
+        )
+
+    def cleanup_old_collections(
+        self,
+        collections: Sequence[str],
+        *,
+        active_collection: str,
+        retain_collections: int = 1,
+    ) -> list[str]:
+        """Delete only non-active collections beyond the newest retention window.
+
+        ``collections`` must be ordered newest first. The active collection is
+        always protected, even if it falls outside the requested retention.
+        """
+        if not active_collection.strip():
+            raise ValueError("active_collection must not be empty")
+        if retain_collections < 0:
+            raise ValueError("retain_collections must not be negative")
+        ordered = list(dict.fromkeys(collections))
+        protected = set(ordered[:retain_collections]) | {active_collection}
+        deleted: list[str] = []
+        for collection in ordered:
+            if not collection.strip() or collection in protected:
+                continue
+
+            def call_backend(collection: str = collection) -> Any:
+                return self.client.delete_collection(
+                    collection_name=collection,
+                    timeout=self.timeout_seconds,
+                )
+
+            self._run_bounded(call_backend, "collection cleanup")
+            deleted.append(collection)
+        return deleted

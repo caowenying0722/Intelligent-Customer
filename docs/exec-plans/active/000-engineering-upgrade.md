@@ -703,5 +703,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 3 第二十六个目标完成：VectorStoreService 的显式 tenant/index scope 下沉到 Chroma `where`/retriever filter，并用于 BM25 文档加载；index scope 不允许缺少 tenant，旧无 scope 调用保持兼容。
 - 阶段 3 第二十七个目标完成：新增无 qdrant-client 强依赖的注入式 Qdrant backend adapter，readiness/search 均有超时，search 强制 tenant/index filter，并覆盖不可用、超时和参数边界。
 - 阶段 3 第二十八个目标完成：Qdrant adapter 增加 scope 校验的有界批量 upsert 与 active alias 原子切换，批次、等待和超时均受限；覆盖重复投递可安全复用的 upsert 语义和 alias 切换请求结构。
+- 阶段 3 第二十九个目标完成：增加 active alias 回滚和旧 collection 清理策略，清理默认保护 active 并保留最新窗口，每次删除有超时；覆盖回滚复用原子切换和 active 不可删除。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

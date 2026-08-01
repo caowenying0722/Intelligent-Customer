@@ -24,6 +24,10 @@ class FakeQdrantClient:
         self.calls.append(kwargs)
         return {"status": "completed"}
 
+    def delete_collection(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"status": "completed"}
+
 
 def test_qdrant_search_always_carries_tenant_and_index_filter() -> None:
     client = FakeQdrantClient()
@@ -116,3 +120,33 @@ def test_qdrant_alias_switch_is_atomic_and_bounded() -> None:
             }
         },
     ]
+
+
+def test_qdrant_alias_rollback_reuses_atomic_switch() -> None:
+    client = FakeQdrantClient()
+    backend = QdrantVectorBackend(client, collection_name="knowledge")
+    backend.rollback_active_alias(alias_name="active", previous_collection="stable-1")
+    assert client.calls[-1]["change_aliases"][-1] == {
+        "create_alias": {
+            "collection_name": "stable-1",
+            "alias_name": "active",
+        }
+    }
+
+
+def test_qdrant_cleanup_protects_active_and_retains_newest_collections() -> None:
+    client = FakeQdrantClient()
+    backend = QdrantVectorBackend(client, collection_name="knowledge")
+    deleted = backend.cleanup_old_collections(
+        ["v3", "v2", "v1", "active-v0"],
+        active_collection="active-v0",
+        retain_collections=2,
+    )
+    assert deleted == ["v1"]
+    assert [call["collection_name"] for call in client.calls if "timeout" in call] == [
+        "v1"
+    ]
+    with pytest.raises(ValueError):
+        backend.cleanup_old_collections(
+            ["active-v0"], active_collection="active-v0", retain_collections=-1
+        )
