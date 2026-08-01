@@ -46,6 +46,7 @@ class BlueGreenIndexCoordinator:
         previous_collection: str,
         build_candidate: Callable[[], str],
         validate_candidate: Callable[[str], bool],
+        cleanup_old_collections: Callable[[], object] | None = None,
     ) -> str:
         """Build and validate once, then atomically switch the alias.
 
@@ -82,4 +83,13 @@ class BlueGreenIndexCoordinator:
             except Exception as rollback_exc:
                 raise IndexRebuildError("index activation and rollback failed") from rollback_exc
             raise IndexRebuildError("candidate index activation failed") from exc
+        if cleanup_old_collections is not None:
+            try:
+                self._bounded(cleanup_old_collections, "old collection cleanup")
+            except IndexRebuildError:
+                raise
+            except Exception as exc:
+                raise IndexRebuildError(
+                    "old collection cleanup failed after activation"
+                ) from exc
         return candidate

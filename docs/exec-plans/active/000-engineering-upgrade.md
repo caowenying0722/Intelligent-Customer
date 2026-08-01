@@ -736,5 +736,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 4 第二十个目标完成：新增注入式 `POST /api/v1/indexes/rebuild` 异步任务边界，复用有界 job manager，强制幂等键并验证租户隔离；实际解析/Embedding/alias 切换仍由 worker 实现提供。
 - 阶段 4 第二十一个目标完成：新增 `BlueGreenIndexCoordinator`，将候选构建、校验、原子 alias 切换和失败回滚封装为有限步骤；校验失败不触碰 active alias，切换失败尝试恢复已知稳定集合。
 - 阶段 4 第二十二个目标完成：为蓝绿协调器的构建与校验回调增加统一超时边界，超时不切换 alias，并保留明确的安全错误类型。
+- 阶段 4 第二十三个目标完成：蓝绿切换成功后才执行有界旧集合清理；清理失败报告错误但不回滚已生效的新 alias，避免破坏可用索引。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

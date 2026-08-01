@@ -60,3 +60,15 @@ def test_rebuild_times_out_a_blocking_builder():
             validate_candidate=lambda _: True,
         )
     assert backend.calls == []
+
+
+def test_cleanup_runs_after_activation_and_failure_keeps_new_alias():
+    backend = Backend()
+    with pytest.raises(IndexRebuildError, match="cleanup"):
+        BlueGreenIndexCoordinator(backend, timeout_seconds=0.05).rebuild(
+            previous_collection="stable-1",
+            build_candidate=lambda: "build-2",
+            validate_candidate=lambda _: True,
+            cleanup_old_collections=lambda: (_ for _ in ()).throw(RuntimeError("disk")),
+        )
+    assert [name for name, _ in backend.calls] == ["switch"]
