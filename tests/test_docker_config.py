@@ -29,9 +29,14 @@ def test_observability_profile_is_explicit_and_configured_without_secrets() -> N
 
     assert services["otel-collector"]["profiles"] == ["observability"]
     assert services["prometheus"]["profiles"] == ["observability"]
+    assert services["grafana"]["profiles"] == ["observability"]
     assert services["prometheus"]["depends_on"]["api"]["condition"] == (
         "service_healthy"
     )
+    assert services["grafana"]["environment"]["GF_AUTH_ANONYMOUS_ORG_ROLE"] == (
+        "Viewer"
+    )
+    assert services["grafana"]["ports"] == ["127.0.0.1:3000:3000"]
     assert "Authorization" not in str(compose)
     assert "API_KEY" not in str(compose)
 

@@ -9,9 +9,10 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317 docker compose --profile 
 profile 包含：
 
 - `otel-collector`：接收 OTLP gRPC trace，开发环境输出到 `debug` exporter；
-- `prometheus`：抓取 API 的 `/metrics/prometheus`。
+- `prometheus`：抓取 API 的 `/metrics/prometheus`；
+- `grafana`：挂载 provisioning/dashboard artifact，仅绑定本机 `127.0.0.1:3000`，匿名只读用于本地查看。
 
-`deploy/observability/grafana/` 同时提供 Prometheus datasource 和 API overview dashboard provisioning artifact。当前 profile 尚未启动 Grafana 容器，避免在没有明确管理员凭据策略时引入默认账号；dashboard 的 PromQL 只引用仓库已有的有界指标。
+`deploy/observability/grafana/` 同时提供 Prometheus datasource 和 API overview dashboard provisioning artifact；dashboard 的 PromQL 只引用仓库已有的有界指标。Grafana profile 是本地只读展示，不创建初始管理员、不允许注册；生产必须关闭匿名模式并接入组织认证/secret。
 
 镜像版本固定在 Compose 文件中，首次启动仍需要拉取外部镜像；本仓库未宣称当前网络下镜像已成功拉取或健康运行。执行 `docker compose --profile observability config --quiet` 可先验证静态配置。
 
