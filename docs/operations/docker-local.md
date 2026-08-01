@@ -17,3 +17,14 @@ docker compose down
 ```
 
 默认 Compose 不注入模型密钥。需要真实模型时通过外部环境或 secret 管理注入，不要把 `.env` 复制进镜像。
+
+## Fake API load smoke
+
+不启动 Docker 也可以运行有界的 API 负载 smoke：
+
+```bash
+python scripts/run_load_smoke.py --requests 20 --concurrency 4 \
+  --output output/load-smoke.json
+```
+
+它使用 fake Agent，仅报告本地 ASGI 的吞吐、p50/p95 和错误率，不能证明生产并发能力；参数和超时均有上限。
