@@ -11,12 +11,17 @@ class FakeStore:
     def __init__(self, jobs):
         self.jobs = jobs
         self.updated = []
+        self.progress = []
 
     def list_recoverable_jobs(self, *, tenant_id=None):
         return [job for job in self.jobs if tenant_id is None or job.tenant_id == tenant_id]
 
     def update_job_status(self, **kwargs):
         self.updated.append(kwargs)
+        return next(job for job in self.jobs if job.job_id == kwargs["job_id"])
+
+    def update_progress(self, **kwargs):
+        self.progress.append(kwargs)
         return next(job for job in self.jobs if job.job_id == kwargs["job_id"])
 
 
@@ -99,5 +104,24 @@ def test_worker_persists_retryable_failure_only_after_exhaustion() -> None:
             time.sleep(0.01)
         assert store.updated[-1]["status"] == IngestionJobStatus.FAILED
         assert store.updated[-1]["error"] == "temporary"
+    finally:
+        manager.close()
+
+
+def test_worker_persists_progress_boundaries() -> None:
+    job = IngestionJob(
+        job_id=uuid4(), tenant_id="tenant-a", idempotency_key="progress",
+        status=IngestionJobStatus.QUEUED, created_at=datetime.now(timezone.utc),
+    )
+    store = FakeStore([job])
+    manager = IngestionJobManager(max_workers=1)
+    try:
+        IngestionWorker(manager, store).recover_queued(
+            tenant_id="tenant-a", operation_for=lambda _: lambda: None
+        )
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline and len(store.progress) < 2:
+            time.sleep(0.01)
+        assert [item["progress"] for item in store.progress] == [0, 100]
     finally:
         manager.close()

@@ -21,11 +21,19 @@ class RecoverableJobStore(Protocol):
         self, *, tenant_id: str, job_id: UUID, status: IngestionJobStatus, error: str | None = None
     ) -> IngestionJob: ...
 
+    def update_progress(self, *, tenant_id: str, job_id: UUID, progress: int) -> IngestionJob: ...
+
 
 class IngestionWorker:
     def __init__(self, manager: IngestionJobManager, store: RecoverableJobStore):
         self.manager = manager
         self.store = store
+
+    def _progress(self, *, tenant_id: str, job_id: UUID, progress: int) -> None:
+        self.manager.update_progress(tenant_id=tenant_id, job_id=job_id, progress=progress)
+        updater = getattr(self.store, "update_progress", None)
+        if callable(updater):
+            updater(tenant_id=tenant_id, job_id=job_id, progress=progress)
 
     def recover_queued(
         self,
@@ -44,6 +52,7 @@ class IngestionWorker:
             operation = operation_for(persisted)
 
             def run(operation=operation, persisted=persisted):
+                self._progress(tenant_id=persisted.tenant_id, job_id=persisted.job_id, progress=0)
                 try:
                     result = operation()
                 except Exception as exc:
@@ -59,6 +68,7 @@ class IngestionWorker:
                             error=str(exc),
                         )
                     raise
+                self._progress(tenant_id=persisted.tenant_id, job_id=persisted.job_id, progress=100)
                 self.store.update_job_status(
                     tenant_id=persisted.tenant_id,
                     job_id=persisted.job_id,
