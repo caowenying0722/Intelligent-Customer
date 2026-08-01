@@ -24,6 +24,12 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
       - name: Check dependency environment
         run: python scripts/check_environment.py --requirements requirements-dev.txt
+      - name: Secret scan
+        run: python scripts/scan_secrets.py
+      - name: Dependency audit (known vulnerabilities block release)
+        run: >-
+          python -m pip_audit -r requirements.txt
+          --format json --output output/ci/pip-audit.json
       - name: Format check
         run: python -m ruff format --check .
       - name: Lint
@@ -46,5 +52,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: deterministic-retrieval-report
-          path: output/ci/deterministic-summary.json
+          path: |
+            output/ci/deterministic-summary.json
+            output/ci/pip-audit.json
           if-no-files-found: warn
