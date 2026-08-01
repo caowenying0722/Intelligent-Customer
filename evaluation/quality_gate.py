@@ -50,10 +50,14 @@ def load_quality_gate_config(path: str | Path) -> dict[str, Any]:
     require_model_free = raw.get("require_model_free", False)
     if not isinstance(require_model_free, bool):
         raise ValueError("require_model_free must be boolean")
+    require_no_errors = raw.get("require_no_errors", False)
+    if not isinstance(require_no_errors, bool):
+        raise ValueError("require_no_errors must be boolean")
     return {
         "minimum_metrics": normalized,
         "require_complete": require_complete,
         "require_model_free": require_model_free,
+        "require_no_errors": require_no_errors,
     }
 
 
@@ -64,6 +68,7 @@ def evaluate_quality_gate(
     require_complete: bool = True,
     require_candidate_not_worse: bool = True,
     require_model_free: bool = False,
+    require_no_errors: bool = False,
 ) -> GateResult:
     regression = summary.get("retrieval_regression", {})
     failures: list[str] = []
@@ -79,6 +84,10 @@ def evaluate_quality_gate(
         )
         if model_calls != 0:
             failures.append("deterministic evaluation reported model calls")
+    if require_no_errors:
+        error_count = summary.get("error_count", 0)
+        if not isinstance(error_count, int) or error_count != 0:
+            failures.append("evaluation report contains sample errors")
     metrics = regression.get("metrics", {})
     for name, minimum in minimum_metrics.items():
         value = metrics.get(name)
@@ -139,6 +148,7 @@ def main(argv: list[str] | None = None) -> int:
             else bool(config.get("require_complete", True))
         ),
         require_model_free=bool(config.get("require_model_free", False)),
+        require_no_errors=bool(config.get("require_no_errors", False)),
     )
     if result.passed:
         print("quality gate passed")

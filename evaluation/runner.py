@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 import json
 import math
+import time
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
@@ -53,6 +55,21 @@ class EvaluationRagService(Protocol):
     def retriever_docs(self, query: str) -> list[Document]: ...
 
     def summarize_with_docs(self, query: str, context_docs: list[Document]) -> str: ...
+
+
+def classify_evaluation_error(error: BaseException) -> str:
+    """Map runtime failures to bounded, non-sensitive evaluation categories."""
+
+    error_name = type(error).__name__.lower()
+    if isinstance(error, TimeoutError) or "timeout" in error_name:
+        return "timeout"
+    if isinstance(error, (ConnectionError, OSError)) or any(
+        marker in error_name for marker in ("connection", "network", "transport")
+    ):
+        return "upstream"
+    if isinstance(error, (TypeError, ValueError, KeyError, AttributeError)):
+        return "invalid_output"
+    return "unknown"
 
 
 def load_evaluation_config(config_path: str | Path | None = None) -> dict[str, Any]:
@@ -106,13 +123,22 @@ def evaluate_samples(
 
     for index, sample in enumerate(samples, start=1):
         print(f"[RAG评测] {index}/{len(samples)} {sample.id}: {sample.question}")
-        docs = rag_service.retriever_docs(sample.question)
-        if answer_mode == "extractive":
-            answer = build_extractive_answer(sample.question, docs)
-        elif generate_answers:
-            answer = rag_service.summarize_with_docs(sample.question, docs)
-        else:
-            answer = sample.reference_answer
+        started = time.perf_counter()
+        docs: list[Document] = []
+        answer = ""
+        error_type: str | None = None
+        try:
+            docs = rag_service.retriever_docs(sample.question)
+            if answer_mode == "extractive":
+                answer = build_extractive_answer(sample.question, docs)
+            elif generate_answers:
+                answer = rag_service.summarize_with_docs(sample.question, docs)
+            else:
+                answer = sample.reference_answer
+            metrics = calculate_local_metrics(sample, answer, docs)
+        except Exception as exc:  # noqa: BLE001 - isolate one sample by category.
+            error_type = classify_evaluation_error(exc)
+            metrics = {}
         contexts = [doc.page_content for doc in docs]
 
         rows.append(
@@ -127,8 +153,10 @@ def evaluate_samples(
                     document_payload(doc, rank)
                     for rank, doc in enumerate(docs, start=1)
                 ],
-                "metrics": calculate_local_metrics(sample, answer, docs),
+                "metrics": metrics,
                 "metadata": sample.metadata,
+                "duration_ms": round((time.perf_counter() - started) * 1000, 3),
+                "error_type": error_type,
             }
         )
 
@@ -200,6 +228,7 @@ def save_evaluation_report(
     report_dir.mkdir(parents=True, exist_ok=True)
 
     metric_summary = summarize_metric_rows(rows)
+    error_types = Counter(row["error_type"] for row in rows if row.get("error_type"))
     summary = {
         "generated_at": generated_at.isoformat(timespec="seconds"),
         "repository": repository_snapshot(),
@@ -217,6 +246,8 @@ def save_evaluation_report(
         "judge_llm": judge_llm_snapshot or {},
         "rag_config": rag_config_snapshot or {},
         "metrics": metric_summary,
+        "error_count": sum(error_types.values()),
+        "error_types": dict(sorted(error_types.items())),
         "retrieval_regression": retrieval_regression_summary or {},
     }
 
@@ -234,6 +265,8 @@ def save_evaluation_report(
         "answer",
         "reference_answer",
         "retrieved_sources",
+        "duration_ms",
+        "error_type",
         *metric_names,
     ]
     with (report_dir / "metrics.csv").open("w", encoding="utf-8-sig", newline="") as f:
@@ -246,6 +279,8 @@ def save_evaluation_report(
                 "answer": row["answer"],
                 "reference_answer": row["reference_answer"],
                 "retrieved_sources": " | ".join(row["retrieved_sources"]),
+                "duration_ms": row.get("duration_ms", ""),
+                "error_type": row.get("error_type", ""),
             }
             combined_metrics = {}
             combined_metrics.update(row.get("metrics", {}))

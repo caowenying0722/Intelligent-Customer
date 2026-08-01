@@ -47,6 +47,20 @@ def test_quality_gate_rejects_model_calls_in_deterministic_mode() -> None:
     assert "model calls" in result.failures[0]
 
 
+def test_quality_gate_rejects_sample_errors_when_required() -> None:
+    summary = _summary()
+    summary["error_count"] = 1
+
+    result = evaluate_quality_gate(
+        summary,
+        minimum_metrics={},
+        require_no_errors=True,
+    )
+
+    assert result.passed is False
+    assert "sample errors" in result.failures[0]
+
+
 def test_quality_gate_rejects_non_numeric_threshold_value() -> None:
     with pytest.raises(ValueError):
         evaluate_quality_gate(_summary(), minimum_metrics={"recall@1": float("nan")})
@@ -65,5 +79,6 @@ def test_quality_gate_config_is_versioned_and_cli_overrides() -> None:
     assert loaded == {
         "require_complete": False,
         "require_model_free": False,
+        "require_no_errors": False,
         "minimum_metrics": {"recall@1": 0.7},
     }
