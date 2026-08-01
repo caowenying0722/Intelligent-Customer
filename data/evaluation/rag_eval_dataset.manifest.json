@@ -1,0 +1,7 @@
+{
+  "dataset_version": "rag-eval-v1",
+  "split": "dev",
+  "dataset_path": "data/evaluation/rag_eval_dataset.jsonl",
+  "sample_count": 28,
+  "sha256": "e69c930f7152fac963a7d35fa8785db489d4e6e45bfc38ff6a374c753f45b5c7"
+}
