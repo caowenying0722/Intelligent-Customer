@@ -759,5 +759,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 5 第十一个目标完成：Gateway 增加 provider 健康快照并接入 `/metrics`，只报告已配置 provider、熔断状态和健康布尔值，不主动探测上游或泄漏凭据。
 - 阶段 5 第十二个目标完成：新增独立 `/health/model` 健康路由，可选 `x-model-health-token` 管理保护；错误 token 返回 401，健康响应不触发 provider 调用。
 - 阶段 5 第十三个目标完成：`MODEL_HEALTH_TOKEN` 纳入 SecretStr Settings；应用工厂自动读取环境配置，并在 production 缺少 token 时拒绝启动，测试覆盖 env token 与兼容环境。
+- 阶段 5 第十四个目标完成：阶段五模型链路整体验收 smoke 通过，Gateway、工厂、Chat 普通/流式、metrics、健康路由与 Settings 组合共 50 passed、6 subtests；全程使用 fake provider。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
