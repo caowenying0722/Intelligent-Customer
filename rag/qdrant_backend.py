@@ -1,0 +1,92 @@
+"""Optional Qdrant backend boundary with explicit scope and timeouts.
+
+The adapter deliberately depends on an injected client, so importing and
+testing the application does not require qdrant-client or a running service.
+"""
+
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+
+
+class VectorBackendError(RuntimeError):
+    """A vector backend operation failed or returned an unusable response."""
+
+
+class QdrantVectorBackend:
+    def __init__(
+        self,
+        client: Any,
+        *,
+        collection_name: str,
+        timeout_seconds: float = 5.0,
+    ) -> None:
+        if not collection_name.strip():
+            raise ValueError("collection_name must not be empty")
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        self.client = client
+        self.collection_name = collection_name
+        self.timeout_seconds = timeout_seconds
+
+    def check_ready(self) -> bool:
+        """Perform a bounded health request; readiness failures return false."""
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="qdrant-health")
+        future = executor.submit(self.client.get_collections)
+        try:
+            future.result(timeout=self.timeout_seconds)
+            return True
+        except Exception:
+            future.cancel()
+            return False
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+    def search(
+        self,
+        query_vector: list[float],
+        *,
+        tenant_id: str,
+        index_version: str,
+        limit: int = 10,
+    ) -> list[Any]:
+        if not tenant_id.strip() or not index_version.strip():
+            raise ValueError("tenant_id and index_version must not be empty")
+        if limit < 1 or limit > 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        query_filter = {
+            "must": [
+                {"key": "tenant_id", "match": {"value": tenant_id}},
+                {"key": "index_version", "match": {"value": index_version}},
+            ]
+        }
+
+        def call_backend() -> list[Any]:
+            kwargs = {
+                "collection_name": self.collection_name,
+                "query_vector": query_vector,
+                "query_filter": query_filter,
+                "limit": limit,
+                "timeout": self.timeout_seconds,
+            }
+            if hasattr(self.client, "search"):
+                return list(self.client.search(**kwargs))
+            if hasattr(self.client, "query_points"):
+                return list(self.client.query_points(**kwargs).points)
+            raise VectorBackendError("Qdrant client has no search method")
+
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="qdrant-search")
+        future = executor.submit(call_backend)
+        try:
+            return future.result(timeout=self.timeout_seconds)
+        except TimeoutError as exc:
+            future.cancel()
+            raise TimeoutError("Qdrant search exceeded its configured timeout") from exc
+        except Exception as exc:
+            future.cancel()
+            if isinstance(exc, ValueError):
+                raise
+            raise VectorBackendError("Qdrant search failed") from exc
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
