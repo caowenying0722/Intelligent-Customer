@@ -69,12 +69,15 @@ class ModelGateway:
     def audit_snapshot(self) -> dict[str, object]:
         """Return aggregate counters only; never include request/response data."""
         with self._lock:
-            return {
+            snapshot: dict[str, object] = {
                 "calls": self._calls,
                 "failures": self._failures,
                 "provider_calls": dict(self._provider_calls),
                 "provider_failures": dict(self._provider_failures),
             }
+            if self.cache is not None and hasattr(self.cache, "stats"):
+                snapshot["cache"] = self.cache.stats()
+            return snapshot
 
     def health_snapshot(self) -> dict[str, object]:
         """Describe configured provider availability without probing upstreams."""
