@@ -718,5 +718,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 4 第二个目标完成：新增无副作用上传验证器，限制 txt/pdf 扩展名、大小、MIME、UTF-8/ PDF 文件头和文本字符数，拒绝路径穿越并生成不可预测内部文件名与 SHA-256；尚未执行实际持久化。
 - 阶段 4 第三个目标完成：新增 `SecureUploadStorage`，将已验证内容以随机内部名原子写入配置根目录，拒绝路径逃逸和覆盖已有文件，并提供受限删除；尚未把持久化结果写入 job 数据库。
 - 阶段 4 第四个目标完成：新增 `DocumentIngestionService` 串联验证、落盘和后台 job；tenant+幂等键在写盘前去重，job 提交失败会清理文件，验证失败不会产生落盘副作用。
+- 阶段 4 第五个目标完成：新增 tenant-scoped `DocumentMetadataRegistry`，按 SHA-256 content hash 去重并记录 document/parser/chunker/embedding/index version 与状态；当前为内存 baseline，持久化留给后续 job 数据库目标。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
