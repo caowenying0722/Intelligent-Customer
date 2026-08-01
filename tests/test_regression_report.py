@@ -16,6 +16,7 @@ def test_regression_report_records_version_metrics_and_missing_samples() -> None
         dataset,
     )
     assert summary["dataset_version"] == "retrieval-regression-v1"
+    assert len(summary["dataset_sha256"]) == 64
     assert summary["complete"] is False
     assert "maintenance_after_cleaning" in summary["missing_sample_ids"]
     assert summary["metrics"]["recall@1"] == 0.5

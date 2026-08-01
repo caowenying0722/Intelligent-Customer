@@ -12,6 +12,7 @@ from langchain_core.documents import Document
 
 from evaluation.dataset import (
     EvaluationSample,
+    file_sha256,
     load_jsonl_dataset,
     resolve_project_path,
 )
@@ -203,6 +204,7 @@ def save_evaluation_report(
         "generated_at": generated_at.isoformat(timespec="seconds"),
         "repository": repository_snapshot(),
         "dataset_path": str(resolve_project_path(dataset_path)),
+        "dataset_sha256": file_sha256(dataset_path),
         "sample_count": len(rows),
         "generate_answers": generate_answers,
         "answer_mode": answer_mode,

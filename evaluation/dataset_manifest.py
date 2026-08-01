@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
 import re
 from typing import Any
 
-from evaluation.dataset import load_jsonl_dataset, resolve_project_path
+from evaluation.dataset import file_sha256, load_jsonl_dataset, resolve_project_path
 
 
 class DatasetManifestError(ValueError):
@@ -28,14 +27,6 @@ class DatasetManifest:
     dataset_path: Path
     sample_count: int
     sha256: str
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _manifest(raw: dict[str, Any], manifest_path: Path) -> DatasetManifest:
@@ -74,7 +65,7 @@ def validate_manifest(path: str | Path) -> dict[str, object]:
     if not isinstance(raw, dict):
         raise DatasetManifestError("manifest must be a JSON object")
     manifest = _manifest(raw, manifest_path)
-    actual_hash = _sha256(manifest.dataset_path)
+    actual_hash = file_sha256(manifest.dataset_path)
     if actual_hash != manifest.sha256:
         raise DatasetManifestError("dataset SHA-256 does not match manifest")
     samples = load_jsonl_dataset(manifest.dataset_path)

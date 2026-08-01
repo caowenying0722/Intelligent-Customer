@@ -8,7 +8,7 @@ from typing import Any
 
 from evaluation.frozen_regression import load_frozen_regression
 from evaluation.retrieval_metrics import evaluate_retrieval
-from evaluation.dataset import resolve_project_path
+from evaluation.dataset import file_sha256, resolve_project_path
 
 
 def repository_snapshot() -> dict[str, Any]:
@@ -48,6 +48,7 @@ def build_retrieval_regression_summary(
     summary: dict[str, Any] = {
         "dataset_path": str(resolve_project_path(dataset_path)),
         "dataset_version": samples[0].dataset_version,
+        "dataset_sha256": file_sha256(dataset_path),
         "sample_count": len(samples),
         "evaluated_count": len(retrieved),
         "missing_sample_ids": missing,

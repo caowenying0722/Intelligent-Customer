@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,16 @@ def resolve_project_path(path: str | Path) -> Path:
     if path_obj.is_absolute():
         return path_obj
     return Path(get_abs_path(str(path_obj)))
+
+
+def file_sha256(path: str | Path) -> str:
+    """Return a reproducible digest for an evaluation input artifact."""
+
+    digest = hashlib.sha256()
+    with resolve_project_path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def load_jsonl_dataset(path: str | Path) -> list[EvaluationSample]:

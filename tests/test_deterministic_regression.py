@@ -37,6 +37,7 @@ def test_deterministic_regression_script_entrypoint_and_quality_gate() -> None:
     assert str(output) in result.stdout
     summary = json.loads(output.read_text(encoding="utf-8"))
     assert summary["retrieval_regression"]["complete"] is True
+    assert len(summary["retrieval_regression"]["dataset_sha256"]) == 64
     gate = subprocess.run(
         [
             sys.executable,
