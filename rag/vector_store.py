@@ -1,4 +1,6 @@
 import os
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from langchain_chroma import Chroma
@@ -23,6 +25,27 @@ from utils.file_handler import (
 )
 from utils.logger_handler import logger
 from utils.path_tool import get_abs_path
+
+
+@dataclass(frozen=True)
+class DocumentLoadSummary:
+    """Bounded result for one local vector-store loading pass."""
+
+    loaded: int = 0
+    skipped: int = 0
+    failed: int = 0
+    failure_types: tuple[str, ...] = ()
+
+
+def append_md5_record(path: str, md5_hex: str) -> None:
+    """Durably append one completed-file marker after vector writes succeed."""
+
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("a", encoding="utf-8") as file:
+        file.write(md5_hex + "\n")
+        file.flush()
+        os.fsync(file.fileno())
 
 
 class VectorStoreService:
@@ -107,12 +130,17 @@ class VectorStoreService:
 
         return vector_retriever
 
-    def load_document(self):
+    def load_document(self) -> DocumentLoadSummary:
         """
         从数据文件夹内读取数据文件，转为向量存入向量库
         要计算文件的MD5做去重
-        :return: None
+        :return: bounded load summary; vector and marker writes remain at-least-once.
         """
+
+        loaded = 0
+        skipped = 0
+        failed = 0
+        failure_types: set[str] = set()
 
         def check_md5_hex(md5_for_check: str):
             if not os.path.exists(get_abs_path(chroma_conf["md5_hex_store"])):
@@ -133,10 +161,7 @@ class VectorStoreService:
                 return False  # md5 没处理过
 
         def save_md5_hex(md5_for_check: str):
-            with open(
-                get_abs_path(chroma_conf["md5_hex_store"]), "a", encoding="utf-8"
-            ) as f:
-                f.write(md5_for_check + "\n")
+            append_md5_record(get_abs_path(chroma_conf["md5_hex_store"]), md5_for_check)
 
         def get_file_documents(read_path: str):
             if read_path.endswith("txt"):
@@ -156,8 +181,15 @@ class VectorStoreService:
             # 获取文件的MD5
             md5_hex = get_file_md5_hex(path)
 
+            if not isinstance(md5_hex, str) or not md5_hex:
+                failed += 1
+                failure_types.add("md5_unavailable")
+                logger.error("[加载知识库]%s 无法计算文件摘要", path)
+                continue
+
             if check_md5_hex(md5_hex):
                 logger.info(f"[加载知识库]{path}内容已经存在知识库内，跳过")
+                skipped += 1
                 continue
 
             try:
@@ -165,12 +197,14 @@ class VectorStoreService:
 
                 if not documents:
                     logger.warning(f"[加载知识库]{path}内没有有效文本内容，跳过")
+                    skipped += 1
                     continue
 
                 split_document: list[Document] = self.spliter.split_documents(documents)
 
                 if not split_document:
                     logger.warning(f"[加载知识库]{path}分片后没有有效文本内容，跳过")
+                    skipped += 1
                     continue
 
                 # 将内容存入向量库
@@ -180,10 +214,20 @@ class VectorStoreService:
                 save_md5_hex(md5_hex)
 
                 logger.info(f"[加载知识库]{path} 内容加载成功")
+                loaded += 1
             except Exception as e:  # noqa: BLE001 - isolate each ingestion file.
                 # exc_info为True会记录详细的报错堆栈，如果为False仅记录报错信息本身
                 logger.error(f"[加载知识库]{path}加载失败：{e!s}", exc_info=True)
+                failed += 1
+                failure_types.add(type(e).__name__)
                 continue
+
+        return DocumentLoadSummary(
+            loaded=loaded,
+            skipped=skipped,
+            failed=failed,
+            failure_types=tuple(sorted(failure_types)),
+        )
 
 
 if __name__ == "__main__":
