@@ -44,6 +44,7 @@ class IngestionJob:
     progress: int = 0
     cancel_requested: bool = False
     task_type: str = "ingestion"
+    task_payload: str | None = None
 
 
 class IngestionJobManager:
@@ -85,6 +86,7 @@ class IngestionJobManager:
         job_id: UUID | None = None,
         max_attempts: int | None = None,
         task_type: str = "ingestion",
+        task_payload: str | None = None,
     ) -> IngestionJob:
         if not tenant_id.strip() or not idempotency_key.strip():
             raise ValueError("tenant_id and idempotency_key must not be empty")
@@ -101,6 +103,7 @@ class IngestionJobManager:
                 created_at=datetime.now(timezone.utc),
                 max_attempts=max_attempts or self._max_attempts,
                 task_type=task_type,
+                task_payload=task_payload,
             )
             self._jobs[job.job_id] = job
             self._idempotency[key] = job.job_id

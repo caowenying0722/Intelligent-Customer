@@ -6,6 +6,7 @@ from alembic.config import Config
 from fastapi.testclient import TestClient
 
 from src.app.application.document_metadata import DocumentMetadataRegistry
+from src.app.application.ingestion import IngestionJob, IngestionJobStatus
 from src.app.application.uploads import validate_upload
 from src.app.infrastructure.ingestion import SqlAlchemyIngestionRepository
 from src.app.main import create_app
@@ -68,3 +69,27 @@ def test_api_database_url_persists_index_rebuild_job() -> None:
         queried = client.get(f"/api/v1/jobs/{job_id}", headers={"x-tenant-id": "tenant-a"})
         assert queried.status_code == 200
     database.unlink()
+
+
+def test_lifespan_recovers_persisted_index_rebuild_job() -> None:
+    database = Path("output") / "index-rebuild-recovery.db"
+    if database.exists():
+        database.unlink()
+    config = Config(str(Path("alembic.ini").resolve()))
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database.as_posix()}")
+    command.upgrade(config, "head")
+    url = f"sqlite:///{database.as_posix()}"
+    repository = SqlAlchemyIngestionRepository(url)
+    from datetime import datetime, timezone
+    job = IngestionJob(
+        job_id=uuid4(), tenant_id="tenant-a", idempotency_key="recover-1",
+        status=IngestionJobStatus.QUEUED, created_at=datetime.now(timezone.utc),
+        task_type="index_rebuild", task_payload="v3",
+    )
+    repository.create_job(job=job)
+    repository.close()
+    seen = []
+    app = create_app(database_url=url, index_rebuild_operation=lambda version: seen.append(version))
+    with TestClient(app):
+        pass
+    assert seen == ["v3"]

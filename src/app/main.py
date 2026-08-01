@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from src.app.api.routes import build_router
 from src.app.application.chat import ChatAgent, ChatApplicationService
 from src.app.application.ingestion_service import DocumentIngestionService
+from src.app.application.ingestion_worker import IngestionWorker
 from src.app.infrastructure.factory import (
     build_conversation_repository,
     build_document_ingestion_service,
@@ -32,6 +33,20 @@ def create_app(
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        if (
+            ingestion_service is not None
+            and ingestion_service.job_store is not None
+            and index_rebuild_operation is not None
+        ):
+            IngestionWorker(
+                ingestion_service.jobs, ingestion_service.job_store
+            ).recover_queued(
+                tenant_id=None,
+                task_type="index_rebuild",
+                operation_for=lambda job: lambda: index_rebuild_operation(
+                    job.task_payload or ""
+                ),
+            )
         yield
         for resource in reversed(lifecycle_resources):
             close = getattr(resource, "close", None)

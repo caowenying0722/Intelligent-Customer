@@ -56,6 +56,7 @@ def build_router(
                 idempotency_key=idempotency_key,
                 operation=lambda: index_rebuild_operation(payload.index_version),
                 task_type="index_rebuild",
+                task_payload=payload.index_version,
             )
             job_store = getattr(ingestion_service, "job_store", None)
             if job_store is not None:

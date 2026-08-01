@@ -27,11 +27,14 @@ class IngestionWorker:
         *,
         tenant_id: str | None,
         operation_for: Callable[[IngestionJob], Callable[[], Any]],
+        task_type: str | None = None,
     ) -> list[UUID]:
         """Resume queued jobs with their original IDs; running jobs are not duplicated."""
         recovered: list[UUID] = []
         for persisted in self.store.list_recoverable_jobs(tenant_id=tenant_id):
             if persisted.status != IngestionJobStatus.QUEUED:
+                continue
+            if task_type is not None and persisted.task_type != task_type:
                 continue
             operation = operation_for(persisted)
 
@@ -59,6 +62,8 @@ class IngestionWorker:
                 operation=run,
                 job_id=persisted.job_id,
                 max_attempts=persisted.max_attempts,
+                task_type=persisted.task_type,
+                task_payload=persisted.task_payload,
             )
             recovered.append(job.job_id)
             current = self.manager.get(tenant_id=job.tenant_id, job_id=job.job_id) or job

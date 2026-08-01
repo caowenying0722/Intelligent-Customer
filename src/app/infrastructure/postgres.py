@@ -25,7 +25,7 @@ from src.app.domain.conversations import (
     RunStateConflict,
 )
 
-EXPECTED_SCHEMA_REVISION = "0009_add_ingestion_job_task_type"
+EXPECTED_SCHEMA_REVISION = "0010_add_ingestion_job_payload"
 
 
 class Base(DeclarativeBase):
@@ -117,6 +117,7 @@ class IngestionJobRow(Base):
     tenant_id: Mapped[str] = mapped_column(String(128), index=True)
     document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.id"), index=True, nullable=True)
     task_type: Mapped[str] = mapped_column(String(64), default="ingestion", server_default="ingestion")
+    task_payload: Mapped[str | None] = mapped_column(String(512), nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32))
     progress: Mapped[int] = mapped_column(default=0)
