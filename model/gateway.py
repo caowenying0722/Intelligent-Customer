@@ -10,6 +10,7 @@ from model.quota import TenantQuota
 from model.cost import BudgetExceededError, CostTracker, UsageRecord
 from model.structured import validate_structured
 from model.contracts import ModelRequest, ModelResponse, ModelUsage
+from model.errors import ModelError, ModelErrorCode
 import time
 import threading
 import time
@@ -18,6 +19,28 @@ from collections import deque
 
 class ModelGatewayError(RuntimeError):
     """A model call failed after the configured bounded attempts."""
+
+    def to_contract(self, *, provider: str | None = None) -> ModelError:
+        text = str(self).lower()
+        if "timeout" in text:
+            code = ModelErrorCode.TIMEOUT
+            retryable = True
+        elif "rate limit" in text:
+            code = ModelErrorCode.RATE_LIMITED
+            retryable = True
+        elif "budget" in text:
+            code = ModelErrorCode.BUDGET_EXCEEDED
+            retryable = False
+        elif "schema" in text:
+            code = ModelErrorCode.MALFORMED_OUTPUT
+            retryable = False
+        elif "not configured" in text or "provider" in text:
+            code = ModelErrorCode.PROVIDER_UNAVAILABLE
+            retryable = True
+        else:
+            code = ModelErrorCode.UNKNOWN
+            retryable = False
+        return ModelError(code=code, message=str(self), retryable=retryable, provider=provider)
 
 
 class RetryableModelError(RuntimeError):
