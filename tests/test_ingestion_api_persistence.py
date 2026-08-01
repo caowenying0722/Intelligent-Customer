@@ -43,3 +43,28 @@ def test_api_database_url_recovers_document_query_without_processor() -> None:
         )
         assert unavailable.status_code == 503
     database.unlink()
+
+
+def test_api_database_url_persists_index_rebuild_job() -> None:
+    database = Path("output") / "index-rebuild-api-persistence.db"
+    if database.exists():
+        database.unlink()
+    config = Config(str(Path("alembic.ini").resolve()))
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database.as_posix()}")
+    command.upgrade(config, "head")
+    url = f"sqlite:///{database.as_posix()}"
+    app = create_app(
+        database_url=url,
+        index_rebuild_operation=lambda version: None,
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/indexes/rebuild",
+            headers={"x-tenant-id": "tenant-a", "idempotency-key": "rebuild-1"},
+            json={"index_version": "v2"},
+        )
+        assert response.status_code == 200
+        job_id = response.json()["job_id"]
+        queried = client.get(f"/api/v1/jobs/{job_id}", headers={"x-tenant-id": "tenant-a"})
+        assert queried.status_code == 200
+    database.unlink()

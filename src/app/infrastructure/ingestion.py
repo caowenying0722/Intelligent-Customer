@@ -131,7 +131,7 @@ class SqlAlchemyIngestionRepository:
         )
 
     def create_job(
-        self, *, job: IngestionJob, document_id: UUID
+        self, *, job: IngestionJob, document_id: UUID | None = None
     ) -> IngestionJob:
         with Session(self.engine) as session:
             existing = session.scalar(
@@ -146,7 +146,8 @@ class SqlAlchemyIngestionRepository:
                 IngestionJobRow(
                     id=str(job.job_id),
                     tenant_id=job.tenant_id,
-                    document_id=str(document_id),
+                    document_id=str(document_id) if document_id else None,
+                    task_type=job.task_type,
                     idempotency_key=job.idempotency_key,
                     status=job.status.value,
                     attempt=job.attempt,
@@ -272,4 +273,5 @@ class SqlAlchemyIngestionRepository:
             completed_at=row.completed_at, error=row.error, result=row.result_ref,
             attempt=row.attempt, max_attempts=row.max_attempts,
             progress=row.progress, cancel_requested=row.cancel_requested,
+            task_type=row.task_type,
         )

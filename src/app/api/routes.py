@@ -55,7 +55,17 @@ def build_router(
                 tenant_id=tenant_id,
                 idempotency_key=idempotency_key,
                 operation=lambda: index_rebuild_operation(payload.index_version),
+                task_type="index_rebuild",
             )
+            job_store = getattr(ingestion_service, "job_store", None)
+            if job_store is not None:
+                job_store.create_job(job=job)
+                current = ingestion_service.jobs.get(tenant_id=tenant_id, job_id=job.job_id) or job
+                if current.status in {"completed", "failed", "cancelled"}:
+                    job_store.update_job_status(
+                        tenant_id=tenant_id, job_id=job.job_id,
+                        status=current.status, error=current.error,
+                    )
         except ValueError as exc:
             return JSONResponse(status_code=422, content={"code": "invalid_rebuild", "message": str(exc), "request_id": request.state.request_id})
         return IngestionJobResponse(
