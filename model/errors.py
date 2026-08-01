@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict
 
 
-class ModelErrorCode(StrEnum):
+class ModelErrorCode(str, Enum):
     INVALID_REQUEST = "invalid_request"
     AUTHENTICATION = "authentication"
     PERMISSION = "permission"

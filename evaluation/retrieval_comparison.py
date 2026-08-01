@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from evaluation.retrieval_metrics import evaluate_retrieval
 
 
 def compare_rankings(
-    baseline: dict[str, Sequence[str]],
-    candidate: dict[str, Sequence[str]],
-    relevant: dict[str, Sequence[str]],
+    baseline: Mapping[str, Sequence[str]],
+    candidate: Mapping[str, Sequence[str]],
+    relevant: Mapping[str, Sequence[str]],
 ) -> dict[str, Any]:
     if set(baseline) != set(candidate) or set(baseline) != set(relevant):
         raise ValueError("baseline, candidate and relevant sample IDs must match")

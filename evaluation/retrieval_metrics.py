@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 
 def _relevant_at_k(retrieved: Sequence[str], relevant: set[str], k: int) -> list[str]:
@@ -46,8 +46,8 @@ def ndcg_at_k(retrieved: Sequence[str], relevant: Iterable[str], k: int) -> floa
 
 
 def evaluate_retrieval(
-    retrieved_by_sample: dict[str, Sequence[str]],
-    relevant_by_sample: dict[str, Iterable[str]],
+    retrieved_by_sample: Mapping[str, Sequence[str]],
+    relevant_by_sample: Mapping[str, Iterable[str]],
     *,
     ks: Sequence[int] = (1, 3, 5, 10),
 ) -> dict[str, float]:
