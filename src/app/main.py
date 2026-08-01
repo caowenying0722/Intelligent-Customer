@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from src.app.api.routes import build_router
 from src.app.application.chat import ChatAgent, ChatApplicationService
@@ -16,6 +16,7 @@ from src.app.infrastructure.factory import (
     build_conversation_repository,
     build_document_ingestion_service,
 )
+from src.app.observability.metrics import empty_gateway_snapshot, render_prometheus
 from src.app.security.audit import AuditSink
 from src.app.security.auth import JWTAuthenticator
 from utils.settings import get_settings
@@ -147,12 +148,7 @@ def create_app(
         gateway = getattr(chat_service, "model_gateway", None)
         if gateway is None or not hasattr(gateway, "audit_snapshot"):
             return {
-                "model_gateway": {
-                    "calls": 0,
-                    "failures": 0,
-                    "provider_calls": {},
-                    "provider_failures": {},
-                },
+                "model_gateway": empty_gateway_snapshot(),
                 "model_gateway_health": {
                     "configured_providers": [],
                     "circuit_open": False,
@@ -163,6 +159,24 @@ def create_app(
             "model_gateway": gateway.audit_snapshot(),
             "model_gateway_health": gateway.health_snapshot(),
         }
+
+    @app.get("/metrics/prometheus", response_class=PlainTextResponse)
+    async def prometheus_metrics() -> PlainTextResponse:
+        gateway = getattr(chat_service, "model_gateway", None)
+        if gateway is None or not hasattr(gateway, "audit_snapshot"):
+            gateway_snapshot = empty_gateway_snapshot()
+            health_snapshot = {
+                "configured_providers": [],
+                "circuit_open": False,
+                "healthy": False,
+            }
+        else:
+            gateway_snapshot = gateway.audit_snapshot()
+            health_snapshot = gateway.health_snapshot()
+        return PlainTextResponse(
+            render_prometheus(gateway_snapshot, health_snapshot),
+            media_type="text/plain; version=0.0.4",
+        )
 
     @app.get("/health/model", response_model=None)
     async def model_health(request: Request) -> JSONResponse | dict[str, object]:
