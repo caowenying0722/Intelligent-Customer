@@ -1,0 +1,6 @@
+# Deterministic, model-free retrieval gate used by CI.
+require_complete: true
+minimum_metrics:
+  recall@1: 0.5
+  recall@3: 1.0
+  mrr: 1.0

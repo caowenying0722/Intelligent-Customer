@@ -8,3 +8,4 @@ def test_quality_workflow_validates_manifest_and_prepares_artifacts() -> None:
     assert "python -m evaluation.dataset_manifest" in workflow
     assert "python scripts/run_deterministic_regression.py" in workflow
     assert "python -m evaluation.quality_gate" in workflow
+    assert "--config config/evaluation_quality_gate.yml" in workflow

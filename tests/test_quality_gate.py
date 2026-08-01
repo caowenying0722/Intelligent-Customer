@@ -1,6 +1,8 @@
 import pytest
+from pathlib import Path
+import tempfile
 
-from evaluation.quality_gate import evaluate_quality_gate
+from evaluation.quality_gate import evaluate_quality_gate, load_quality_gate_config
 
 
 def _summary(complete: bool = True) -> dict:
@@ -35,3 +37,16 @@ def test_quality_gate_rejects_non_numeric_threshold_value() -> None:
         evaluate_quality_gate(
             _summary(), minimum_metrics={"recall@1": float("nan")}
         )
+
+
+def test_quality_gate_config_is_versioned_and_cli_overrides() -> None:
+    with tempfile.TemporaryDirectory(dir=Path.cwd(), prefix=".gate-test-") as directory:
+        config = Path(directory) / "gate.yml"
+        config.write_text(
+            "require_complete: false\nminimum_metrics:\n  recall@1: 0.7\n",
+            encoding="utf-8",
+        )
+
+        loaded = load_quality_gate_config(config)
+
+    assert loaded == {"require_complete": False, "minimum_metrics": {"recall@1": 0.7}}

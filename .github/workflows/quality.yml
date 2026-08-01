@@ -48,9 +48,7 @@ jobs:
         run: >-
           python -m evaluation.quality_gate
           --summary output/ci/deterministic-summary.json
-          --min recall@1=0.5
-          --min recall@3=1.0
-          --min mrr=1.0
+          --config config/evaluation_quality_gate.yml
       - name: Upload deterministic report
         if: always()
         uses: actions/upload-artifact@v4
