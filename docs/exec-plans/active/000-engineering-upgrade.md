@@ -836,5 +836,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第十五个目标完成：为 `RagSummarizeService` 接入 contextvar 传播的 `retrieval.dense`/`retrieval.rerank`/RAG `llm.generate` span，保持 query/document 不进入 exporter。全量 `307 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
 - 阶段 11 第十六个目标完成：为 RAG/天气工具入口接入 `tool.*` span，复用当前 trace context 且不保存工具参数。全量 `308 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
 - 阶段 11 第十七个目标完成：为进程内 IngestionJobManager 捕获提交时 OTel context，在 Worker 线程创建 `worker.ingestion` span；重启恢复任务无原始 context 的限制已显式记录。全量 `309 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
+- 阶段 11 第十八个目标完成：增加可选 OTLP gRPC exporter、endpoint 凭据/query 校验和 timeout-bounded BatchSpanProcessor；默认不触网。全量 `312 passed`、25 subtests，覆盖率 59%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过；pip-audit 仍真实报告 3 条既有漏洞。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

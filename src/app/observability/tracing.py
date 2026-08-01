@@ -12,6 +12,7 @@ from typing import Any
 
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
     SimpleSpanProcessor,
     SpanExporter,
     SpanExportResult,
@@ -110,10 +111,36 @@ class BoundedSpanExporter(SpanExporter):
 class ApiTracer:
     """Create API spans with a local bounded exporter and no network side effect."""
 
-    def __init__(self, max_spans: int = 1024) -> None:
+    def __init__(
+        self,
+        max_spans: int = 1024,
+        *,
+        otlp_endpoint: str | None = None,
+        otlp_timeout_seconds: float = 5.0,
+    ) -> None:
         self.exporter = BoundedSpanExporter(max_spans=max_spans)
+        self.remote_exporter: SpanExporter | None = None
         self.provider = TracerProvider()
         self.provider.add_span_processor(SimpleSpanProcessor(self.exporter))
+        if otlp_endpoint is not None:
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                OTLPSpanExporter,
+            )
+
+            self.remote_exporter = OTLPSpanExporter(
+                endpoint=otlp_endpoint,
+                insecure=otlp_endpoint.startswith("http://"),
+                timeout=otlp_timeout_seconds,
+            )
+            self.provider.add_span_processor(
+                BatchSpanProcessor(
+                    self.remote_exporter,
+                    max_queue_size=max_spans,
+                    max_export_batch_size=min(max_spans, 128),
+                    schedule_delay_millis=5_000,
+                    export_timeout_millis=otlp_timeout_seconds * 1000,
+                )
+            )
         self.tracer = self.provider.get_tracer("intelligent-customer-service")
 
     def start_http_span(self, context: TraceContext):

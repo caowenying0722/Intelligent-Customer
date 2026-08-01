@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     api_host: str = Field(default="127.0.0.1", min_length=1)
     api_port: int = Field(default=8000, ge=1, le=65535)
     trace_max_spans: int = Field(default=1024, ge=1, le=100_000)
+    otel_exporter_endpoint: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_ENDPOINT"
+        ),
+    )
+    otel_exporter_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
     database_url: str | None = Field(
         default=None, validation_alias=AliasChoices("DATABASE_URL")
     )
@@ -133,6 +140,20 @@ class Settings(BaseSettings):
                 "DATABASE_URL must use postgresql, postgresql+psycopg, or sqlite"
             )
         return str(value).strip()
+
+    @field_validator("otel_exporter_endpoint", mode="before")
+    @classmethod
+    def validate_otel_exporter_endpoint(cls, value: object) -> str | None:
+        if value is None or not str(value).strip():
+            return None
+        parsed = urlparse(str(value).strip())
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("OTEL_EXPORTER_OTLP_ENDPOINT must be an http(s) URL")
+        if parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise ValueError(
+                "OTEL_EXPORTER_OTLP_ENDPOINT must not contain credentials or query data"
+            )
+        return str(value).strip().rstrip("/")
 
     @model_validator(mode="after")
     def reject_production_wildcard_origin(self) -> Settings:

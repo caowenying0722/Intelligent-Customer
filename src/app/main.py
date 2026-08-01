@@ -60,7 +60,11 @@ def create_app(
     if settings.application_env == "production" and not metrics_token:
         raise ValueError("METRICS_TOKEN is required in production")
     http_metrics = HttpMetrics()
-    api_tracer = ApiTracer(max_spans=settings.trace_max_spans)
+    api_tracer = ApiTracer(
+        max_spans=settings.trace_max_spans,
+        otlp_endpoint=settings.otel_exporter_endpoint,
+        otlp_timeout_seconds=settings.otel_exporter_timeout_seconds,
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:

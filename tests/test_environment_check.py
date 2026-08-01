@@ -45,9 +45,12 @@ class EnvironmentCheckTest(unittest.TestCase):
             parse_pinned_requirements(PROJECT_ROOT / "requirements-dev.txt")
         )
 
-        self.assertEqual(len(pins), 30)
+        self.assertEqual(len(pins), 31)
         self.assertEqual(pins["fastapi"].version, "0.141.1")
         self.assertEqual(pins["opentelemetry-api"].version, "1.44.0")
+        self.assertEqual(
+            pins["opentelemetry-exporter-otlp-proto-grpc"].version, "1.44.0"
+        )
         self.assertEqual(pins["opentelemetry-sdk"].version, "1.44.0")
         self.assertEqual(pins["sqlalchemy"].version, "2.0.51")
         self.assertEqual(pins["alembic"].version, "1.18.5")
