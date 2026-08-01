@@ -67,9 +67,12 @@ class ChatApplicationService:
         tenant_id: str = "local",
         user_id: str = "local",
         expected_version: int | None = None,
+        idempotency_key: str | None = None,
     ) -> tuple[str, UUID, UUID]:
         resolved_id = self._conversation_id(tenant_id, conversation_id, user_id)
-        run = self.conversation_repository.create_run(tenant_id, resolved_id)
+        run = self.conversation_repository.create_run(
+            tenant_id, resolved_id, idempotency_key
+        )
         self.conversation_repository.update_run(tenant_id, run.run_id, "running")
         try:
             self.conversation_repository.append(

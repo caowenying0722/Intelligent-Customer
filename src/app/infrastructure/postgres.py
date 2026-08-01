@@ -22,7 +22,7 @@ from src.app.domain.conversations import (
     Message,
 )
 
-EXPECTED_SCHEMA_REVISION = "0004_add_agent_run_error"
+EXPECTED_SCHEMA_REVISION = "0005_add_run_idempotency"
 
 
 class Base(DeclarativeBase):
@@ -67,6 +67,7 @@ class AgentRunRow(Base):
     )
     status: Mapped[str] = mapped_column(String(32))
     error: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -190,11 +191,33 @@ class SqlAlchemyConversationRepository:
             ).scalar_one_or_none()
         return version == EXPECTED_SCHEMA_REVISION
 
-    def create_run(self, tenant_id: str, conversation_id: UUID) -> AgentRun:
+    def create_run(
+        self,
+        tenant_id: str,
+        conversation_id: UUID,
+        idempotency_key: str | None = None,
+    ) -> AgentRun:
         if self.get(tenant_id, conversation_id) is None:
             raise KeyError(conversation_id)
-        run = AgentRun(uuid4(), tenant_id, conversation_id, "queued")
+        run = AgentRun(
+            uuid4(),
+            tenant_id,
+            conversation_id,
+            "queued",
+            idempotency_key=idempotency_key,
+        )
         with Session(self.engine) as session:
+            if idempotency_key:
+                existing = session.scalar(
+                    select(AgentRunRow).where(
+                        AgentRunRow.tenant_id == tenant_id,
+                        AgentRunRow.idempotency_key == idempotency_key,
+                    )
+                )
+                if existing is not None:
+                    from src.app.domain.conversations import IdempotencyConflict
+
+                    raise IdempotencyConflict(UUID(existing.id))
             session.add(
                 AgentRunRow(
                     id=str(run.run_id),
@@ -202,6 +225,7 @@ class SqlAlchemyConversationRepository:
                     conversation_id=str(conversation_id),
                     status=run.status,
                     created_at=run.created_at,
+                    idempotency_key=idempotency_key,
                 )
             )
             session.commit()
@@ -222,6 +246,7 @@ class SqlAlchemyConversationRepository:
                 conversation_id=UUID(row.conversation_id),
                 status=row.status,
                 error=row.error,
+                idempotency_key=row.idempotency_key,
                 created_at=row.created_at,
             )
 
@@ -247,5 +272,6 @@ class SqlAlchemyConversationRepository:
                 conversation_id=UUID(row.conversation_id),
                 status=row.status,
                 error=row.error,
+                idempotency_key=row.idempotency_key,
                 created_at=row.created_at,
             )

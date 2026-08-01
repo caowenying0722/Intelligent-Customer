@@ -172,6 +172,22 @@ def test_agent_run_lifecycle_is_tenant_scoped() -> None:
     assert cross_tenant.status_code == 404
 
 
+def test_idempotency_key_prevents_duplicate_chat_run() -> None:
+    service = ChatApplicationService(FakeAgent())
+    client = TestClient(create_app(chat_service=service))
+    first = client.post(
+        "/api/v1/chat", json={"message": "once"}, headers={"Idempotency-Key": "k1"}
+    )
+    second = client.post(
+        "/api/v1/chat", json={"message": "once"}, headers={"Idempotency-Key": "k1"}
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.json()["code"] == "idempotency_reused"
+    assert second.json()["run_id"] == first.json()["run_id"]
+
+
 def test_chat_route_rejects_extra_fields_without_calling_agent() -> None:
     client = TestClient(create_app(chat_service=ChatApplicationService(FakeAgent())))
 

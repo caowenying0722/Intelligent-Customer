@@ -28,6 +28,12 @@ class ConcurrencyConflict(RuntimeError):
     """The conversation changed since the caller last read it."""
 
 
+class IdempotencyConflict(RuntimeError):
+    def __init__(self, run_id: UUID):
+        super().__init__(run_id)
+        self.run_id = run_id
+
+
 @dataclass(frozen=True)
 class AgentRun:
     run_id: UUID
@@ -35,6 +41,7 @@ class AgentRun:
     conversation_id: UUID
     status: str
     error: str | None = None
+    idempotency_key: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
 
@@ -56,7 +63,12 @@ class ConversationRepositoryProtocol(Protocol):
 
     def check_ready(self) -> bool: ...
 
-    def create_run(self, tenant_id: str, conversation_id: UUID) -> AgentRun: ...
+    def create_run(
+        self,
+        tenant_id: str,
+        conversation_id: UUID,
+        idempotency_key: str | None = None,
+    ) -> AgentRun: ...
 
     def get_run(self, tenant_id: str, run_id: UUID) -> AgentRun | None: ...
 
@@ -121,13 +133,31 @@ class ConversationRepository:
     def check_ready(self) -> bool:
         return True
 
-    def create_run(self, tenant_id: str, conversation_id: UUID) -> AgentRun:
+    def create_run(
+        self,
+        tenant_id: str,
+        conversation_id: UUID,
+        idempotency_key: str | None = None,
+    ) -> AgentRun:
         if self.get(tenant_id, conversation_id) is None:
             raise KeyError(conversation_id)
-        run = AgentRun(uuid4(), tenant_id, conversation_id, "queued")
+        run = AgentRun(
+            uuid4(),
+            tenant_id,
+            conversation_id,
+            "queued",
+            idempotency_key=idempotency_key,
+        )
         with self._lock:
             if not hasattr(self, "_runs"):
                 self._runs: dict[UUID, AgentRun] = {}
+            for existing in self._runs.values():
+                if (
+                    existing.tenant_id == tenant_id
+                    and existing.idempotency_key == idempotency_key
+                    and idempotency_key
+                ):
+                    raise IdempotencyConflict(existing.run_id)
             self._runs[run.run_id] = run
         return run
 
@@ -150,6 +180,7 @@ class ConversationRepository:
                 conversation_id=run.conversation_id,
                 status=status,
                 error=error,
+                idempotency_key=run.idempotency_key,
                 created_at=run.created_at,
             )
             self._runs[run_id] = updated
