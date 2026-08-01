@@ -114,6 +114,8 @@ conda activate ics
 python -m streamlit run app.py
 ```
 
+普通 `python -c "import app"` 不会创建模型或访问 Chroma。Streamlit 首次会话才创建 Agent；首次使用知识库问答时会惰性初始化 RAG/Chroma，因此当前首次 RAG 请求仍可能比后续请求慢。
+
 ### 方式2：通过 PowerShell（推荐）
 ```powershell
 # 在仓库根目录激活环境并启动

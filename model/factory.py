@@ -1,6 +1,8 @@
 import os
 import ssl
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -11,13 +13,7 @@ from langchain_openai import ChatOpenAI
 
 from model.anthropic_compatible import AnthropicCompatibleChatModel
 from model.runtime_config import ModelRuntimeConfig
-from utils.config_handler import rag_conf
 from utils.settings import Settings, get_settings
-
-# 配置 HuggingFace 离线模式，避免本地模型加载时卡在远程 metadata 检查
-os.environ.setdefault("HF_HUB_OFFLINE", "1")
-os.environ.setdefault("HF_DATASETS_OFFLINE", "1")
-os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 
 class BaseModelFactory(ABC):
@@ -65,17 +61,28 @@ def resolve_huggingface_local_path(model_name: str) -> str:
 
 
 class ChatModelFactory(BaseModelFactory):
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        rag_config: Mapping[str, Any] | None = None,
+    ) -> None:
         self.settings = settings
+        self.rag_config = rag_config
 
     def generator(self) -> BaseChatModel:
         settings = self.settings or get_settings()
+        if self.rag_config is None:
+            from utils.config_handler import rag_conf
+
+            rag_config = rag_conf
+        else:
+            rag_config = self.rag_config
         runtime_config = ModelRuntimeConfig.from_settings(settings)
         if settings.resolved_model_provider == "anthropic":
             return AnthropicCompatibleChatModel(
                 model_name=settings.anthropic_model
                 or settings.anthropic_default_sonnet_model
-                or rag_conf["chat_model_name"],
+                or rag_config["chat_model_name"],
                 base_url=settings.anthropic_base_url,
                 api_key=settings.anthropic_api_key_value or "EMPTY",
                 timeout=runtime_config.request_timeout_seconds,
@@ -83,8 +90,8 @@ class ChatModelFactory(BaseModelFactory):
             )
 
         model_kwargs: dict[str, Any] = {
-            "model": rag_conf["chat_model_name"],
-            "base_url": rag_conf["chat_base_url"],
+            "model": rag_config["chat_model_name"],
+            "base_url": rag_config["chat_base_url"],
             "api_key": settings.openai_compatible_api_key_value or "EMPTY",
             "request_timeout": runtime_config.request_timeout_seconds,
             "max_retries": runtime_config.max_retries,
@@ -106,10 +113,23 @@ class ChatModelFactory(BaseModelFactory):
 
 
 class EmbeddingsFactory(BaseModelFactory):
+    def __init__(self, rag_config: Mapping[str, Any] | None = None) -> None:
+        self.rag_config = rag_config
+
     def generator(self) -> Embeddings:
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        os.environ.setdefault("HF_DATASETS_OFFLINE", "1")
+        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
         from langchain_huggingface import HuggingFaceEmbeddings
 
-        model_name = rag_conf["embedding_model_path"]
+        if self.rag_config is None:
+            from utils.config_handler import rag_conf
+
+            rag_config = rag_conf
+        else:
+            rag_config = self.rag_config
+        model_name = rag_config["embedding_model_path"]
         local_model_name = resolve_huggingface_local_path(model_name)
         return HuggingFaceEmbeddings(
             model_name=local_model_name,
@@ -135,6 +155,16 @@ class LazyEmbeddings(Embeddings):
         return self.model.embed_query(text)
 
 
-chat_model = ChatModelFactory().generator()
+@lru_cache(maxsize=1)
+def get_chat_model() -> BaseChatModel:
+    return ChatModelFactory().generator()
 
-embed_model = LazyEmbeddings()
+
+@lru_cache(maxsize=1)
+def get_embedding_model() -> Embeddings:
+    return LazyEmbeddings()
+
+
+def clear_model_caches() -> None:
+    get_chat_model.cache_clear()
+    get_embedding_model.cache_clear()

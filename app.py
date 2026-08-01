@@ -1,43 +1,51 @@
-import time
-import warnings
-warnings.filterwarnings("ignore", message=".*torch.classes.*")
+def main() -> None:
+    import time
+    import warnings
 
-import streamlit as st
-from agent.react_agent import ReactAgent
+    warnings.filterwarnings("ignore", message=".*torch.classes.*")
 
-# 标题
-st.title("智扫通机器人智能客服")
-st.divider()
+    import streamlit as st
 
-if "agent" not in st.session_state:
-    st.session_state["agent"] = ReactAgent()
+    from agent.react_agent import ReactAgent
 
-if "message" not in st.session_state:
-    st.session_state["message"] = []
+    st.title("智扫通机器人智能客服")
+    st.divider()
 
-for message in st.session_state["message"]:
-    st.chat_message(message["role"]).write(message["content"])
+    if "agent" not in st.session_state:
+        st.session_state["agent"] = ReactAgent()
 
-# 用户输入提示词
-prompt = st.chat_input()
+    if "message" not in st.session_state:
+        st.session_state["message"] = []
 
-if prompt:
-    st.chat_message("user").write(prompt)
-    st.session_state["message"].append({"role": "user", "content": prompt})
+    for message in st.session_state["message"]:
+        st.chat_message(message["role"]).write(message["content"])
 
-    response_messages = []
-    with st.spinner("智能客服思考中..."):
-        res_stream = st.session_state["agent"].execute_stream(prompt)
+    prompt = st.chat_input()
 
-        def capture(generator, cache_list):     # 捕获
+    if prompt:
+        st.chat_message("user").write(prompt)
+        st.session_state["message"].append({"role": "user", "content": prompt})
 
-            for chunk in generator:
-                cache_list.append(chunk)
+        response_messages = []
+        with st.spinner("智能客服思考中..."):
+            res_stream = st.session_state["agent"].execute_stream(prompt)
 
-                for char in chunk:
-                    time.sleep(0.01)
-                    yield char
+            def capture(generator, cache_list):
+                for chunk in generator:
+                    cache_list.append(chunk)
 
-        st.chat_message("assistant").write_stream(capture(res_stream, response_messages))
-        st.session_state["message"].append({"role": "assistant", "content": response_messages[-1]})
-        st.rerun()
+                    for char in chunk:
+                        time.sleep(0.01)
+                        yield char
+
+            st.chat_message("assistant").write_stream(
+                capture(res_stream, response_messages)
+            )
+            st.session_state["message"].append(
+                {"role": "assistant", "content": response_messages[-1]}
+            )
+            st.rerun()
+
+
+if __name__ == "__main__":
+    main()

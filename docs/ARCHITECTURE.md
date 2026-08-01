@@ -15,7 +15,7 @@ flowchart TD
     Browser[浏览器] --> Streamlit[app.py Streamlit]
     Streamlit --> Agent[ReactAgent]
     Agent --> Graph[LangGraph agent-tools loop]
-    Graph --> Chat[全局 ChatModel]
+    Graph --> Chat[惰性缓存 ChatModel]
     Graph --> Tools[ToolNode]
     Tools --> RagTool[rag_summarize]
     Tools --> DemoTools[天气/随机用户/报告工具]
@@ -35,7 +35,8 @@ flowchart TD
 当前边界的主要问题：
 
 - UI 直接创建并调用 Agent，没有 application service 或 transport-neutral schema。
-- 模型、RAG 和配置是 import-time 全局对象，构造 RAG 会同步扫描和入库。
+- `app`、模型工厂和工具模块已消除模型/RAG/Chroma 的 import-time 构造，并支持注入 fake model、工具、向量服务；默认实例通过有界缓存惰性创建。
+- 首次 RAG 工具调用仍同步构造 Chroma、扫描和入库，尚无 lifespan/readiness 或后台任务边界。
 - 会话只在 Streamlit 内存中，LangGraph 无 checkpoint。
 - 本地 Chroma/MD5/CSV 没有 tenant、事务或 migration。
 - 同步调用没有统一 deadline/cancellation，Agent 循环没有显式上限。

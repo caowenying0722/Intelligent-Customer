@@ -5,7 +5,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from model.factory import chat_model
+from model.factory import get_chat_model
 from rag.reranker import LightweightEvidenceReranker
 from rag.simple_bm25 import SimpleBM25Retriever
 from rag.tokenization import cjk_bm25_tokenizer
@@ -26,7 +26,7 @@ class BM25RagEvaluationService:
         )
         self.reranker = LightweightEvidenceReranker()
         self.prompt_template = PromptTemplate.from_template(load_rag_prompts())
-        self.chain = self.prompt_template | chat_model | StrOutputParser()
+        self.chain = self.prompt_template | get_chat_model() | StrOutputParser()
 
     def _load_documents(self) -> list[Document]:
         splitter = RecursiveCharacterTextSplitter(

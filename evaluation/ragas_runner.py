@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import math
 import os
 import re
-import math
 import warnings
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any
 
 from evaluation.dataset import EvaluationSample
 from evaluation.hash_embeddings import HashNgramEmbeddings
-
 
 RAGAS_DEFAULT_METRICS = [
     "faithfulness",
@@ -78,16 +78,20 @@ def parse_ragas_metric_spec(metric_name: str) -> RagasMetricSpec:
     if name == "factual_correctness" and params.get("mode"):
         output_name = f"factual_correctness(mode={params['mode']})"
 
-    return RagasMetricSpec(raw_name=cleaned, name=name, params=params, output_name=output_name)
+    return RagasMetricSpec(
+        raw_name=cleaned, name=name, params=params, output_name=output_name
+    )
 
 
 def _build_wrappers() -> tuple[Any, Any]:
-    from model.factory import chat_model
+    from model.factory import get_chat_model
+
+    chat_model = get_chat_model()
 
     if os.environ.get("RAGAS_USE_PROJECT_EMBEDDINGS") == "1":
-        from model.factory import embed_model
+        from model.factory import get_embedding_model
 
-        embeddings_model = embed_model
+        embeddings_model = get_embedding_model()
     else:
         embeddings_model = HashNgramEmbeddings()
 
@@ -95,8 +99,10 @@ def _build_wrappers() -> tuple[Any, Any]:
         from ragas.embeddings import LangchainEmbeddingsWrapper
         from ragas.llms import LangchainLLMWrapper
 
-        return LangchainLLMWrapper(chat_model), LangchainEmbeddingsWrapper(embeddings_model)
-    except Exception:
+        return LangchainLLMWrapper(chat_model), LangchainEmbeddingsWrapper(
+            embeddings_model
+        )
+    except (ImportError, TypeError):
         return chat_model, embeddings_model
 
 
@@ -108,7 +114,9 @@ def should_include_contexts(metric_names: list[str], data_mode: str) -> bool:
     if data_mode == "full":
         return True
     if data_mode == "minimal":
-        return bool(_metric_names_without_params(metric_names) & CONTEXT_REQUIRED_METRICS)
+        return bool(
+            _metric_names_without_params(metric_names) & CONTEXT_REQUIRED_METRICS
+        )
     raise RagasEvaluationError(f"Unsupported RAGAS data mode: {data_mode}")
 
 
@@ -144,7 +152,9 @@ def _legacy_ragas_row(row: dict[str, Any], include_contexts: bool) -> dict[str, 
 def _new_ragas_dataset(rows: list[dict[str, Any]], include_contexts: bool) -> Any:
     from ragas import EvaluationDataset
 
-    return EvaluationDataset.from_list([_new_ragas_row(row, include_contexts) for row in rows])
+    return EvaluationDataset.from_list(
+        [_new_ragas_row(row, include_contexts) for row in rows]
+    )
 
 
 def _legacy_ragas_dataset(rows: list[dict[str, Any]], include_contexts: bool) -> Any:
@@ -155,12 +165,10 @@ def _legacy_ragas_dataset(rows: list[dict[str, Any]], include_contexts: bool) ->
 
 def _metric_modules() -> list[Any]:
     modules = []
-    try:
+    with suppress(ImportError):
         import ragas.metrics.collections as collections_module
 
         modules.append(collections_module)
-    except Exception:
-        pass
     import ragas.metrics as metrics_module
 
     modules.append(metrics_module)
@@ -218,7 +226,9 @@ def _build_new_metrics(metric_names: list[str]) -> list[Any]:
         selected_metrics.append(metric)
 
     if not selected_metrics:
-        raise RagasEvaluationError(f"No supported RAGAS metrics found: {', '.join(missing_metrics)}")
+        raise RagasEvaluationError(
+            f"No supported RAGAS metrics found: {', '.join(missing_metrics)}"
+        )
 
     return selected_metrics
 
@@ -248,7 +258,9 @@ def _build_legacy_metrics(metric_names: list[str]) -> list[Any]:
         selected_metrics.append(metric)
 
     if not selected_metrics:
-        raise RagasEvaluationError(f"No supported RAGAS metrics found: {', '.join(missing_metrics)}")
+        raise RagasEvaluationError(
+            f"No supported RAGAS metrics found: {', '.join(missing_metrics)}"
+        )
 
     return selected_metrics
 
@@ -325,7 +337,7 @@ def _evaluate_ragas_records(
                 run_config=run_config,
             )
             records.append(sample_records[0] if sample_records else {})
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - isolate each external judge sample.
             sample_id = row.get("id", index)
             errors.append(f"{sample_id}: {type(exc).__name__}: {exc}")
             records.append({})
@@ -351,7 +363,11 @@ def _normalize_requested_metric_names(
         "answer_relevancy": ["answer_relevancy", "response_relevancy"],
         "response_relevancy": ["response_relevancy", "answer_relevancy"],
         "factual_correctness": ["factual_correctness", "answer_correctness"],
-        "factual_correctness(mode=f1)": ["factual_correctness(mode=f1)", "factual_correctness", "answer_correctness"],
+        "factual_correctness(mode=f1)": [
+            "factual_correctness(mode=f1)",
+            "factual_correctness",
+            "answer_correctness",
+        ],
         "answer_correctness": ["answer_correctness", "factual_correctness"],
     }
     for spec in metric_specs:
@@ -388,7 +404,9 @@ def evaluate_with_ragas(
     try:
         from ragas import evaluate
     except ImportError as exc:
-        raise RagasEvaluationError("RAGAS is not installed. Run `pip install ragas datasets`.") from exc
+        raise RagasEvaluationError(
+            "RAGAS is not installed. Run `pip install ragas datasets`."
+        ) from exc
 
     metric_specs = [parse_ragas_metric_spec(name) for name in metric_names]
     llm, embeddings = _build_wrappers()
@@ -400,15 +418,17 @@ def evaluate_with_ragas(
         _new_ragas_dataset(rows[:1], include_contexts)
         dataset_builder = _new_ragas_dataset
         metrics = _build_new_metrics(metric_names)
-    except Exception:
+    except (ImportError, AttributeError, TypeError, ValueError):
         dataset_builder = _legacy_ragas_dataset
         metrics = _build_legacy_metrics(metric_names)
 
     try:
         from ragas.run_config import RunConfig
 
-        run_config = RunConfig(timeout=timeout, max_retries=max_retries, max_workers=max_workers)
-    except Exception:
+        run_config = RunConfig(
+            timeout=timeout, max_retries=max_retries, max_workers=max_workers
+        )
+    except (ImportError, TypeError, ValueError):
         run_config = None
 
     ragas_records, ragas_errors = _evaluate_ragas_records(
@@ -426,6 +446,12 @@ def evaluate_with_ragas(
     per_sample_metrics = []
     for index, _sample in enumerate(samples):
         record = ragas_records[index] if index < len(ragas_records) else {}
-        per_sample_metrics.append(_normalize_requested_metric_names(_numeric_metric_values(record), metric_specs))
+        per_sample_metrics.append(
+            _normalize_requested_metric_names(
+                _numeric_metric_values(record), metric_specs
+            )
+        )
 
-    return RagasEvaluationResult(metrics=per_sample_metrics, errors=ragas_errors, eval_mode=eval_mode)
+    return RagasEvaluationResult(
+        metrics=per_sample_metrics, errors=ragas_errors, eval_mode=eval_mode
+    )

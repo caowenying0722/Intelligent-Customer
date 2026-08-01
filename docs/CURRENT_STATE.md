@@ -12,7 +12,7 @@
 - 受支持开发版本现由 `.python-version` 固定为 Python 3.10.20；本机 `ics` 环境已验证 18 个直接运行依赖与 `requirements.txt` 精确一致，`app` 可以导入。
 - `requirements-dev.txt` 在运行依赖上固定 pytest、Ruff、Mypy、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
 - 当前只有直接依赖和开发工具精确固定，尚无完整的跨平台 transitive lock；因此不能把它描述为完全可重复的供应链锁定。
-- 目标环境导入 `app` 仍会立即访问 Chroma、扫描知识文件并产生本地/遥测输出；可导入不代表无副作用。
+- 目标环境普通导入 `app` 不再加载 Agent、模型、RAG 或 Chroma；Streamlit 执行 `main()` 后才构建 Agent，首次调用 RAG 工具时才同步初始化 Chroma 和扫描知识文件。
 - 旧 `.local_deps/` 目录仍存在但已不再由评测/报告脚本自动插入 `sys.path`；初始行为曾覆盖目标环境中的正确二进制包并导致 RAGAS 导入失败。
 - Python 3.13 下执行完整依赖 dry-run 失败：`langchain-community==0.3.31` 要求 NumPy 2.x，而 `langchain-chroma==0.1.4` 在该解释器组合下要求 NumPy 1.x。
 - pip-audit 对当前运行依赖报告 13 个包共 84 条已知漏洞记录；其中 LangChain/LangGraph 修复版本涉及大版本迁移，必须单独升级和回归，不能用忽略规则伪装通过。
@@ -24,7 +24,7 @@ flowchart LR
     U[用户] --> UI[Streamlit app.py]
     UI --> RA[ReactAgent]
     RA --> LG[LangGraph StateGraph]
-    LG --> LLM[全局 Chat Model]
+    LG --> LLM[惰性缓存 Chat Model]
     LG --> TN[ToolNode]
     TN --> RT[RAG 工具]
     TN --> DT[天气/用户/报告 Demo 工具]
@@ -39,13 +39,14 @@ flowchart LR
 
 ### 在线问答链路
 
-1. `app.py` 在模块顶层构建页面，并在首次 Streamlit session 中创建 `ReactAgent`。
-2. 导入 `agent.tools.agent_tools` 时会在模块顶层创建 `RagSummarizeService`。
-3. `RagSummarizeService.__init__` 立即创建 Chroma 客户端、扫描文档、按 MD5 判断并可能同步解析、切分、嵌入和写入向量库，然后构建 retriever。
-4. `ReactAgent` 创建 `agent -> tools -> agent` 的 LangGraph 循环。代码未显式传入最大步骤、工具次数或全流程超时。
-5. 模型按工具调用结果继续循环。普通模型调用是同步 `invoke`；两类 provider 共享 120 秒默认超时，OpenAI-compatible 还显式设置最多 2 次 SDK 重试。
-6. `execute_stream` 使用 LangGraph 的 value stream，把每轮最新消息的完整内容作为块返回；UI 再逐字符 `sleep(0.01)` 模拟流式输出。这不是上游 token streaming。
-7. Streamlit 只把消息保存在当前进程 session state 中，而且后续调用 Agent 时只提交当前问题，不会把 UI 中显示的历史消息传给 Agent。
+1. `app.py` 把 Streamlit 执行封装在 `main()`；普通 Python import 不加载业务模块，Streamlit 首次 session 才创建 `ReactAgent`。
+2. `ReactAgent` 首次显式构造时通过缓存工厂创建聊天模型；测试可直接注入 fake model 和工具列表。
+3. 导入 `agent.tools.agent_tools` 不再加载 RAG 模块；首次调用 `rag_summarize` 才创建并缓存 `RagSummarizeService`。
+4. `RagSummarizeService.__init__` 仍会同步创建 Chroma 客户端、扫描文档、按 MD5 判断并可能解析、切分、嵌入和写入向量库，然后构建 retriever。该 I/O 已离开 import 阶段，但仍会阻塞首次 RAG 请求。
+5. `ReactAgent` 创建 `agent -> tools -> agent` 的 LangGraph 循环。代码未显式传入最大步骤、工具次数或全流程超时。
+6. 模型按工具调用结果继续循环。普通模型调用是同步 `invoke`；两类 provider 共享 120 秒默认超时，OpenAI-compatible 还显式设置最多 2 次 SDK 重试。
+7. `execute_stream` 使用 LangGraph 的 value stream，把每轮最新消息的完整内容作为块返回；UI 再逐字符 `sleep(0.01)` 模拟流式输出。这不是上游 token streaming。
+8. Streamlit 只把消息保存在当前进程 session state 中，而且后续调用 Agent 时只提交当前问题，不会把 UI 中显示的历史消息传给 Agent。
 
 ### RAG 链路
 
@@ -60,7 +61,8 @@ flowchart LR
 
 - `utils.settings.Settings` 集中读取并校验应用环境、日志级别、模型 provider/密钥/传输、Agent 最大步骤以及未来 API 的 host/port/CORS；密钥使用 `SecretStr`，生产环境拒绝通配 CORS。
 - `model.factory` 通过可注入的 `Settings` 构建 OpenAI-compatible 或仓库自定义 Anthropic-compatible 同步适配器；`MODEL_PROVIDER` 为规范变量，旧 `LLM__PROVIDER` 仍可兼容读取。
-- 现有 RAG/Chroma/Prompt YAML 业务配置仍由 `utils.config_handler` 在导入时加载，全局聊天模型也尚未延迟创建；集中 Settings 没有掩盖这两个后续目标。
+- `model.factory` 暴露缓存的惰性访问函数，模块导入不再加载业务 YAML 或创建聊天/嵌入模型；`ReactAgent`、`RagSummarizeService` 和 `VectorStoreService` 均支持显式依赖注入。
+- 现有 RAG/Chroma/Prompt YAML 业务配置仍由 `utils.config_handler` 在首次相关模块加载时读取，schema 和完整延迟加载仍是后续目标。
 - 模型请求默认验证 TLS；企业私有 CA 只能通过 `MODEL_CA_BUNDLE` 指向已有 PEM 文件，非法路径启动即失败，不提供关闭验证的开关。
 - 工具包括本地 RAG、静态天气、随机位置、随机用户 ID、当前月份和本地 CSV 报告数据。没有认证上下文、租户边界、审批或幂等控制。
 - `agent/tools/middleware.py` 没有接入当前 Agent，且其导入依赖与锁定的 LangChain API 不兼容。
@@ -77,7 +79,7 @@ flowchart LR
 
 | 能力 | 当前状态 | 证据或说明 |
 |---|---|---|
-| Streamlit UI | 已实现且目标环境可导入，但导入有副作用 | `app.py`；导入会初始化 RAG/Chroma |
+| Streamlit UI | 已实现且普通导入无业务资源副作用 | `app.py`；实际启动后首次 RAG 调用仍同步初始化 Chroma |
 | 基础 LangGraph Agent | 已实现 Demo | `agent/react_agent.py` |
 | 工具调用 | 已实现 Demo | `agent/tools/agent_tools.py` |
 | Chroma 向量检索 | 已实现且依赖已安装，但初始化耦合 import | `rag/vector_store.py` |
@@ -128,11 +130,11 @@ flowchart LR
 | `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，18 个直接运行依赖精确匹配，`pip check` 成功 |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 23 个直接运行/开发依赖精确匹配 |
 | `pip install --dry-run --ignore-installed -r requirements-dev.txt` | 成功 | Python 3.10 可解析；输出同时证明传递依赖仍会漂移，不能替代 lock |
-| `python -m pytest -q` | 成功：48 passed，10 subtests | 包含依赖隔离、集中 Settings、TLS 默认验证、CA bundle、超时/重试边界和模型适配器测试 |
+| `python -m pytest -q` | 成功：53 passed，10 subtests | 包含依赖隔离、集中 Settings、惰性初始化、TLS 默认验证、CA bundle、超时/重试边界和模型适配器测试 |
 | Ruff lint/format（本目标涉及文件） | 成功 | 集中 Settings、模型工厂及其测试均通过 |
-| `python -m ruff check .` | 失败：70 项 | 既有代码包含导入顺序、异常处理、时区等债务；未自动改写无关文件 |
-| `python -m ruff format --check .` | 失败：30 个文件待格式化 | 本目标涉及文件已格式化；全仓机械改写留给独立目标 |
-| Mypy（本目标新增文件） | 成功 | 使用 `--explicit-package-bases`；全仓类型门禁仍未建立 |
+| `python -m ruff check .` | 失败：51 项 | 本目标涉及文件已通过；其余既有代码仍包含导入顺序、异常处理、时区等债务 |
+| `python -m ruff format --check .` | 失败：24 个文件待格式化 | 本目标涉及文件已格式化；全仓机械改写留给独立目标 |
+| Mypy（本目标涉及文件） | 成功 | 使用 `--explicit-package-bases`；全仓类型门禁仍未建立 |
 | `python -m pip_audit -r requirements.txt` | 失败：84 条/13 包 | 真实安全基线；未忽略，进入阶段 1 下一修复目标 |
 
 ## 可复现指标基线
@@ -141,7 +143,7 @@ flowchart LR
 
 | 指标 | 当前值 | 可用性说明 |
 |---|---:|---|
-| 测试数量 / 通过率 | 48 / 100% | 新增环境/依赖隔离、集中配置与模型传输安全测试；仍没有核心 Agent/API/RAG 集成覆盖 |
+| 测试数量 / 通过率 | 53 / 100% | 新增环境/依赖隔离、集中配置、惰性初始化与模型传输安全测试；仍没有核心 Agent/API/RAG 集成覆盖 |
 | 主评测集样本 | 28 | 非冻结、无 dataset version |
 | Focus 评测集样本 | 6 | 非隐藏集 |
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
@@ -164,12 +166,12 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 3. Agent、工具和请求没有显式的步骤、次数和总截止时间上限。
 4. 随机用户身份与本地报告数据没有认证、授权和租户隔离。
 5. 重排使用评测来源文件名，README 质量提升不能视为独立证据。
-6. 模块导入会触发同步文档入库和本地写操作，启动不可控且无法安全扩容。
+6. 首次 RAG 工具调用仍会同步扫描/入库并写本地状态，多 Worker 竞态和 readiness 尚未解决。
 7. 日志中可能记录工具参数、消息正文或供应商原始错误，缺少脱敏。
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：48 个单元测试集中在环境约束、集中配置、模型传输/协议转换、评测辅助函数和 secret scanner。Agent 状态机、RAG 核心、文档入库、UI、故障路径、取消与并发均没有自动化测试。
+- 测试：53 个单元测试集中在环境约束、集中配置、惰性初始化、模型传输/协议转换、评测辅助函数和 secret scanner。Agent 状态机、RAG 核心、文档入库、UI、故障路径、取消与并发均没有自动化测试。
 - 可观测性：普通文本日志写控制台和每日文件；没有 request ID、trace、metrics 或字段脱敏。
 - 部署：只有本地 Streamlit 命令；没有 API 服务、进程模型、容器、健康检查、优雅关闭或 CI。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
@@ -180,9 +182,9 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 2. 为什么叫“流式”但模型并未 token streaming，而是完整块再逐字符 sleep？
 3. Agent 如何防止无限工具循环、超时和重复副作用？当前仅 Prompt 声明“五次”，代码没有确定性保证。
 4. 随机 user ID 如何代表真实登录用户，如何防止读取其他人的报告？当前没有安全边界。
-5. 如何部署、扩容和恢复会话？当前导入时写本地 Chroma，session 只在单进程内存。
+5. 如何部署、扩容和恢复会话？当前首次 RAG 请求仍写本地 Chroma，session 只在单进程内存。
 6. 企业私有 CA 如何接入而不关闭 TLS？当前通过显式 PEM 路径创建验证客户端，路径无效时 fail-fast。
-7. 48 个环境/配置/模型适配/辅助函数测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
+7. 53 个环境/配置/惰性初始化/模型适配测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
 
 ## 当前是否适合继续自动修改
 
@@ -190,5 +192,5 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 - 保留并避开当前用户未提交修改；
 - 先建立干净、可复现的 Python 3.10/3.11 开发环境和开发工具链；
-- 先修复依赖漏洞、导入副作用和 Agent 上限；
+- 先修复依赖漏洞、首次 RAG 同步入库和 Agent 上限；
 - 将 FastAPI 阶段限定在无数据库的可替换接口与 fake Agent 测试，不同时引入 PostgreSQL、Qdrant 或 Celery。

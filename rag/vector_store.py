@@ -1,24 +1,33 @@
+import os
+
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from utils.config_handler import chroma_conf
-
-from model.factory import embed_model
-
+from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from utils.path_tool import get_abs_path
-from utils.file_handler import pdf_loader, txt_loader, listdir_with_allowed_type, get_file_md5_hex
-from utils.logger_handler import logger
-from rag.tokenization import cjk_bm25_tokenizer
-from rag.simple_bm25 import SimpleBM25Retriever, WeightedHybridRetriever
 
-import os
+from model.factory import get_embedding_model
+from rag.simple_bm25 import SimpleBM25Retriever, WeightedHybridRetriever
+from rag.tokenization import cjk_bm25_tokenizer
+from utils.config_handler import chroma_conf
+from utils.file_handler import (
+    get_file_md5_hex,
+    listdir_with_allowed_type,
+    pdf_loader,
+    txt_loader,
+)
+from utils.logger_handler import logger
+from utils.path_tool import get_abs_path
 
 
 class VectorStoreService:
-    def __init__(self):
+    def __init__(self, embedding_model: Embeddings | None = None):
         self.vector_store = Chroma(
             collection_name=chroma_conf["collection_name"],
-            embedding_function=embed_model,
+            embedding_function=(
+                embedding_model
+                if embedding_model is not None
+                else get_embedding_model()
+            ),
             persist_directory=chroma_conf["persist_directory"],
         )
 
@@ -33,13 +42,17 @@ class VectorStoreService:
         """从 Chroma 向量库中获取所有已存储的文档，用于构建 BM25 检索器"""
         chroma_data = self.vector_store.get(include=["documents", "metadatas"])
         documents = []
-        for content, metadata in zip(chroma_data["documents"], chroma_data["metadatas"]):
+        for content, metadata in zip(
+            chroma_data["documents"], chroma_data["metadatas"]
+        ):
             documents.append(Document(page_content=content, metadata=metadata))
         return documents
 
     def get_retriever(self):
         retrieval_k = chroma_conf.get("candidate_k", chroma_conf["k"])
-        vector_retriever = self.vector_store.as_retriever(search_kwargs={"k": retrieval_k})
+        vector_retriever = self.vector_store.as_retriever(
+            search_kwargs={"k": retrieval_k}
+        )
 
         if chroma_conf.get("retrieval_type") == "hybrid":
             all_docs = self._get_all_documents()
@@ -73,19 +86,25 @@ class VectorStoreService:
         def check_md5_hex(md5_for_check: str):
             if not os.path.exists(get_abs_path(chroma_conf["md5_hex_store"])):
                 # 创建文件
-                open(get_abs_path(chroma_conf["md5_hex_store"]), "w", encoding="utf-8").close()
-                return False            # md5 没处理过
+                open(
+                    get_abs_path(chroma_conf["md5_hex_store"]), "w", encoding="utf-8"
+                ).close()
+                return False  # md5 没处理过
 
-            with open(get_abs_path(chroma_conf["md5_hex_store"]), "r", encoding="utf-8") as f:
-                for line in f.readlines():
+            with open(
+                get_abs_path(chroma_conf["md5_hex_store"]), "r", encoding="utf-8"
+            ) as f:
+                for line in f:
                     line = line.strip()
                     if line == md5_for_check:
-                        return True     # md5 处理过
+                        return True  # md5 处理过
 
-                return False            # md5 没处理过
+                return False  # md5 没处理过
 
         def save_md5_hex(md5_for_check: str):
-            with open(get_abs_path(chroma_conf["md5_hex_store"]), "a", encoding="utf-8") as f:
+            with open(
+                get_abs_path(chroma_conf["md5_hex_store"]), "a", encoding="utf-8"
+            ) as f:
                 f.write(md5_for_check + "\n")
 
         def get_file_documents(read_path: str):
@@ -130,13 +149,13 @@ class VectorStoreService:
                 save_md5_hex(md5_hex)
 
                 logger.info(f"[加载知识库]{path} 内容加载成功")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - isolate each ingestion file.
                 # exc_info为True会记录详细的报错堆栈，如果为False仅记录报错信息本身
-                logger.error(f"[加载知识库]{path}加载失败：{str(e)}", exc_info=True)
+                logger.error(f"[加载知识库]{path}加载失败：{e!s}", exc_info=True)
                 continue
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     vs = VectorStoreService()
 
     vs.load_document()
@@ -146,6 +165,4 @@ if __name__ == '__main__':
     res = retriever.invoke("迷路")
     for r in res:
         print(r.page_content)
-        print("-"*20)
-
-
+        print("-" * 20)

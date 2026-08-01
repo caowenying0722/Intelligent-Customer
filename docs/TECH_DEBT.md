@@ -7,7 +7,7 @@
 | TD-001 | 曾全局关闭 HTTPS 证书校验 | Blocker | 同进程所有默认 HTTPS context 可遭中间人攻击，模型和文档数据可能泄露 | `model/factory.py`、`model/runtime_config.py` | 已删除全局 monkey patch；默认验证证书，仅允许显式 CA bundle，并覆盖默认/自定义/非法配置测试 | 1 | 已完成 |
 | TD-002 | Python 3.13 下 requirements 无法解析，且尚无完整 transitive lock/clean rebuild 证明 | High | 默认 shell 与支持环境不一致，传递依赖仍可能随时间漂移 | `.python-version`、`requirements*.txt`、`scripts/check_environment.py` | 已固定并验证 Python 3.10 直接依赖且删除 `.local_deps` 注入；后续增加跨平台 transitive lock 和空环境重建 | 1 | 部分完成 |
 | TD-003 | Agent 没有代码级最大步骤、工具次数或总超时 | High | 恶意/异常模型可循环调用工具、耗尽成本和 Worker | `agent/react_agent.py:36-58`、`prompts/main_prompt.txt:8` | Settings 中定义上限；LangGraph 调用传 recursion limit；应用服务设置 deadline 并测试超限 | 1/2/4 | 待处理 |
-| TD-004 | 导入工具模块即创建 RAG，并在构造时同步入库 | High | import/startup 可发生长耗时 I/O 和本地写入，多 Worker 竞态且 readiness 不可信 | `agent/tools/agent_tools.py:11`、`rag/rag_service.py:25-34`、`rag/vector_store.py:66-136` | 依赖注入 + 显式 lifespan 初始化；入库迁移到有界后台任务 | 1/2/6 | 待处理 |
+| TD-004 | 首次 RAG 工具调用仍在构造服务时同步入库 | High | import 已无 Chroma/入库副作用，但首次请求仍可能长耗时写本地状态，多 Worker 竞态且 readiness 不可信 | `agent/tools/agent_tools.py`、`rag/rag_service.py`、`rag/vector_store.py` | 惰性工厂与依赖注入已完成；后续用显式 lifespan/readiness 初始化，并把入库迁移到有界后台任务 | 1/2/6 | 部分完成 |
 | TD-005 | 启发式重排使用来源文件名，来源名同时是评测标签 | High | 形成相关性捷径，污染 source recall/MRR 与 README 提升结论 | `rag/reranker.py:49-97`、`evaluation/local_metrics.py:27-44` | 删除来源名特征；冻结独立 regression set；保留无泄漏 baseline 并重跑消融 | 1/5/10 | 待处理 |
 | TD-006 | 用户位置和 ID 随机生成，报告工具无认证和租户校验 | High | 任意用户可能读取随机他人记录；无法形成可审计身份链 | `agent/tools/agent_tools.py:45-55,116-125` | 从认证 tenant/user context 注入；repository 默认强制 tenant；增加跨租户拒绝测试 | 3/9 | 待处理 |
 | TD-007 | 中间件若启用会记录完整工具参数和消息正文 | High | Prompt、PII、报告参数或文档内容进入日志 | `agent/tools/middleware.py:19-20,40-42` | 结构化日志白名单、字段脱敏和长度限制；安全测试不得出现敏感字段 | 8/9 | 待处理 |
@@ -21,7 +21,7 @@
 | TD-015 | 系统提示词要求输出“真实思考过程” | Medium | 泄露内部推理/策略，增加提示注入和数据暴露面 | `prompts/main_prompt.txt:51-53` | 改成简短用户可见状态，不要求 chain-of-thought；工具审计使用结构化事件 | 4/9 | 待处理 |
 | TD-016 | 评测报告不记录 commit、dirty state、dataset version 或延迟 | Medium | 结果不可追溯、不可复现，无法做 CI 回归与性能比较 | `evaluation/runner.py:155-190` | 增加 run manifest、数据哈希、配置快照、逐样本耗时和错误分类 | 10 | 待处理 |
 | TD-017 | 引用有效性只验证编号范围，不验证证据支持 | Medium | 无依据回答也可得到 1.0 citation validity | `evaluation/local_metrics.py:100-133` | 区分格式有效、引用覆盖和 entailment/人工标签；加入错误引用样本 | 10 | 待处理 |
-| TD-018 | 核心主链缺少自动化测试 | Medium | 48 个环境/配置/模型适配/辅助测试通过仍不能证明 Agent、RAG、入库和 UI 可运行 | `tests/` | 分层新增 unit/integration/contract/evaluation 测试；默认 fake model | 1/2/10 | 待处理 |
+| TD-018 | 核心主链缺少自动化测试 | Medium | 53 个环境/配置/惰性初始化/模型适配测试通过仍不能证明 Agent、RAG、入库和 UI 可运行 | `tests/` | 分层新增 unit/integration/contract/evaluation 测试；默认 fake model | 1/2/10 | 待处理 |
 | TD-019 | formatter、lint、type check、coverage 和依赖审计尚未形成全仓/CI 门禁 | Medium | 大部分现有代码仍不受风格、类型、覆盖率和安全回归控制 | `requirements-dev.txt`、无 `.github/workflows` | 开发工具版本和环境检查已建立；后续配置全仓 Ruff/Mypy/Coverage 并在 CI 固化 | 1/10 | 部分完成 |
 | TD-020 | 评测输出含问题、答案、参考答案、召回全文和绝对路径，过去未被忽略 | Medium | 可能误提交用户/知识库数据和本机信息 | `evaluation/runner.py:95-106,175-217`、`.gitignore` | 忽略 `output/`（本轮完成）；后续增加脱敏 artifact profile 与保留策略 | 1/9/10 | 部分完成 |
 | TD-021 | README 仓库地址曾与 Git remote 不一致 | Low | 推送到了错误目标或克隆命令与开发 remote 不一致 | `README.md:19,122,277`、本地 `origin` | 用户已确认并将 `origin` 修正为 `caowenying0722/Intelligent-Customer` | 1/11 | 已完成 |
@@ -29,6 +29,6 @@
 | TD-023 | `listdir_with_allowed_type` 在目录无效时返回后缀 tuple | Medium | 调用方会把 `txt/pdf` 当文件路径，错误含糊 | `utils/file_handler.py:28-37` | 返回空 tuple 或抛专用配置错误；增加不存在目录测试 | 1 | 待处理 |
 | TD-024 | 模拟“流式”通过阻塞 sleep 逐字符输出 | Medium | 占用 Streamlit 执行线程，不支持上游取消/背压/TTFT | `app.py:32-41` | FastAPI SSE 传稳定事件，Streamlit HTTP 客户端消费；取消传播到 Agent | 2 | 待处理 |
 | TD-025 | 无 request ID、结构化日志、trace 或 metrics | Medium | 故障无法按请求关联，无法观测模型/RAG/工具耗时 | `utils/logger_handler.py:14-50` | API middleware 注入 request ID；后续 OTel + Prometheus，控制标签基数 | 2/8 | 待处理 |
-| TD-026 | 模型和 RAG 使用全局单例，测试难替换 | Medium | import 顺序影响配置，无法为 API 测试注入 fake model | `model/factory.py:126-128`、`agent/tools/agent_tools.py:11` | 应用 composition root 创建依赖；adapter/interface 分离 | 1/2/7 | 待处理 |
+| TD-026 | 默认模型和 RAG 仍使用进程内缓存实例 | Medium | import-time 单例已删除且核心构造器可注入，但尚无 API composition root 或生命周期关闭钩子 | `model/factory.py`、`agent/react_agent.py`、`rag/rag_service.py` | 在 FastAPI 应用工厂集中创建/关闭依赖；adapter/interface 继续分离 | 1/2/7 | 部分完成 |
 | TD-027 | 低置信度与域外判断是少量硬编码关键词 | Low | 容易误拒答或漏过，不能作为通用安全 guardrail | `rag/guardrails.py:10-27` | 保留为明确 baseline；用版本化策略、可测试分类器和人工升级路径演进 | 5/9/10 | 待处理 |
 | TD-028 | 当前运行依赖存在 84 条已知漏洞记录，涉及 13 个直接或传递包 | Blocker | Web/UI、文件解析、Agent 序列化和模型链路暴露已知风险，无法通过依赖安全门禁 | `requirements.txt`、`python -m pip_audit -r requirements.txt` | 按兼容组升级 PyPDF/Streamlit/Pillow，再迁移 LangChain/LangGraph；每组运行导入、Agent、RAG、评测回归，不允许无依据 ignore | 1 | 待处理 |

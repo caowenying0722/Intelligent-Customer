@@ -1,35 +1,43 @@
-
 """
 总结服务类：用户提问，搜索参考资料，将提问和参考资料提交给模型，让模型总结回复
 """
-from langchain_core.documents import Document
-from langchain_core.output_parsers import StrOutputParser
 
-from rag.vector_store import VectorStoreService
+from langchain_core.documents import Document
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
+
+from model.factory import get_chat_model
 from rag.guardrails import is_out_of_scope_query, low_confidence_response
 from rag.reranker import LightweightEvidenceReranker
-from utils.prompt_loader import load_rag_prompts
-from langchain_core.prompts import PromptTemplate
-from model.factory import chat_model
+from rag.vector_store import VectorStoreService
 from utils.config_handler import chroma_conf
+from utils.prompt_loader import load_rag_prompts
 
 
 def print_prompt(prompt):
-    print("="*20)
+    print("=" * 20)
     print(prompt.to_string())
-    print("="*20)
+    print("=" * 20)
     return prompt
 
 
-class RagSummarizeService(object):
-    def __init__(self, print_prompts: bool = True):
-        self.vector_store = VectorStoreService()
+class RagSummarizeService:
+    def __init__(
+        self,
+        print_prompts: bool = True,
+        vector_store: VectorStoreService | None = None,
+        model: BaseChatModel | None = None,
+    ):
+        self.vector_store = (
+            vector_store if vector_store is not None else VectorStoreService()
+        )
         self.vector_store.load_document()
         self.retriever = self.vector_store.get_retriever()
         self.reranker = LightweightEvidenceReranker()
         self.prompt_text = load_rag_prompts()
         self.prompt_template = PromptTemplate.from_template(self.prompt_text)
-        self.model = chat_model
+        self.model = model if model is not None else get_chat_model()
         self.print_prompts = print_prompts
         self.chain = self._init_chain()
 
@@ -52,10 +60,13 @@ class RagSummarizeService(object):
     @staticmethod
     def format_context(context_docs: list[Document]) -> str:
         context = ""
-        counter = 0
-        for doc in context_docs:
-            counter += 1
-            source = doc.metadata.get("source") or doc.metadata.get("file_path") or doc.metadata.get("path") or "未知来源"
+        for counter, doc in enumerate(context_docs, start=1):
+            source = (
+                doc.metadata.get("source")
+                or doc.metadata.get("file_path")
+                or doc.metadata.get("path")
+                or "未知来源"
+            )
             score = doc.metadata.get("rerank_score", "")
             score_text = f" | 相关性分数：{score}" if score != "" else ""
             context += f"【资料{counter}】来源：{source}{score_text}\n内容：{doc.page_content}\n"
@@ -65,7 +76,9 @@ class RagSummarizeService(object):
     @staticmethod
     def _max_rerank_score(context_docs: list[Document]) -> float:
         scores = [doc.metadata.get("rerank_score") for doc in context_docs]
-        numeric_scores = [float(score) for score in scores if isinstance(score, (int, float))]
+        numeric_scores = [
+            float(score) for score in scores if isinstance(score, (int, float))
+        ]
         return max(numeric_scores, default=1.0)
 
     def summarize_with_docs(self, query: str, context_docs: list[Document]) -> str:
@@ -99,7 +112,7 @@ class RagSummarizeService(object):
         return self.summarize_with_docs(query, context_docs)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     rag = RagSummarizeService()
 
     print(rag.rag_summarize("小户型适合哪些扫地机器人"))

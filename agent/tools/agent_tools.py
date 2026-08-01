@@ -1,36 +1,107 @@
 import os
-from utils.logger_handler import logger
+import random
+from datetime import datetime, timezone
+from functools import lru_cache
+from typing import Protocol
+
 from langchain_core.tools import tool
 
-from rag.rag_service import RagSummarizeService
-import random
-from utils.config_handler import agent_conf
+from utils.logger_handler import logger
 from utils.path_tool import get_abs_path
-from datetime import datetime
 
-rag = RagSummarizeService()
 
-user_ids = ["1001", "1002", "1003", "1004", "1005", "1006", "1007", "1008", "1009", "1010",]
+class RagService(Protocol):
+    def rag_summarize(self, query: str) -> str: ...
 
-external_data = {}
+
+@lru_cache(maxsize=1)
+def get_rag_service() -> RagService:
+    from rag.rag_service import RagSummarizeService
+
+    return RagSummarizeService()
+
+
+user_ids = [
+    "1001",
+    "1002",
+    "1003",
+    "1004",
+    "1005",
+    "1006",
+    "1007",
+    "1008",
+    "1009",
+    "1010",
+]
+
+ExternalRecord = dict[str, str]
+external_data: dict[str, dict[str, ExternalRecord]] = {}
 
 # 城市天气数据库
 WEATHER_DATA = {
-    "深圳": {"天气": "晴天", "气温": 28, "湿度": 65, "风向": "南风", "风速": 2, "AQI": 35, "降雨": "极低"},
-    "合肥": {"天气": "多云", "气温": 24, "湿度": 55, "风向": "东风", "风速": 1, "AQI": 42, "降雨": "低"},
-    "杭州": {"天气": "小雨", "气温": 22, "湿度": 75, "风向": "西南风", "风速": 3, "AQI": 38, "降雨": "中"},
-    "北京": {"天气": "晴天", "气温": 20, "湿度": 45, "风向": "北风", "风速": 2, "AQI": 28, "降雨": "极低"},
-    "上海": {"天气": "多云", "气温": 25, "湿度": 70, "风向": "东风", "风速": 1, "AQI": 45, "降雨": "低"},
+    "深圳": {
+        "天气": "晴天",
+        "气温": 28,
+        "湿度": 65,
+        "风向": "南风",
+        "风速": 2,
+        "AQI": 35,
+        "降雨": "极低",
+    },
+    "合肥": {
+        "天气": "多云",
+        "气温": 24,
+        "湿度": 55,
+        "风向": "东风",
+        "风速": 1,
+        "AQI": 42,
+        "降雨": "低",
+    },
+    "杭州": {
+        "天气": "小雨",
+        "气温": 22,
+        "湿度": 75,
+        "风向": "西南风",
+        "风速": 3,
+        "AQI": 38,
+        "降雨": "中",
+    },
+    "北京": {
+        "天气": "晴天",
+        "气温": 20,
+        "湿度": 45,
+        "风向": "北风",
+        "风速": 2,
+        "AQI": 28,
+        "降雨": "极低",
+    },
+    "上海": {
+        "天气": "多云",
+        "气温": 25,
+        "湿度": 70,
+        "风向": "东风",
+        "风速": 1,
+        "AQI": 45,
+        "降雨": "低",
+    },
 }
 
 # 默认城市天气数据
-DEFAULT_WEATHER = {"天气": "晴天", "气温": 26, "湿度": 50, "风向": "南风", "风速": 1, "AQI": 21, "降雨": "极低"}
+DEFAULT_WEATHER = {
+    "天气": "晴天",
+    "气温": 26,
+    "湿度": 50,
+    "风向": "南风",
+    "风速": 1,
+    "AQI": 21,
+    "降雨": "极低",
+}
 
 
 @tool
 def rag_summarize(query: str) -> str:
     """从向量存储中检索参考资料"""
-    return rag.rag_summarize(query)
+    return get_rag_service().rag_summarize(query)
 
 
 @tool
@@ -57,7 +128,7 @@ def get_user_id() -> str:
 @tool
 def get_current_month() -> str:
     """获取当前月份，以纯字符串形式返回"""
-    return datetime.now().strftime("%Y-%m")
+    return datetime.now(tz=timezone.utc).astimezone().strftime("%Y-%m")
 
 
 def generate_external_data():
@@ -86,6 +157,8 @@ def generate_external_data():
     :return:
     """
     if not external_data:
+        from utils.config_handler import agent_conf
+
         external_data_path = get_abs_path(agent_conf["external_data_path"])
 
         if not os.path.exists(external_data_path):
@@ -114,15 +187,18 @@ def generate_external_data():
 
 
 @tool
-def fetch_external_data(user_id: str, month: str) -> str:
+def fetch_external_data(user_id: str, month: str) -> ExternalRecord | str:
     """从外部系统中获取指定用户在指定月份的使用记录，以纯字符串形式返回，如果未检索到返回空字符串"""
     generate_external_data()
 
     try:
         return external_data[user_id][month]
     except KeyError:
-        logger.warning(f"[fetch_external_data]未能检索到用户：{user_id}在{month}的使用记录数据")
+        logger.warning(
+            f"[fetch_external_data]未能检索到用户：{user_id}在{month}的使用记录数据"
+        )
         return ""
+
 
 @tool
 def fill_context_for_report() -> str:
