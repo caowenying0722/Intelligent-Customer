@@ -11,7 +11,10 @@ from fastapi.responses import JSONResponse
 from src.app.api.routes import build_router
 from src.app.application.chat import ChatAgent, ChatApplicationService
 from src.app.application.ingestion_service import DocumentIngestionService
-from src.app.infrastructure.factory import build_conversation_repository
+from src.app.infrastructure.factory import (
+    build_conversation_repository,
+    build_document_ingestion_service,
+)
 
 ReadinessCheck = Callable[[], bool]
 
@@ -45,6 +48,12 @@ def create_app(
             conversation_repository=repository,
         )
         lifecycle_resources = (*lifecycle_resources, repository)
+
+    if ingestion_service is None and database_url:
+        ingestion_service = build_document_ingestion_service(
+            database_url=database_url
+        )
+        lifecycle_resources = (*lifecycle_resources, ingestion_service)
 
     if readiness_check is None and chat_service is not None:
         candidate = getattr(chat_service.conversation_repository, "check_ready", None)
@@ -107,7 +116,7 @@ def create_app(
             return JSONResponse(status_code=503, content={"status": "not_ready"})
         return {"status": "ready"}
 
-    if ingestion_service is not None:
+    if ingestion_service is not None and ingestion_service not in lifecycle_resources:
         lifecycle_resources = (*lifecycle_resources, ingestion_service)
     app.include_router(build_router(chat_service, ingestion_service, ingestion_operation))
     return app

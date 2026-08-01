@@ -109,8 +109,13 @@ def build_router(
         if ingestion_service is None:
             return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "ingestion is not configured", "request_id": request.state.request_id})
         try:
-            job = ingestion_service.jobs.get(
-                tenant_id=request.headers.get("x-tenant-id", "local"), job_id=UUID(job_id)
+            tenant_id = request.headers.get("x-tenant-id", "local")
+            parsed_job_id = UUID(job_id)
+            job_store = getattr(ingestion_service, "job_store", None)
+            job = (
+                job_store.get_job(tenant_id=tenant_id, job_id=parsed_job_id)
+                if job_store is not None
+                else ingestion_service.jobs.get(tenant_id=tenant_id, job_id=parsed_job_id)
             )
         except ValueError:
             job = None

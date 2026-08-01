@@ -1,0 +1,45 @@
+from pathlib import Path
+from uuid import uuid4
+
+from alembic import command
+from alembic.config import Config
+from fastapi.testclient import TestClient
+
+from src.app.application.document_metadata import DocumentMetadataRegistry
+from src.app.application.uploads import validate_upload
+from src.app.infrastructure.ingestion import SqlAlchemyIngestionRepository
+from src.app.main import create_app
+
+
+def test_api_database_url_recovers_document_query_without_processor() -> None:
+    database = Path("output") / "ingestion-api-persistence.db"
+    if database.exists():
+        database.unlink()
+    config = Config(str(Path("alembic.ini").resolve()))
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database.as_posix()}")
+    command.upgrade(config, "head")
+    url = f"sqlite:///{database.as_posix()}"
+    repository = SqlAlchemyIngestionRepository(url)
+    upload = validate_upload("manual.txt", b"persisted", "text/plain")
+    record, _ = DocumentMetadataRegistry().register(
+        tenant_id="tenant-a", upload=upload, parser_version="p1",
+        chunker_version="c1", embedding_model="e1", embedding_dimension=3,
+        index_version="idx-1",
+    )
+    repository.create_document(record)
+    repository.close()
+    app = create_app(database_url=url)
+    with TestClient(app) as client:
+        response = client.get(
+            f"/api/v1/documents/{record.document_id}",
+            headers={"x-tenant-id": "tenant-a"},
+        )
+        assert response.status_code == 200
+        assert response.json()["content_hash"] == upload.sha256
+        unavailable = client.post(
+            "/api/v1/documents",
+            headers={"x-tenant-id": "tenant-a"},
+            json={"filename": "a.txt", "content_base64": "eA==", "idempotency_key": "x"},
+        )
+        assert unavailable.status_code == 503
+    database.unlink()

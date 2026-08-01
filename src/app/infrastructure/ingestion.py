@@ -74,6 +74,9 @@ class SqlAlchemyIngestionRepository:
             )
             return self._document(row) if row else None
 
+    def get(self, *, tenant_id: str, document_id: UUID) -> DocumentRecord | None:
+        return self.get_document(tenant_id=tenant_id, document_id=document_id)
+
     def get_by_hash(self, *, tenant_id: str, content_hash: str) -> DocumentRecord | None:
         with Session(self.engine) as session:
             row = session.scalar(
