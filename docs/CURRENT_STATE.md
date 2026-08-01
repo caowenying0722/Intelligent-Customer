@@ -42,7 +42,7 @@ flowchart LR
 1. `app.py` 把 Streamlit 执行封装在 `main()`；普通 Python import 不加载业务模块，Streamlit 首次 session 才创建 `ReactAgent`。
 2. `ReactAgent` 首次显式构造时通过缓存工厂创建聊天模型；测试可直接注入 fake model 和工具列表。
 3. 导入 `agent.tools.agent_tools` 不再加载 RAG 模块；首次调用 `rag_summarize` 才创建并缓存 `RagSummarizeService`。
-4. `RagSummarizeService.__init__` 仍会同步创建 Chroma 客户端、扫描文档、按 MD5 判断并可能解析、切分、嵌入和写入向量库，然后构建 retriever。该 I/O 已离开 import 阶段，但仍会阻塞首次 RAG 请求。
+4. `RagSummarizeService.__init__` 不再扫描文档或写入 Chroma；首次 `retriever_docs` / `rag_summarize` 会显式调用 `ensure_documents_loaded()`，按 MD5 判断并可能解析、切分、嵌入和写入向量库，然后缓存 retriever。该 I/O 已离开构造阶段，但仍会阻塞首次 RAG 请求。
 5. `ReactAgent` 创建 `agent -> tools -> agent` 的 LangGraph 循环；每次执行传入默认 10 的 `recursion_limit`，并累计限制默认最多 5 次工具调用。超限批次不会执行，递归上限异常转换为固定终止消息；全流程 deadline 和取消传播仍未实现。
 6. 模型按工具调用结果继续循环。普通模型调用是同步 `invoke`；两类 provider 共享 120 秒默认超时，OpenAI-compatible 还显式设置最多 2 次 SDK 重试。
 7. `execute_stream` 使用 LangGraph 的 value stream，把每轮最新消息的完整内容作为块返回；UI 再逐字符 `sleep(0.01)` 模拟流式输出。这不是上游 token streaming。
@@ -131,11 +131,11 @@ flowchart LR
 | `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，19 个直接运行依赖精确匹配，`pip check` 成功 |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 25 个直接运行/开发依赖精确匹配 |
 | `pip install --dry-run --ignore-installed -r requirements-dev.txt` | 成功 | Python 3.10 可解析；输出同时证明传递依赖仍会漂移，不能替代 lock |
-| `python -m pytest -q` | 成功：70 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、Agent 上限、模型适配器、PDF/UI、LangGraph/Chroma 兼容和子进程安全测试 |
+| `python -m pytest -q` | 成功：72 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、RAG 显式加载、Agent 上限、模型适配器、PDF/UI、LangGraph/Chroma 兼容和子进程安全测试 |
 | `python -m ruff check .` | 成功 | 仓库 `pyproject.toml` 固定精确规则集，全仓零诊断 |
-| `python -m ruff format --check .` | 成功：67 files already formatted | 已完成全仓 Python 格式基线 |
-| `python -m mypy agent rag model evaluation utils scripts tests app.py` | 成功：58 source files | 仓库配置固定 Python 3.10、缺失类型依赖和包基线规则 |
-| `python -m coverage run -m pytest -q && coverage report` | 成功：40% | 仅统计源码、启用 branch coverage；当前只记录真实基线，尚未设置回归阈值 |
+| `python -m ruff format --check .` | 成功：68 files already formatted | 已完成全仓 Python 格式基线 |
+| `python -m mypy agent rag model evaluation utils scripts tests app.py` | 成功：59 source files | 仓库配置固定 Python 3.10、缺失类型依赖和包基线规则 |
+| `python -m coverage run -m pytest -q && coverage report` | 成功：41% | 仅统计源码、启用 branch coverage；当前只记录真实基线，尚未设置回归阈值 |
 | `python -m pip_audit -r requirements.txt` | 失败：3 条/3 包 | 剩余涉及 `chromadb`、`ragas` 和 `diskcache`；未使用忽略规则 |
 
 ## 可复现指标基线
@@ -144,7 +144,7 @@ flowchart LR
 
 | 指标 | 当前值 | 可用性说明 |
 |---|---:|---|
-| 测试数量 / 通过率 | 70 / 100% | 覆盖环境/配置/路径、惰性初始化、Agent 上限、模型传输、PDF/UI、LangGraph/Chroma 兼容和子进程安全；仍没有完整 Agent/API/RAG 集成覆盖 |
+| 测试数量 / 通过率 | 72 / 100% | 覆盖环境/配置/路径、惰性初始化、RAG 显式加载、Agent 上限、模型传输、PDF/UI、LangGraph/Chroma 兼容和子进程安全；仍没有完整 Agent/API/RAG 集成覆盖 |
 | 主评测集样本 | 28 | 非冻结、无 dataset version |
 | Focus 评测集样本 | 6 | 非隐藏集 |
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
@@ -167,12 +167,12 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 3. Agent 步骤和工具调用已有代码级上限，但请求没有全流程 deadline/cancellation，工具副作用也没有幂等控制。
 4. 随机用户身份与本地报告数据没有认证、授权和租户隔离。
 5. 重排使用评测来源文件名，README 质量提升不能视为独立证据。
-6. 首次 RAG 工具调用仍会同步扫描/入库并写本地状态，多 Worker 竞态和 readiness 尚未解决。
+6. RAG 服务构造已不再扫描/入库，但首次 RAG 工具检索仍会同步扫描/入库并写本地状态，多 Worker 竞态和 readiness 尚未解决。
 7. 日志中可能记录工具参数、消息正文或供应商原始错误，缺少脱敏。
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：70 个单元测试集中在环境/YAML 配置、路径、惰性初始化、Agent 上限、模型传输/协议转换、PDF/UI 兼容、LangGraph/Chroma 兼容、子进程安全、评测辅助函数和 secret scanner；源码分支覆盖率为 40%。Agent 业务路由、RAG 核心、文档入库交互、取消与并发仍缺自动化测试。
+- 测试：72 个单元测试集中在环境/YAML 配置、路径、惰性初始化、RAG 显式加载、Agent 上限、模型传输/协议转换、PDF/UI 兼容、LangGraph/Chroma 兼容、子进程安全、评测辅助函数和 secret scanner；源码分支覆盖率为 41%。Agent 业务路由、RAG 核心、文档入库交互、取消与并发仍缺自动化测试。
 - 可观测性：普通文本日志写控制台和每日文件；没有 request ID、trace、metrics 或字段脱敏。
 - 部署：只有本地 Streamlit 命令；没有 API 服务、进程模型、容器、健康检查、优雅关闭或 CI。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
@@ -185,7 +185,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 4. 随机 user ID 如何代表真实登录用户，如何防止读取其他人的报告？当前没有安全边界。
 5. 如何部署、扩容和恢复会话？当前首次 RAG 请求仍写本地 Chroma，session 只在单进程内存。
 6. 企业私有 CA 如何接入而不关闭 TLS？当前通过显式 PEM 路径创建验证客户端，路径无效时 fail-fast。
-7. 70 个环境/配置/路径/惰性初始化/Agent 上限/模型适配/PDF/UI/LangGraph/Chroma 兼容测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
+7. 72 个环境/配置/路径/惰性初始化/RAG 显式加载/Agent 上限/模型适配/PDF/UI/LangGraph/Chroma 兼容测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
 
 ## 当前是否适合继续自动修改
 

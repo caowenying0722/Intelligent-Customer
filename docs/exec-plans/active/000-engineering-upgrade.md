@@ -665,5 +665,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 将 Streamlit 从 1.40.1 升级到 1.54.0，并显式固定 Pillow 12.3.0；新增无外部模型调用的 AppTest 启动回归，pip-audit 降至 22 条/10 包，67 个测试通过。
 - 将 LangChain/LangGraph 生态迁移到 LangChain 1.3.9、LangChain Core 1.4.7、LangGraph 1.2.10、LangChain-Chroma 1.1.0、ChromaDB 1.3.7、LangChain-OpenAI 1.1.14 和 LangChain-HuggingFace 1.2.2；保留与 RAGAS 0.4.3 兼容的 LangChain-Community 0.3.31；新增 middleware import、Agent 图编译和临时 Chroma 写入/检索兼容测试，完整测试 70 项通过，源码 branch coverage 为 40%，pip-audit 降至 8 条/4 包。
 - 将 Sentence Transformers 从 3.3.1 升级到 5.2.0，并显式固定 Transformers 5.14.1；HuggingFace adapter 导入、clean dry-run、70 项测试、40% branch coverage、AppTest、secret scan 和离线 BM25 smoke 均通过，pip-audit 降至 3 条/3 包。
+- 拆开 `RagSummarizeService` 构造与文档入库副作用，新增 `ensure_documents_loaded()` 在首次检索前显式加载并只执行一次；72 项测试通过，源码 branch coverage 为 41%，AppTest、secret scan、离线 BM25 smoke 和 pip-audit 均按预期完成。
 
-阶段 1 尚未完成：从空环境重建、transitive lock、依赖漏洞修复、首次 RAG 同步入库，以及在核心测试补齐后设置覆盖率回归阈值。全流程 deadline/cancellation 将在阶段 2 application service 中实现，CI 在阶段 10 固化。
+阶段 1 尚未完成：从空环境重建、transitive lock、剩余依赖漏洞修复、首次 RAG 检索同步入库后台化，以及在核心测试补齐后设置覆盖率回归阈值。全流程 deadline/cancellation 将在阶段 2 application service 中实现，CI 在阶段 10 固化。

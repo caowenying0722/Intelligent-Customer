@@ -6,6 +6,7 @@ from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
+from langchain_core.retrievers import BaseRetriever
 
 from model.factory import get_chat_model
 from rag.guardrails import is_out_of_scope_query, low_confidence_response
@@ -32,8 +33,8 @@ class RagSummarizeService:
         self.vector_store = (
             vector_store if vector_store is not None else VectorStoreService()
         )
-        self.vector_store.load_document()
-        self.retriever = self.vector_store.get_retriever()
+        self.retriever: BaseRetriever | None = None
+        self._documents_loaded = False
         self.reranker = LightweightEvidenceReranker()
         self.prompt_text = load_rag_prompts()
         self.prompt_template = PromptTemplate.from_template(self.prompt_text)
@@ -47,7 +48,19 @@ class RagSummarizeService:
 
         return self.prompt_template | self.model | StrOutputParser()
 
+    def ensure_documents_loaded(self) -> None:
+        if self._documents_loaded:
+            return
+
+        self.vector_store.load_document()
+        self.retriever = self.vector_store.get_retriever()
+        self._documents_loaded = True
+
     def retriever_docs(self, query: str) -> list[Document]:
+        self.ensure_documents_loaded()
+        if self.retriever is None:
+            raise RuntimeError("RAG retriever was not initialized")
+
         docs = self.retriever.invoke(query)
         if chroma_conf.get("rerank_enabled", False):
             return self.reranker.rerank(
