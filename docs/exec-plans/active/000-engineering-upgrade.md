@@ -859,6 +859,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第三十八个目标完成：rebuild route 改为先写持久化 queued job、再提交内存 worker；repository 唯一约束冲突回读已有 job，避免重复请求先启动副作用。新增/更新持久化 idempotency 测试，全量 `329 passed`、26 subtests。进程崩溃后的 queued recovery 已复用现有恢复逻辑，但跨进程 lease/心跳仍未实现。
 - 阶段 11 第三十九个目标完成：审计 queued/running/orphan recovery，确认唯一约束 + claim-before-worker + 启动恢复能证明 at-least-once；新增 `docs/security/job-claim-audit.md`，明确 heartbeat/lease/fencing 和 exactly-once 仍未实现。定向回归 `14 passed`。
 - 阶段 11 第四十个目标完成：复核 SQLAlchemy `IngestionJobRow` 与 Alembic `0008→0010`，增加 migration smoke 对唯一索引 unique/列顺序和 ORM index 的断言，并记录 SQLite 不能替代 PostgreSQL 锁/隔离/lease 验收。相关迁移测试通过。
-- 阶段 11 第四十一个目标进行中：审计真实 PostgreSQL 集成门禁与 Docker blocker，先确认可执行的 CI/container smoke 范围，不在本机 SQLite 结果上推断生产并发性能。
+- 阶段 11 第四十一个目标完成：复核 Docker/PostgreSQL 集成门禁；`docker info` 124 秒超时，Compose 两套静态 config 和 Docker/migration 测试 `5 passed`，但 PostgreSQL 容器、真实 health/readiness、跨 worker 锁和 OTLP 端到端均未执行，限制已写入 `docs/operations/postgres-container-audit.md`。
+- 阶段 11 第四十二个目标进行中：执行发布前文档/状态/标签一致性审计，检查所有“通过”结论都有真实命令证据，统一剩余 blocker 和下一步，不修改用户未提交 README/删除文件。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

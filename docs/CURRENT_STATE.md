@@ -123,6 +123,7 @@ flowchart LR
 | `python -m pip check` | 通过：No broken requirements found |
 | 外部调用 timeout 定向审计 | 通过：51 passed，6 subtests；未发现需立即补齐的生产 timeout 缺口 |
 | Job claim/recovery 定向审计 | 通过：14 passed；唯一 claim、queued 恢复、running orphan fail 已验证，heartbeat/lease 未实现 |
+| PostgreSQL/container 集成 | 阻塞：`docker info` 超时；Compose/migration 静态 5 passed | Docker daemon 外部状态不可用，未宣称 PostgreSQL 容器或跨 worker 并发通过 |
 | `python scripts/run_deterministic_regression.py` | 通过并生成 deterministic summary |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 |
 | `python scripts/run_load_smoke.py --requests 10 --concurrency 2` | 通过：fake API smoke，错误率 0 |
