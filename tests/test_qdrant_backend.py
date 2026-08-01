@@ -79,6 +79,33 @@ def test_qdrant_backend_wraps_client_failures() -> None:
         backend.search([0.1], tenant_id="tenant-a", index_version="idx-1")
 
 
+def test_qdrant_search_results_normalizes_point_contract() -> None:
+    class PointClient(FakeQdrantClient):
+        def search(self, **kwargs):
+            return [
+                {
+                    "id": "chunk-1",
+                    "score": 0.91,
+                    "payload": {
+                        "tenant_id": "tenant-a",
+                        "index_version": "idx-1",
+                        "document_id": "doc-1",
+                        "source": "manual.txt",
+                    },
+                }
+            ]
+
+    backend = QdrantVectorBackend(PointClient(), collection_name="knowledge")
+    result = backend.search_results(
+        [0.1], tenant_id="tenant-a", index_version="idx-1", limit=1
+    )[0]
+    assert (result.chunk_id, result.fused_score, result.final_rank) == (
+        "chunk-1",
+        0.91,
+        1,
+    )
+
+
 def test_qdrant_upsert_batches_and_validates_scope() -> None:
     client = FakeQdrantClient()
     backend = QdrantVectorBackend(client, collection_name="knowledge")

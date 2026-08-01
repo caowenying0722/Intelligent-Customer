@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable, Sequence
 from typing import Any
 
+from rag.retrieval_types import RetrievalResult
+
 
 class VectorBackendError(RuntimeError):
     """A vector backend operation failed or returned an unusable response."""
@@ -94,6 +96,54 @@ class QdrantVectorBackend:
             raise VectorBackendError("Qdrant client has no search method")
 
         return self._run_bounded(call_backend, "search")
+
+    def search_results(
+        self,
+        query_vector: list[float],
+        *,
+        tenant_id: str,
+        index_version: str,
+        limit: int = 10,
+    ) -> list[RetrievalResult]:
+        """Normalize Qdrant points into the shared, auditable result contract."""
+        points = self.search(
+            query_vector,
+            tenant_id=tenant_id,
+            index_version=index_version,
+            limit=limit,
+        )
+        results: list[RetrievalResult] = []
+        for rank, point in enumerate(points, start=1):
+            point_id = point.get("id") if isinstance(point, dict) else getattr(point, "id", None)
+            payload = (
+                point.get("payload", {})
+                if isinstance(point, dict)
+                else getattr(point, "payload", {})
+            )
+            score = point.get("score") if isinstance(point, dict) else getattr(point, "score", None)
+            if not isinstance(payload, dict):
+                raise VectorBackendError("Qdrant point payload is invalid")
+            if (
+                payload.get("tenant_id") != tenant_id
+                or payload.get("index_version") != index_version
+            ):
+                raise ValueError("Qdrant point is outside the requested scope")
+            chunk_id = str(payload.get("chunk_id") or point_id or "")
+            document_id = str(payload.get("document_id") or chunk_id)
+            results.append(
+                RetrievalResult(
+                    chunk_id=chunk_id,
+                    document_id=document_id,
+                    tenant_id=tenant_id,
+                    document_version=str(payload.get("document_version", "unknown")),
+                    index_version=index_version,
+                    source=str(payload.get("source", "qdrant")),
+                    fused_score=float(score) if isinstance(score, (int, float)) else None,
+                    final_rank=rank,
+                    metadata=payload,
+                )
+            )
+        return results
 
     def upsert(
         self,
