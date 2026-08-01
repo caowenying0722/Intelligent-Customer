@@ -40,6 +40,8 @@ class ChromaConfig(StrictConfigModel):
     chunk_overlap: int = Field(ge=0)
     separators: list[str] = Field(min_length=1)
     retrieval_type: Literal["vector", "hybrid"]
+    fusion_strategy: Literal["weighted", "rrf"] = "weighted"
+    rrf_k: int = Field(default=60, ge=1, le=1000)
     bm25_weight: float = Field(ge=0, le=1)
     vector_weight: float = Field(ge=0, le=1)
     rerank_enabled: bool

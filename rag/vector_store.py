@@ -6,7 +6,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from model.factory import get_embedding_model
-from rag.simple_bm25 import SimpleBM25Retriever, WeightedHybridRetriever
+from rag.simple_bm25 import RRFHybridRetriever, SimpleBM25Retriever, WeightedHybridRetriever
 from rag.tokenization import cjk_bm25_tokenizer
 from utils.config_handler import chroma_conf
 from utils.file_handler import (
@@ -66,6 +66,13 @@ class VectorStoreService:
                 k=retrieval_k,
             )
 
+            if chroma_conf.get("fusion_strategy", "weighted") == "rrf":
+                return RRFHybridRetriever(
+                    vector_retriever=vector_retriever,
+                    keyword_retriever=bm25_retriever,
+                    k=retrieval_k,
+                    fusion_k=chroma_conf.get("rrf_k", 60),
+                )
             return WeightedHybridRetriever(
                 vector_retriever=vector_retriever,
                 keyword_retriever=bm25_retriever,

@@ -695,5 +695,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 3 第十八个目标完成：增加 tenant-scoped Agent run 分页列表，支持状态和创建时间范围过滤，默认 limit 50、最大 100，避免无限制全表读取。
 - 阶段 3 第十九个目标完成：为 Agent run 列表增加 tenant/status/time 复合索引，Alembic 0007 与 SQLite EXPLAIN smoke 验证查询使用索引，降低过滤分页退化为全表扫描的风险。
 - 阶段 3 第二十个目标完成：新增独立 RRF 融合原语，按 rank 融合异构检索结果、去重并保持稳定 tie-break；保留现有加权 Hybrid baseline，后续再接入统一检索协议。
+- 阶段 3 第二十一个目标完成：RRF 以显式 `fusion_strategy=rrf` 接入现有 Chroma/BM25 adapter，默认仍使用 weighted baseline，并增加 adapter smoke 测试与可配置 `rrf_k`。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

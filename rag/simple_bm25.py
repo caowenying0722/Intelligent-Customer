@@ -6,6 +6,8 @@ from collections.abc import Callable
 
 from langchain_core.documents import Document
 
+from rag.rrf import reciprocal_rank_fusion
+
 
 def _safe_divide(numerator: float, denominator: float) -> float:
     if denominator == 0:
@@ -116,3 +118,20 @@ class WeightedHybridRetriever:
 
         ranked = sorted(weighted_docs.values(), key=lambda item: item[0], reverse=True)
         return [doc for _, doc in ranked[: self.k]]
+
+
+class RRFHybridRetriever:
+    """Hybrid adapter using rank fusion while preserving retriever boundaries."""
+
+    def __init__(self, vector_retriever, keyword_retriever, k: int, fusion_k: int = 60):
+        self.vector_retriever = vector_retriever
+        self.keyword_retriever = keyword_retriever
+        self.k = k
+        self.fusion_k = fusion_k
+
+    def invoke(self, query: str) -> list[Document]:
+        rankings = [
+            self.vector_retriever.invoke(query),
+            self.keyword_retriever.invoke(query),
+        ]
+        return reciprocal_rank_fusion(rankings, k=self.fusion_k, limit=self.k)

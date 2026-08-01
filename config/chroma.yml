@@ -12,6 +12,8 @@ separators : ["\n\n","。",".","?","？","!"," ",""]
 
 # 混合检索配置
 retrieval_type : hybrid          # 可选: vector / hybrid
+fusion_strategy : weighted       # 可选: weighted / rrf，默认保持加权 baseline
+rrf_k : 60                       # RRF rank 常数
 bm25_weight : 0.4                # BM25 关键词检索权重
 vector_weight : 0.6              # 向量语义检索权重
 
