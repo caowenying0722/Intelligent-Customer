@@ -18,6 +18,7 @@ from model.factory import get_chat_model
 from rag.guardrails import is_out_of_scope_query, low_confidence_response
 from rag.reranker import LightweightEvidenceReranker
 from rag.vector_store import VectorStoreService
+from src.app.observability.metrics import RagMetrics
 from src.app.observability.tracing import get_current_tracer
 from utils.config_handler import chroma_conf
 from utils.prompt_loader import load_rag_prompts
@@ -38,6 +39,7 @@ class RagSummarizeService:
         model: BaseChatModel | None = None,
         document_load_timeout_seconds: float = 300.0,
         tracer: Any | None = None,
+        metrics: RagMetrics | None = None,
     ):
         self.vector_store = (
             vector_store if vector_store is not None else VectorStoreService()
@@ -56,6 +58,7 @@ class RagSummarizeService:
         self.model = model if model is not None else get_chat_model()
         self.print_prompts = print_prompts
         self.tracer = tracer
+        self.metrics = metrics or RagMetrics()
         self.chain = self._init_chain()
 
     def _span(self, name: str):
@@ -119,21 +122,30 @@ class RagSummarizeService:
         if self.retriever is None:
             raise RuntimeError("RAG retriever was not initialized")
 
-        with self._span("retrieval.dense") as span:
-            docs = self.retriever.invoke(query)
-            if span is not None:
-                span.set_attribute("retrieval.status", "completed")
-        if chroma_conf.get("rerank_enabled", False):
-            with self._span("retrieval.rerank") as span:
-                reranked = self.reranker.rerank(
-                    query=query,
-                    docs=docs,
-                    top_k=chroma_conf.get("rerank_top_k", chroma_conf["k"]),
-                )
+        started = self.metrics.begin()
+        try:
+            with self._span("retrieval.dense") as span:
+                docs = self.retriever.invoke(query)
                 if span is not None:
                     span.set_attribute("retrieval.status", "completed")
-                return reranked
-        return docs[: chroma_conf["k"]]
+            if chroma_conf.get("rerank_enabled", False):
+                with self._span("retrieval.rerank") as span:
+                    reranked = self.reranker.rerank(
+                        query=query,
+                        docs=docs,
+                        top_k=chroma_conf.get("rerank_top_k", chroma_conf["k"]),
+                    )
+                    if span is not None:
+                        span.set_attribute("retrieval.status", "completed")
+                    self.metrics.end(
+                        started, status="completed", candidate_count=len(docs)
+                    )
+                    return reranked
+            self.metrics.end(started, status="completed", candidate_count=len(docs))
+            return docs[: chroma_conf["k"]]
+        except Exception:
+            self.metrics.end(started, status="failed", candidate_count=0)
+            raise
 
     @staticmethod
     def format_context(context_docs: list[Document]) -> str:

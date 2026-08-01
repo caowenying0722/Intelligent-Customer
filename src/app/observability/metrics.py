@@ -25,6 +25,7 @@ WORKER_DURATION_BUCKETS = (
     60.0,
     300.0,
 )
+RAG_DURATION_BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0)
 
 
 def metrics_token_matches(expected: str | None, supplied: str | None) -> bool:
@@ -192,9 +193,57 @@ class WorkerMetrics:
                 target_buckets[bucket] += 1
 
 
+class RagMetrics:
+    """Bounded process-local retrieval metrics without query or identity labels."""
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._retrievals = 0
+        self._failures = 0
+        self._empty_retrievals = 0
+        self._candidate_sum = 0
+        self._duration_sum = 0.0
+        self._duration_count = 0
+        self._duration_buckets = {bucket: 0 for bucket in RAG_DURATION_BUCKETS}
+
+    def begin(self) -> float:
+        return perf_counter()
+
+    def end(self, started: float, *, status: str, candidate_count: int) -> None:
+        duration = max(0.0, perf_counter() - started)
+        candidates = max(0, candidate_count)
+        with self._lock:
+            self._retrievals += 1
+            self._failures += int(status != "completed")
+            self._empty_retrievals += int(status == "completed" and candidates == 0)
+            self._candidate_sum += candidates
+            self._duration_sum += duration
+            self._duration_count += 1
+            for bucket in RAG_DURATION_BUCKETS:
+                if duration <= bucket:
+                    self._duration_buckets[bucket] += 1
+
+    def snapshot(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "retrievals": self._retrievals,
+                "failures": self._failures,
+                "empty_retrievals": self._empty_retrievals,
+                "candidate_sum": self._candidate_sum,
+                "duration_sum_seconds": self._duration_sum,
+                "duration_count": self._duration_count,
+                "duration_buckets": dict(self._duration_buckets),
+            }
+
+
 def empty_worker_snapshot() -> dict[str, object]:
     """Return a stable zero snapshot when no ingestion worker is configured."""
     return WorkerMetrics().snapshot()
+
+
+def empty_rag_snapshot() -> dict[str, object]:
+    """Return stable zero metrics when no RAG service is configured."""
+    return RagMetrics().snapshot()
 
 
 def empty_gateway_snapshot() -> dict[str, object]:
@@ -251,6 +300,7 @@ def render_prometheus(
     health_snapshot: Mapping[str, object],
     http_snapshot: Mapping[str, object] | None = None,
     worker_snapshot: Mapping[str, object] | None = None,
+    rag_snapshot: Mapping[str, object] | None = None,
 ) -> str:
     """Render aggregate metrics without tenant, user, request, or prompt labels."""
     lines = [
@@ -457,6 +507,48 @@ def render_prometheus(
                     worker_snapshot.get("processing_sum_seconds", 0),
                 ),
                 _line("worker_processing_seconds_count", processing_count),
+            ]
+        )
+    if rag_snapshot is not None:
+        lines.extend(
+            [
+                "# HELP rag_retrievals_total RAG retrieval calls.",
+                "# TYPE rag_retrievals_total counter",
+                _line("rag_retrievals_total", rag_snapshot.get("retrievals", 0)),
+                "# HELP rag_retrieval_failures_total RAG retrieval failures.",
+                "# TYPE rag_retrieval_failures_total counter",
+                _line("rag_retrieval_failures_total", rag_snapshot.get("failures", 0)),
+                "# HELP rag_empty_retrievals_total Empty successful RAG retrievals.",
+                "# TYPE rag_empty_retrievals_total counter",
+                _line(
+                    "rag_empty_retrievals_total",
+                    rag_snapshot.get("empty_retrievals", 0),
+                ),
+                "# HELP rag_candidates_total Retrieved candidate documents.",
+                "# TYPE rag_candidates_total counter",
+                _line("rag_candidates_total", rag_snapshot.get("candidate_sum", 0)),
+                "# HELP rag_retrieval_duration_seconds RAG retrieval duration.",
+                "# TYPE rag_retrieval_duration_seconds histogram",
+            ]
+        )
+        duration_buckets = cast(
+            Mapping[float, object], _mapping(rag_snapshot.get("duration_buckets"))
+        )
+        for bucket in RAG_DURATION_BUCKETS:
+            lines.append(
+                f'rag_retrieval_duration_seconds_bucket{{le="{bucket:g}"}} '
+                f"{_metric_number(duration_buckets.get(bucket, 0))}"
+            )
+        duration_count = rag_snapshot.get("duration_count", 0)
+        lines.extend(
+            [
+                'rag_retrieval_duration_seconds_bucket{le="+Inf"} '
+                f"{_metric_number(duration_count)}",
+                _line(
+                    "rag_retrieval_duration_seconds_sum",
+                    rag_snapshot.get("duration_sum_seconds", 0),
+                ),
+                _line("rag_retrieval_duration_seconds_count", duration_count),
             ]
         )
     lines.extend(

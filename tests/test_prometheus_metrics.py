@@ -6,6 +6,7 @@ from model.cost import CostTracker
 from model.gateway import ModelGateway
 from src.app.application.chat import ChatApplicationService
 from src.app.main import create_app
+from src.app.observability.metrics import RagMetrics
 
 
 class Agent:
@@ -65,3 +66,25 @@ def test_prometheus_metrics_expose_cost_without_tenant_identity():
     assert "model_gateway_usage_records_total 1" in response.text
     assert "model_gateway_usage_tenants 1" in response.text
     assert "tenant-secret" not in response.text
+
+
+def test_prometheus_metrics_expose_bounded_rag_retrieval_counters() -> None:
+    class FakeRag:
+        def __init__(self) -> None:
+            self.metrics = RagMetrics()
+
+        def check_ready(self) -> bool:
+            return True
+
+        def close(self) -> None:
+            return None
+
+    rag = FakeRag()
+    started = rag.metrics.begin()
+    rag.metrics.end(started, status="completed", candidate_count=2)
+    response = TestClient(create_app(rag_service=rag)).get("/metrics/prometheus")
+
+    assert response.status_code == 200
+    assert "rag_retrievals_total 1" in response.text
+    assert "rag_candidates_total 2" in response.text
+    assert "tenant" not in response.text.lower()

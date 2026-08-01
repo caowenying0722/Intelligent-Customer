@@ -96,7 +96,7 @@ flowchart TB
 ### API 与客户端
 
 - FastAPI 使用应用工厂和 lifespan 管理依赖；可注入 RAG 服务由 lifespan 单飞启动文档加载，readiness 不等待并在加载中/失败时失败关闭；`src/app/api/routes.py` 只做协议转换、请求断开检查和错误映射，业务编排位于 application service。
-- API v1 首批提供 chat、conversation、live、ready 和 metrics；`/metrics` 返回 JSON 诊断快照，`/metrics/prometheus` 返回有界 Prometheus 文本指标；SSE 事件为 `metadata`（含 conversation ID）、`token`、`citation`、`tool_status`、`completed`、`error`。
+- API v1 首批提供 chat、conversation、live、ready 和 metrics；`/metrics` 返回 JSON 诊断快照，`/metrics/prometheus` 返回无 query/identity 标签的有界 HTTP、Worker、RAG retrieval 和模型聚合指标；SSE 事件为 `metadata`（含 conversation ID）、`token`、`citation`、`tool_status`、`completed`、`error`。
 - Streamlit 支持显式配置 `STREAMLIT_MODE=http` 作为 FastAPI SSE 客户端；默认仍是 `local` 进程内兼容模式，待 HTTP/SSE、上游取消和背压在部署环境验证后再切换默认值。
 - request ID 在入口生成或接受可信上游值，贯穿错误、日志和响应。
 

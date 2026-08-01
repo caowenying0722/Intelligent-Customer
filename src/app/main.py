@@ -21,6 +21,7 @@ from src.app.observability.access_log import log_http_request
 from src.app.observability.metrics import (
     HttpMetrics,
     empty_gateway_snapshot,
+    empty_rag_snapshot,
     empty_worker_snapshot,
     metrics_token_matches,
     render_prometheus,
@@ -149,6 +150,8 @@ def create_app(
         else None
     )
     app.state.worker_metrics = worker_metrics
+    rag_metrics = getattr(rag_service, "metrics", None)
+    app.state.rag_metrics = rag_metrics
     if chat_service is not None:
         chat_service.tracer = api_tracer
     if ingestion_service is not None:
@@ -278,6 +281,11 @@ def create_app(
                     if worker_metrics is not None
                     else empty_worker_snapshot()
                 ),
+                "rag": (
+                    rag_metrics.snapshot()
+                    if rag_metrics is not None
+                    else empty_rag_snapshot()
+                ),
             }
         return {
             "model_gateway": gateway.audit_snapshot(),
@@ -287,6 +295,11 @@ def create_app(
                 worker_metrics.snapshot()
                 if worker_metrics is not None
                 else empty_worker_snapshot()
+            ),
+            "rag": (
+                rag_metrics.snapshot()
+                if rag_metrics is not None
+                else empty_rag_snapshot()
             ),
         }
 
@@ -314,12 +327,16 @@ def create_app(
             if worker_metrics is not None
             else empty_worker_snapshot()
         )
+        rag_snapshot = (
+            rag_metrics.snapshot() if rag_metrics is not None else empty_rag_snapshot()
+        )
         return PlainTextResponse(
             render_prometheus(
                 gateway_snapshot,
                 health_snapshot,
                 http_metrics.snapshot(),
                 worker_snapshot,
+                rag_snapshot,
             ),
             media_type="text/plain; version=0.0.4",
         )

@@ -85,6 +85,20 @@ class RagServiceInitializationTest(unittest.TestCase):
         self.assertEqual(vector_store.get_retriever_count, 1)
         self.assertEqual(vector_store.retriever.invoke_count, 2)
 
+    def test_retriever_docs_records_bounded_metrics(self) -> None:
+        vector_store = FakeVectorStore()
+        service = self.build_service(vector_store)
+
+        with patch.dict(chroma_conf, {"rerank_enabled": False, "k": 2}):
+            service.retriever_docs("WiFi")
+
+        snapshot = service.metrics.snapshot()
+        self.assertEqual(snapshot["retrievals"], 1)
+        self.assertEqual(snapshot["failures"], 0)
+        self.assertEqual(snapshot["empty_retrievals"], 0)
+        self.assertEqual(snapshot["candidate_sum"], 1)
+        service.close()
+
     def test_retriever_docs_records_safe_rag_spans(self) -> None:
         vector_store = FakeVectorStore()
         tracer = ApiTracer(max_spans=8)

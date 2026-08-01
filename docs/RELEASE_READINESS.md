@@ -6,8 +6,8 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：367 passed，26 subtests | 默认不调用付费模型 |
-| `coverage run -m pytest -q && coverage report` | 通过：367 passed，26 subtests；总覆盖率 63%，门槛 41% | 当前本地基线 |
+| `python -m pytest -q` | 通过：369 passed，26 subtests | 默认不调用付费模型 |
+| `coverage run -m pytest -q && coverage report` | 通过：369 passed，26 subtests；总覆盖率 63%，门槛 41% | 当前本地基线 |
 | `python -m ruff format --check .` | 通过 | 240 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 | 生产源码类型门禁 |
@@ -35,6 +35,7 @@
 | RAG readiness boundary | 通过：3 个测试 | 后台单飞加载状态、加载失败和 FastAPI lifespan/readiness 失败关闭；不等待未界定的启动时间 |
 | API server composition root | 通过：2 个测试 | `build_server_app()` 注入 fake Agent 后可完成 API chat；entrypoint 使用该组合根，默认真实 Agent 只在显式 server 启动时构造 |
 | Agent/RAG dependency injection | 通过：2 个测试 | 显式 RAG service 绑定 `rag_summarize` 工具并参与 readiness；默认全局工具兼容路径保持不变 |
+| RAG retrieval metrics | 通过：2 个测试 | 固定无标签计数/候选数/空结果/失败/延迟桶，暴露 JSON 与 Prometheus；不记录 query/document/tenant |
 | Agent tool middleware wiring | 通过：3 个测试 | ToolNode sync/async monitor wrapper 接线和真实 fake ToolNode 执行均验证日志参数/消息脱敏 |
 | VectorStore ingestion state | 通过：2 个测试 | MD5 marker append/fsync 和有界 `DocumentLoadSummary`；跨存储原子性仍未完成 |
 | Evaluation artifact privacy | 通过：1 个测试 | 默认 redacted profile 不输出问题/答案/上下文/来源路径；full 仅显式受控调试 |
