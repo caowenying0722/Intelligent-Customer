@@ -20,3 +20,14 @@ class ErrorResponse(BaseModel):
     code: str
     message: str
     request_id: str
+
+
+class MessageResponse(BaseModel):
+    role: str
+    content: str
+    created_at: str
+
+
+class ConversationResponse(BaseModel):
+    conversation_id: str
+    messages: list[MessageResponse]

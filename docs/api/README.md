@@ -32,5 +32,6 @@ python -m src.app.server
 - 当前会话 repository 是线程安全的进程内实现；服务重启会丢失数据，阶段三替换为 PostgreSQL。
 - 可注入原生异步 Agent runner；任务取消会原样传播，不会被转换成 `chat_failed`。同步 Agent 仍通过受控线程兼容，底层调用本身可能无法强制中止。
 - `POST /api/v1/chat/stream` 返回 `text/event-stream`，事件顺序为 `metadata`、零个或多个 `token`、最多一个 `completed`；失败使用 `error` envelope。
+- `GET /api/v1/conversations/{conversation_id}` 返回当前进程内会话消息；不存在时返回 `404 conversation_not_found`。
 
 SSE、取消传播和持久化会话将在后续独立目标中加入。

@@ -12,7 +12,7 @@
 | TD-006 | 用户位置和 ID 随机生成，报告工具无认证和租户校验 | High | 任意用户可能读取随机他人记录；无法形成可审计身份链 | `agent/tools/agent_tools.py:45-55,116-125` | 从认证 tenant/user context 注入；repository 默认强制 tenant；增加跨租户拒绝测试 | 3/9 | 待处理 |
 | TD-007 | 中间件若启用会记录完整工具参数和消息正文 | High | Prompt、PII、报告参数或文档内容进入日志 | `agent/tools/middleware.py:19-20,40-42` | 结构化日志白名单、字段脱敏和长度限制；安全测试不得出现敏感字段 | 8/9 | 待处理 |
 | TD-008 | 模型错误包含完整供应商响应正文 | High | 上游错误可能带请求片段或敏感信息，被 API/日志继续传播 | `model/anthropic_compatible.py:240-241` | 定义安全错误类型，仅保留状态码/请求 ID；原始响应受控采样且脱敏 | 2/7/9 | 待处理 |
-| TD-009 | FastAPI 持久化会话和完整错误映射尚未实现 | High | 当前聊天 API 仍是内存边界，SSE 对同步 Agent 的取消只能在适配器层停止等待 | `src/app/main.py`、`src/app/application/chat.py`、`src/app/domain/conversations.py` | 应用工厂、request ID、健康检查、严格 schema、fake Agent、timeout 错误映射、基础 SSE、线程安全内存 repository 和原生异步取消边界已完成；继续增加 PostgreSQL repository | 2/3 | 部分完成 |
+| TD-009 | FastAPI 持久化会话和完整错误映射尚未实现 | High | 当前聊天 API 仍是内存边界，SSE 对同步 Agent 的取消只能在适配器层停止等待 | `src/app/main.py`、`src/app/application/chat.py`、`src/app/domain/conversations.py` | 应用工厂、request ID、健康检查、严格 schema、fake Agent、timeout 错误映射、基础 SSE、会话查询、线程安全内存 repository 和原生异步取消边界已完成；继续增加 PostgreSQL repository | 2/3 | 部分完成 |
 | TD-010 | 会话只存在 Streamlit 内存，且历史消息不传回 Agent | High | 刷新/重启丢失状态，所谓多轮只展示不推理，无法横向扩容 | `app.py:12-18,26-43`、`agent/react_agent.py:48-53` | 先定义 conversation repository，再用内存实现兼容，后续 PostgreSQL + checkpoint | 2/3/4 | 待处理 |
 | TD-011 | Chroma persist path 曾相对当前工作目录 | Medium | 从不同 cwd 启动曾会创建/读取不同数据库 | `utils/config_handler.py`、`utils/path_tool.py`、`config/chroma.yml` | 所有业务路径现由 schema loader 相对项目根解析为绝对路径，并覆盖非根 cwd 测试 | 1 | 已完成 |
 | TD-012 | 入库 MD5 记录和向量写入非原子，异常被吞后继续 | Medium | 崩溃/并发下可能重复或遗漏；调用者不知道部分失败 | `rag/vector_store.py:73-136` | 显式任务状态、内容哈希唯一约束、批次幂等、分类错误和有限重试 | 6 | 待处理 |

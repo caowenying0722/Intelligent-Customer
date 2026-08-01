@@ -89,6 +89,23 @@ def test_chat_route_reuses_conversation_id() -> None:
     ]
 
 
+def test_conversation_query_returns_messages_and_stable_404() -> None:
+    service = ChatApplicationService(FakeAgent())
+    client = TestClient(create_app(chat_service=service))
+    created = client.post("/api/v1/chat", json={"message": "hello"}).json()
+
+    response = client.get(f"/api/v1/conversations/{created['conversation_id']}")
+    missing = client.get("/api/v1/conversations/00000000-0000-0000-0000-000000000000")
+
+    assert response.status_code == 200
+    assert [item["content"] for item in response.json()["messages"]] == [
+        "hello",
+        "echo:hello",
+    ]
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "conversation_not_found"
+
+
 def test_chat_route_rejects_extra_fields_without_calling_agent() -> None:
     client = TestClient(create_app(chat_service=ChatApplicationService(FakeAgent())))
 
