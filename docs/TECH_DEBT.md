@@ -7,7 +7,7 @@
 | TD-001 | 曾全局关闭 HTTPS 证书校验 | Blocker | 同进程所有默认 HTTPS context 可遭中间人攻击，模型和文档数据可能泄露 | `model/factory.py`、`model/runtime_config.py` | 已删除全局 monkey patch；默认验证证书，仅允许显式 CA bundle，并覆盖默认/自定义/非法配置测试 | 1 | 已完成 |
 | TD-002 | Python 3.13 下 requirements 无法解析，且尚无完整 transitive lock/clean rebuild 证明 | High | 默认 shell 与支持环境不一致，传递依赖仍可能随时间漂移 | `.python-version`、`requirements*.txt`、`scripts/check_environment.py` | 已固定并验证 Python 3.10 直接依赖且删除 `.local_deps` 注入；后续增加跨平台 transitive lock 和空环境重建 | 1 | 部分完成 |
 | TD-003 | Agent 请求没有全流程 deadline 或取消传播 | High | 步骤与工具次数已受限，但单次慢工具/模型仍可长期占用 Worker | `agent/react_agent.py`、`utils/settings.py` | 已接入 Settings 驱动的 recursion/tool-call 上限和安全终止；阶段 2 application service 增加 deadline/cancellation 并测试 | 1/2/4 | 部分完成 |
-| TD-004 | 首次 RAG 工具检索仍会同步入库 | High | import 和 RAG service 构造已无 Chroma 入库副作用，但首次检索仍可能长耗时写本地状态，多 Worker 竞态且 readiness 不可信 | `agent/tools/agent_tools.py`、`rag/rag_service.py`、`rag/vector_store.py` | 构造与入库已拆开并由 `ensure_documents_loaded()` 显式触发；后续用 lifespan/readiness 初始化，并把入库迁移到有界后台任务 | 1/2/6 | 部分完成 |
+| TD-004 | 首次 RAG 工具检索仍可能等待入库 | High | import 和 RAG service 构造已无 Chroma 入库副作用；首次检索会等待有界后台任务，服务层 readiness/API 状态仍待阶段二统一 | `agent/tools/agent_tools.py`、`rag/rag_service.py`、`rag/vector_store.py` | `start_document_loading()` 单飞启动后台加载，`ensure_documents_loaded()` 有显式超时并传播失败；阶段二接入 lifespan/readiness | 1/2/6 | 阶段一完成，阶段二边界待接入 |
 | TD-005 | 启发式重排使用来源文件名，来源名同时是评测标签 | High | 形成相关性捷径，污染 source recall/MRR 与 README 提升结论 | `rag/reranker.py:49-97`、`evaluation/local_metrics.py:27-44` | 删除来源名特征；冻结独立 regression set；保留无泄漏 baseline 并重跑消融 | 1/5/10 | 待处理 |
 | TD-006 | 用户位置和 ID 随机生成，报告工具无认证和租户校验 | High | 任意用户可能读取随机他人记录；无法形成可审计身份链 | `agent/tools/agent_tools.py:45-55,116-125` | 从认证 tenant/user context 注入；repository 默认强制 tenant；增加跨租户拒绝测试 | 3/9 | 待处理 |
 | TD-007 | 中间件若启用会记录完整工具参数和消息正文 | High | Prompt、PII、报告参数或文档内容进入日志 | `agent/tools/middleware.py:19-20,40-42` | 结构化日志白名单、字段脱敏和长度限制；安全测试不得出现敏感字段 | 8/9 | 待处理 |
@@ -21,7 +21,7 @@
 | TD-015 | 系统提示词要求输出“真实思考过程” | Medium | 泄露内部推理/策略，增加提示注入和数据暴露面 | `prompts/main_prompt.txt:51-53` | 改成简短用户可见状态，不要求 chain-of-thought；工具审计使用结构化事件 | 4/9 | 待处理 |
 | TD-016 | 评测报告不记录 commit、dirty state、dataset version 或延迟 | Medium | 结果不可追溯、不可复现，无法做 CI 回归与性能比较 | `evaluation/runner.py:155-190` | 增加 run manifest、数据哈希、配置快照、逐样本耗时和错误分类 | 10 | 待处理 |
 | TD-017 | 引用有效性只验证编号范围，不验证证据支持 | Medium | 无依据回答也可得到 1.0 citation validity | `evaluation/local_metrics.py:100-133` | 区分格式有效、引用覆盖和 entailment/人工标签；加入错误引用样本 | 10 | 待处理 |
-| TD-018 | 核心主链缺少自动化测试 | Medium | 72 个测试通过但源码分支覆盖率仅 41%，仍不能证明完整 Agent、RAG 和入库交互可靠 | `tests/`、`pyproject.toml` | 分层新增 unit/integration/contract/evaluation 测试；默认 fake model；基于高风险模块逐步提高门禁 | 1/2/10 | 部分完成 |
+| TD-018 | 核心主链缺少自动化测试 | Medium | 74 个测试通过但源码分支覆盖率仅 41%，仍不能证明完整 Agent、RAG 和入库交互可靠 | `tests/`、`pyproject.toml` | 分层新增 unit/integration/contract/evaluation 测试；默认 fake model；基于高风险模块逐步提高门禁 | 1/2/10 | 部分完成 |
 | TD-019 | 静态检查和覆盖率尚未接入 CI 门禁 | Medium | 本地全仓 Ruff/格式/Mypy 已清零且 Coverage 有真实基线，但远端提交仍不会自动阻止回归 | `pyproject.toml`、`requirements-dev.txt`、无 `.github/workflows` | 阶段 10 将相同命令固化到 CI；覆盖率先补核心测试再设置合理阈值 | 1/10 | 部分完成 |
 | TD-020 | 评测输出含问题、答案、参考答案、召回全文和绝对路径，过去未被忽略 | Medium | 可能误提交用户/知识库数据和本机信息 | `evaluation/runner.py:95-106,175-217`、`.gitignore` | 忽略 `output/`（本轮完成）；后续增加脱敏 artifact profile 与保留策略 | 1/9/10 | 部分完成 |
 | TD-021 | README 仓库地址曾与 Git remote 不一致 | Low | 推送到了错误目标或克隆命令与开发 remote 不一致 | `README.md:19,122,277`、本地 `origin` | 用户已确认并将 `origin` 修正为 `caowenying0722/Intelligent-Customer` | 1/11 | 已完成 |

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import unittest
+from concurrent.futures import Future
+from threading import Event
 from typing import cast
 from unittest.mock import patch
 
@@ -39,6 +41,18 @@ class FakeVectorStore:
         return self.retriever
 
 
+class BlockingVectorStore(FakeVectorStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = Event()
+        self.release = Event()
+
+    def load_document(self) -> None:
+        self.load_count += 1
+        self.started.set()
+        self.release.wait(timeout=2)
+
+
 class RagServiceInitializationTest(unittest.TestCase):
     def build_service(self, vector_store: FakeVectorStore) -> RagSummarizeService:
         fake_model: object = RunnableLambda(lambda _: "回答")
@@ -69,6 +83,36 @@ class RagServiceInitializationTest(unittest.TestCase):
         self.assertEqual(vector_store.load_count, 1)
         self.assertEqual(vector_store.get_retriever_count, 1)
         self.assertEqual(vector_store.retriever.invoke_count, 2)
+
+    def test_background_loading_is_single_flight(self) -> None:
+        vector_store = BlockingVectorStore()
+        service = self.build_service(vector_store)
+
+        first = service.start_document_loading()
+        second = service.start_document_loading()
+
+        self.assertIsInstance(first, Future)
+        self.assertIs(first, second)
+        self.assertTrue(vector_store.started.wait(timeout=1))
+        vector_store.release.set()
+        assert first is not None
+        first.result(timeout=1)
+        self.assertEqual(vector_store.load_count, 1)
+        service.close()
+
+    def test_background_loading_timeout_is_reported(self) -> None:
+        vector_store = BlockingVectorStore()
+        service = RagSummarizeService(
+            print_prompts=False,
+            vector_store=cast(VectorStoreService, vector_store),
+            model=cast(BaseChatModel, RunnableLambda(lambda _: "回答")),
+            document_load_timeout_seconds=0.01,
+        )
+
+        with self.assertRaisesRegex(TimeoutError, "configured timeout"):
+            service.ensure_documents_loaded()
+        vector_store.release.set()
+        service.close()
 
 
 if __name__ == "__main__":

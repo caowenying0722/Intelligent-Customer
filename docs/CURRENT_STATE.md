@@ -12,7 +12,7 @@
 - 受支持开发版本现由 `.python-version` 固定为 Python 3.10.20；本机 `ics` 环境已验证 19 个直接运行依赖与 `requirements.txt` 精确一致，`app` 可以导入。
 - `requirements-dev.txt` 在运行依赖上固定 pytest、Ruff、Mypy、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
 - 当前只有直接依赖和开发工具精确固定，尚无完整的跨平台 transitive lock；因此不能把它描述为完全可重复的供应链锁定。
-- 目标环境普通导入 `app` 不再加载 Agent、模型、RAG 或 Chroma；Streamlit 执行 `main()` 后才构建 Agent，首次调用 RAG 工具时才同步初始化 Chroma 和扫描知识文件。
+- 目标环境普通导入 `app` 不再加载 Agent、模型、RAG 或 Chroma；Streamlit 执行 `main()` 后才构建 Agent，RAG 服务可用单飞后台任务预加载 Chroma，首次检索等待显式超时并传播失败。
 - 旧 `.local_deps/` 目录仍存在但已不再由评测/报告脚本自动插入 `sys.path`；初始行为曾覆盖目标环境中的正确二进制包并导致 RAGAS 导入失败。
 - Python 3.13 下执行完整依赖 dry-run 失败：`langchain-community==0.3.31` 要求 NumPy 2.x，而 `langchain-chroma==0.1.4` 在该解释器组合下要求 NumPy 1.x。
 - `pypdf`、Streamlit、Pillow、LangChain、LangGraph、LangChain-Chroma、ChromaDB、LangChain-OpenAI、LangChain-HuggingFace、Sentence Transformers 和 Transformers 已分批升级，并通过 PDF、UI、Agent 图编译、HuggingFace adapter 导入与临时 Chroma 写入/检索回归；pip-audit 从 84 条/13 包下降到 3 条/3 包。剩余漏洞不能用忽略规则伪装通过。
@@ -131,7 +131,7 @@ flowchart LR
 | `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，19 个直接运行依赖精确匹配，`pip check` 成功 |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 25 个直接运行/开发依赖精确匹配 |
 | `pip install --dry-run --ignore-installed -r requirements-dev.txt` | 成功 | Python 3.10 可解析；输出同时证明传递依赖仍会漂移，不能替代 lock |
-| `python -m pytest -q` | 成功：72 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、RAG 显式加载、Agent 上限、模型适配器、PDF/UI、LangGraph/Chroma 兼容和子进程安全测试 |
+| `python -m pytest -q` | 成功：74 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、RAG 显式加载/后台单飞/超时、Agent 上限、模型适配器、PDF/UI、LangGraph/Chroma 兼容和子进程安全测试 |
 | `python -m ruff check .` | 成功 | 仓库 `pyproject.toml` 固定精确规则集，全仓零诊断 |
 | `python -m ruff format --check .` | 成功：68 files already formatted | 已完成全仓 Python 格式基线 |
 | `python -m mypy agent rag model evaluation utils scripts tests app.py` | 成功：59 source files | 仓库配置固定 Python 3.10、缺失类型依赖和包基线规则 |
@@ -144,7 +144,7 @@ flowchart LR
 
 | 指标 | 当前值 | 可用性说明 |
 |---|---:|---|
-| 测试数量 / 通过率 | 72 / 100% | 覆盖环境/配置/路径、惰性初始化、RAG 显式加载、Agent 上限、模型传输、PDF/UI、LangGraph/Chroma 兼容和子进程安全；仍没有完整 Agent/API/RAG 集成覆盖 |
+| 测试数量 / 通过率 | 74 / 100% | 覆盖环境/配置/路径、惰性初始化、RAG 显式加载/后台任务、Agent 上限、模型传输、PDF/UI、LangGraph/Chroma 兼容和子进程安全；仍没有完整 Agent/API/RAG 集成覆盖 |
 | 主评测集样本 | 28 | 非冻结、无 dataset version |
 | Focus 评测集样本 | 6 | 非隐藏集 |
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
@@ -167,12 +167,12 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 3. Agent 步骤和工具调用已有代码级上限，但请求没有全流程 deadline/cancellation，工具副作用也没有幂等控制。
 4. 随机用户身份与本地报告数据没有认证、授权和租户隔离。
 5. 重排使用评测来源文件名，README 质量提升不能视为独立证据。
-6. RAG 服务构造已不再扫描/入库，但首次 RAG 工具检索仍会同步扫描/入库并写本地状态，多 Worker 竞态和 readiness 尚未解决。
+6. RAG 服务构造已不再扫描/入库；首次 RAG 检索由单飞后台任务执行并受超时约束，但 API readiness、取消传播和进程生命周期仍待阶段二接入。
 7. 日志中可能记录工具参数、消息正文或供应商原始错误，缺少脱敏。
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：72 个单元测试集中在环境/YAML 配置、路径、惰性初始化、RAG 显式加载、Agent 上限、模型传输/协议转换、PDF/UI 兼容、LangGraph/Chroma 兼容、子进程安全、评测辅助函数和 secret scanner；源码分支覆盖率为 41%。Agent 业务路由、RAG 核心、文档入库交互、取消与并发仍缺自动化测试。
+- 测试：74 个单元测试集中在环境/YAML 配置、路径、惰性初始化、RAG 显式加载/后台任务、Agent 上限、模型传输/协议转换、PDF/UI 兼容、LangGraph/Chroma 兼容、子进程安全、评测辅助函数和 secret scanner；源码分支覆盖率为 41%。Agent 业务路由、RAG 核心、文档入库交互、取消与并发仍缺自动化测试。
 - 可观测性：普通文本日志写控制台和每日文件；没有 request ID、trace、metrics 或字段脱敏。
 - 部署：只有本地 Streamlit 命令；没有 API 服务、进程模型、容器、健康检查、优雅关闭或 CI。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。

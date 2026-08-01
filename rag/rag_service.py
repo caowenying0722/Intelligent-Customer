@@ -2,6 +2,10 @@
 总结服务类：用户提问，搜索参考资料，将提问和参考资料提交给模型，让模型总结回复
 """
 
+from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from threading import Lock
+
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
@@ -29,12 +33,19 @@ class RagSummarizeService:
         print_prompts: bool = True,
         vector_store: VectorStoreService | None = None,
         model: BaseChatModel | None = None,
+        document_load_timeout_seconds: float = 300.0,
     ):
         self.vector_store = (
             vector_store if vector_store is not None else VectorStoreService()
         )
         self.retriever: BaseRetriever | None = None
         self._documents_loaded = False
+        self._document_load_future: Future[None] | None = None
+        self._document_load_executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="rag-document-load"
+        )
+        self._document_load_lock = Lock()
+        self.document_load_timeout_seconds = document_load_timeout_seconds
         self.reranker = LightweightEvidenceReranker()
         self.prompt_text = load_rag_prompts()
         self.prompt_template = PromptTemplate.from_template(self.prompt_text)
@@ -48,13 +59,35 @@ class RagSummarizeService:
 
         return self.prompt_template | self.model | StrOutputParser()
 
-    def ensure_documents_loaded(self) -> None:
-        if self._documents_loaded:
-            return
+    def start_document_loading(self) -> Future[None] | None:
+        """Start at most one bounded background ingestion task."""
+        with self._document_load_lock:
+            if self._documents_loaded:
+                return None
+            if self._document_load_future is None:
+                self._document_load_future = self._document_load_executor.submit(
+                    self._load_documents
+                )
+            return self._document_load_future
 
+    def _load_documents(self) -> None:
         self.vector_store.load_document()
         self.retriever = self.vector_store.get_retriever()
         self._documents_loaded = True
+
+    def ensure_documents_loaded(self) -> None:
+        future = self.start_document_loading()
+        if future is None:
+            return
+        try:
+            future.result(timeout=self.document_load_timeout_seconds)
+        except FutureTimeoutError as exc:
+            raise TimeoutError(
+                "RAG document loading exceeded its configured timeout"
+            ) from exc
+
+    def close(self) -> None:
+        self._document_load_executor.shutdown(wait=False, cancel_futures=True)
 
     def retriever_docs(self, query: str) -> list[Document]:
         self.ensure_documents_loaded()
