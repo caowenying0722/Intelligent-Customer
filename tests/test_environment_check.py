@@ -45,8 +45,9 @@ class EnvironmentCheckTest(unittest.TestCase):
             parse_pinned_requirements(PROJECT_ROOT / "requirements-dev.txt")
         )
 
-        self.assertEqual(len(pins), 26)
+        self.assertEqual(len(pins), 27)
         self.assertEqual(pins["fastapi"].version, "0.141.1")
+        self.assertEqual(pins["sqlalchemy"].version, "2.0.51")
         self.assertEqual(pins["langchain"].version, "1.3.9")
         self.assertEqual(pins["langchain-core"].version, "1.4.7")
         self.assertEqual(pins["langchain-community"].version, "0.3.31")
