@@ -7,7 +7,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 from model.cache import ModelCache
 from model.quota import TenantQuota
-from model.cost import CostTracker, UsageRecord
+from model.cost import BudgetExceededError, CostTracker, UsageRecord
 import threading
 import time
 from collections import deque
@@ -90,7 +90,10 @@ class ModelGateway:
     def record_usage(self, **kwargs) -> UsageRecord:
         if self.cost_tracker is None:
             raise ModelGatewayError("cost tracking is not configured")
-        return self.cost_tracker.record(**kwargs)
+        try:
+            return self.cost_tracker.record(**kwargs)
+        except BudgetExceededError as exc:
+            raise ModelGatewayError("model cost budget exceeded") from exc
 
     def health_snapshot(self) -> dict[str, object]:
         """Describe configured provider availability without probing upstreams."""

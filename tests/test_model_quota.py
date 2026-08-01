@@ -2,6 +2,8 @@ import pytest
 
 from model.gateway import ModelGateway, ModelGatewayError
 from model.quota import TenantQuota
+from model.cost import CostTracker
+from decimal import Decimal
 
 
 def test_tenant_quota_isolated_and_bounded():
@@ -22,3 +24,15 @@ def test_gateway_rejects_quota_before_provider():
     with pytest.raises(ModelGatewayError, match="quota"):
         gateway.invoke_cached(**kwargs)
     assert calls == ["p"]
+
+
+def test_gateway_maps_cost_budget_to_stable_error():
+    gateway = ModelGateway(
+        {"fake": lambda request: "ok"},
+        cost_tracker=CostTracker(max_cost_per_tenant=Decimal("0")),
+    )
+    with pytest.raises(ModelGatewayError, match="cost budget"):
+        gateway.record_usage(
+            tenant_id="a", provider="fake", model="m", input_tokens=1,
+            output_tokens=0, input_cost_per_1k=Decimal("1"),
+        )
