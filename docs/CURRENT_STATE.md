@@ -97,7 +97,7 @@ flowchart LR
 | 多租户隔离 | 未实现 | 数据、向量、缓存和工具均无 tenant context |
 | OpenTelemetry | 部分实现 | API 有 W3C `traceparent`、HTTP/Agent/LLM/RAG/工具/当前进程 Worker SDK span、有界本地 exporter 和可选 timeout-bounded OTLP gRPC exporter；尚无 OTLP Collector/backend，重启任务不保留 parent context |
 | Prometheus / metrics endpoint | 部分实现 | `/metrics/prometheus` 暴露有界 HTTP/模型网关聚合指标，生产要求 `METRICS_TOKEN`；尚无 RAG/工具耗时与 OTel trace |
-| Docker Compose | 未实现 | 无 Docker/Compose 文件 |
+| Docker Compose | 部分实现 | API 基础服务和 `observability` profile（OTel Collector/Prometheus）已配置；尚无 Grafana、数据库、Redis、Worker 等完整生产栈 |
 | CI | 未实现 | 无 `.github/workflows` |
 | 压测 | 未实现 | 无 Locust/k6 场景 |
 
