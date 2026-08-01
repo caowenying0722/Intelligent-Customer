@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from src.app.api.routes import build_router
 from src.app.application.chat import ChatAgent, ChatApplicationService
+from src.app.application.ingestion_service import DocumentIngestionService
 from src.app.infrastructure.factory import build_conversation_repository
 
 ReadinessCheck = Callable[[], bool]
@@ -22,6 +23,8 @@ def create_app(
     chat_agent: ChatAgent | None = None,
     database_url: str | None = None,
     lifecycle_resources: tuple[object, ...] = (),
+    ingestion_service: DocumentIngestionService | None = None,
+    ingestion_operation: Callable | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -104,7 +107,9 @@ def create_app(
             return JSONResponse(status_code=503, content={"status": "not_ready"})
         return {"status": "ready"}
 
-    app.include_router(build_router(chat_service))
+    if ingestion_service is not None:
+        lifecycle_resources = (*lifecycle_resources, ingestion_service)
+    app.include_router(build_router(chat_service, ingestion_service, ingestion_operation))
     return app
 
 

@@ -1,13 +1,17 @@
 """Chat HTTP routes; business orchestration stays in application services."""
 
 import json
+import base64
+import binascii
 from datetime import datetime
 from uuid import UUID
+from collections.abc import Callable
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.app.application.chat import ChatApplicationService
+from src.app.application.ingestion_service import DocumentIngestionService
 from src.app.domain.conversations import (
     ConcurrencyConflict,
     IdempotencyConflict,
@@ -22,11 +26,122 @@ from src.app.schemas import (
     ErrorResponse,
     MessageResponse,
     RunUpdateRequest,
+    DocumentUploadRequest,
+    DocumentUploadResponse,
+    DocumentStatusResponse,
+    IngestionJobResponse,
 )
 
 
-def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
+def build_router(
+    chat_service: ChatApplicationService | None,
+    ingestion_service: DocumentIngestionService | None = None,
+    ingestion_operation: Callable | None = None,
+) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
+
+    @router.post("/documents", response_model=DocumentUploadResponse)
+    async def upload_document(request: Request, payload: DocumentUploadRequest):
+        if ingestion_service is None or ingestion_operation is None:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "ingestion_unavailable",
+                    "message": "document ingestion processor is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
+        try:
+            content = base64.b64decode(payload.content_base64, validate=True)
+            submission = ingestion_service.submit_document(
+                tenant_id=request.headers.get("x-tenant-id", "local"),
+                idempotency_key=request.headers.get("idempotency-key")
+                or payload.idempotency_key
+                or "",
+                filename=payload.filename,
+                content=content,
+                content_type=payload.content_type,
+                parser_version=payload.parser_version,
+                chunker_version=payload.chunker_version,
+                embedding_model=payload.embedding_model,
+                embedding_dimension=payload.embedding_dimension,
+                index_version=payload.index_version,
+                operation=ingestion_operation,
+            )
+        except (binascii.Error, ValueError) as exc:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "code": "invalid_upload",
+                    "message": str(exc),
+                    "request_id": request.state.request_id,
+                },
+            )
+        return DocumentUploadResponse(
+            document_id=str(submission.document.document_id),
+            job_id=str(submission.job.job_id) if submission.job else None,
+            status=submission.document.status.value,
+            created=submission.created,
+        )
+
+    @router.get("/documents/{document_id}", response_model=DocumentStatusResponse)
+    async def get_document(request: Request, document_id: str):
+        if ingestion_service is None:
+            return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "document ingestion is not configured", "request_id": request.state.request_id})
+        try:
+            document = ingestion_service.metadata.get(
+                tenant_id=request.headers.get("x-tenant-id", "local"),
+                document_id=UUID(document_id),
+            )
+        except ValueError:
+            document = None
+        if document is None:
+            return JSONResponse(status_code=404, content={"code": "document_not_found", "message": "document not found", "request_id": request.state.request_id})
+        return DocumentStatusResponse(
+            document_id=str(document.document_id), tenant_id=document.tenant_id,
+            original_name=document.original_name, content_hash=document.content_hash,
+            document_version=document.document_version, status=document.status.value,
+            index_version=document.index_version,
+        )
+
+    @router.get("/jobs/{job_id}", response_model=IngestionJobResponse)
+    async def get_ingestion_job(request: Request, job_id: str):
+        if ingestion_service is None:
+            return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "ingestion is not configured", "request_id": request.state.request_id})
+        try:
+            job = ingestion_service.jobs.get(
+                tenant_id=request.headers.get("x-tenant-id", "local"), job_id=UUID(job_id)
+            )
+        except ValueError:
+            job = None
+        if job is None:
+            return JSONResponse(status_code=404, content={"code": "job_not_found", "message": "ingestion job not found", "request_id": request.state.request_id})
+        return IngestionJobResponse(
+            job_id=str(job.job_id), tenant_id=job.tenant_id, status=job.status.value,
+            error=job.error, created_at=job.created_at.isoformat(),
+            started_at=job.started_at.isoformat() if job.started_at else None,
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+        )
+
+    @router.post("/jobs/{job_id}/cancel", response_model=IngestionJobResponse)
+    async def cancel_ingestion_job(request: Request, job_id: str):
+        if ingestion_service is None:
+            return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "ingestion is not configured", "request_id": request.state.request_id})
+        try:
+            parsed_id = UUID(job_id)
+        except ValueError:
+            parsed_id = None
+        if parsed_id is None or not ingestion_service.jobs.cancel(
+            tenant_id=request.headers.get("x-tenant-id", "local"), job_id=parsed_id
+        ):
+            return JSONResponse(status_code=409, content={"code": "job_not_cancellable", "message": "job not found or already running", "request_id": request.state.request_id})
+        job = ingestion_service.jobs.get(
+            tenant_id=request.headers.get("x-tenant-id", "local"), job_id=parsed_id
+        )
+        return IngestionJobResponse(
+            job_id=str(job.job_id), tenant_id=job.tenant_id, status=job.status.value,
+            error=job.error, created_at=job.created_at.isoformat(),
+        )
 
     @router.post(
         "/chat",
