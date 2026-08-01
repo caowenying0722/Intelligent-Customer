@@ -854,6 +854,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第三十三个目标完成：新增并校验 `REQUEST_TIMEOUT_SECONDS`（默认 30 秒，0-600），让 `create_app(chat_agent=...)` 自动构造的 Chat 服务读取统一 timeout；新增 fake Agent 配置回归测试，未宣称可以强杀同步线程。全量 `326 passed`、26 subtests。
 - 阶段 11 第三十四个目标完成：审计所有生产外部调用点，确认 OpenAI/Anthropic、Model Gateway、Qdrant、RAG/重排/索引重建、PostgreSQL pool 和 OTLP exporter 均有 timeout；静态天气工具没有外部网络调用。定向门禁 `51 passed`、6 subtests，未发现需立即补齐的 timeout 缺口，并记录线程池不能强杀同步调用的限制。
 - 阶段 11 第三十五个目标完成：审计工具副作用与幂等边界，确认天气/用户/报告工具当前为静态或只读读取；修复文档删除与运行中 operation 的竞态，worker 终态不会 resurrect 已删除文档；补充 1 个删除竞态测试，并在 API 文档明确 at-least-once、不宣称 exactly-once。全量 `327 passed`、26 subtests。
-- 阶段 11 第三十六个目标进行中：审计 Blue/Green index rebuild 超时后的残余线程和 cleanup 副作用，明确超时不能强杀同步 builder 时的 active alias/旧 collection 安全策略，并补充不会切换到未验证 candidate 的回归测试。
+- 阶段 11 第三十六个目标完成：审计 Blue/Green index rebuild 超时后的残余线程和 cleanup 副作用，新增验证超时回归，确认未完成 candidate validation 时 active alias 不切换；明确超时不能强杀同步 builder，残余线程和 cleanup 仍需外部可中止实现。全量 `328 passed`、26 subtests。
+- 阶段 11 第三十七个目标进行中：审计 index rebuild 的跨进程并发/幂等边界，确认进程内 timeout 保护不能替代分布式锁或持久化 job 状态；补充重复 job 的安全失败测试并更新发布限制。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

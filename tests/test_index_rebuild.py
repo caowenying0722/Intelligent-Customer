@@ -1,3 +1,4 @@
+import threading
 import time
 
 import pytest
@@ -61,6 +62,26 @@ def test_rebuild_times_out_a_blocking_builder():
             validate_candidate=lambda _: True,
         )
     assert backend.calls == []
+
+
+def test_validation_timeout_never_switches_unverified_candidate():
+    backend = Backend()
+    release = threading.Event()
+
+    def slow_validation(_candidate):
+        release.wait(1)
+        return True
+
+    try:
+        with pytest.raises(IndexRebuildError, match="timeout"):
+            BlueGreenIndexCoordinator(backend, timeout_seconds=0.01).rebuild(
+                previous_collection="stable-1",
+                build_candidate=lambda: "build-2",
+                validate_candidate=slow_validation,
+            )
+        assert backend.calls == []
+    finally:
+        release.set()
 
 
 def test_cleanup_runs_after_activation_and_failure_keeps_new_alias():
