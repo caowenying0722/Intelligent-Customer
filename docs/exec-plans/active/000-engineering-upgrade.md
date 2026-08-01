@@ -754,5 +754,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 5 第六个目标完成：Model Gateway 增加显式模型别名路由和去重 fallback provider 链；每个候选复用原有有界调用策略，全部失败才返回稳定错误。
 - 阶段 5 第七个目标完成：Gateway 增加总量与 provider 维度审计计数快照，明确不保存请求/响应正文、密钥或原始异常；脱敏快照测试通过。
 - 阶段 5 第八个目标完成：新增 `/metrics` Gateway 计数边界，暴露 calls/failures/provider 计数而不暴露输入正文；无 Gateway 返回稳定零值，API 测试通过。
+- 阶段 5 第九个目标完成：Gateway 增加可选每秒调用限流，采用线程安全滑动时间窗，在 provider 执行前拒绝超额请求；参数和行为测试通过。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

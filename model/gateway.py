@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 import threading
 import time
+from collections import deque
 
 
 class ModelGatewayError(RuntimeError):
@@ -31,6 +32,7 @@ class ModelGateway:
         max_concurrency: int = 8,
         failure_threshold: int = 5,
         cooldown_seconds: float = 30.0,
+        rate_limit_per_second: int | None = None,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -38,12 +40,15 @@ class ModelGateway:
             raise ValueError("max_retries must not be negative")
         if max_concurrency < 1 or failure_threshold < 1 or cooldown_seconds <= 0:
             raise ValueError("gateway limits must be positive")
+        if rate_limit_per_second is not None and rate_limit_per_second < 1:
+            raise ValueError("rate_limit_per_second must be positive")
         self.providers = dict(providers)
         self.timeout_seconds = timeout_seconds
         self.max_retries = max_retries
         self._semaphore = threading.BoundedSemaphore(max_concurrency)
         self.failure_threshold = failure_threshold
         self.cooldown_seconds = cooldown_seconds
+        self.rate_limit_per_second = rate_limit_per_second
         self._lock = threading.Lock()
         self._consecutive_failures = 0
         self._opened_at: float | None = None
@@ -51,6 +56,7 @@ class ModelGateway:
         self._failures = 0
         self._provider_calls: dict[str, int] = {}
         self._provider_failures: dict[str, int] = {}
+        self._rate_calls: deque[float] = deque()
 
     @property
     def stats(self) -> dict[str, int]:
@@ -76,6 +82,17 @@ class ModelGateway:
             self._opened_at = None
             self._consecutive_failures = 0
 
+    def _check_rate_limit(self) -> None:
+        if self.rate_limit_per_second is None:
+            return
+        now = time.monotonic()
+        with self._lock:
+            while self._rate_calls and now - self._rate_calls[0] >= 1.0:
+                self._rate_calls.popleft()
+            if len(self._rate_calls) >= self.rate_limit_per_second:
+                raise ModelGatewayError("model gateway rate limit reached")
+            self._rate_calls.append(now)
+
     def _record_success(self) -> None:
         with self._lock:
             self._consecutive_failures = 0
@@ -94,6 +111,7 @@ class ModelGateway:
         if operation is None:
             raise ModelGatewayError(f"model provider is not configured: {provider}")
         self._check_breaker()
+        self._check_rate_limit()
         acquired = self._semaphore.acquire(timeout=self.timeout_seconds)
         if not acquired:
             raise ModelGatewayError("model gateway concurrency limit reached")

@@ -100,3 +100,15 @@ def test_gateway_audit_snapshot_contains_counts_only():
     assert snapshot["provider_calls"] == {"fake": 1}
     assert "secret" not in repr(snapshot)
     assert "api_key" not in repr(snapshot)
+
+
+def test_gateway_rate_limit_rejects_excess_calls_before_provider():
+    calls = []
+    gateway = ModelGateway(
+        {"fake": lambda request: calls.append(request) or "ok"},
+        rate_limit_per_second=1,
+    )
+    assert gateway.invoke(provider="fake", request="first") == "ok"
+    with pytest.raises(ModelGatewayError, match="rate limit"):
+        gateway.invoke(provider="fake", request="second")
+    assert calls == ["first"]
