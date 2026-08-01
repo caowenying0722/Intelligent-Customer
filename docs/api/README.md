@@ -43,7 +43,7 @@ API 集成测试会先执行 Alembic upgrade，再用两个独立 app 实例验�
 - `GET /api/v1/conversations/{conversation_id}` 返回当前进程内会话消息；不存在时返回 `404 conversation_not_found`。
 - 会话响应包含单调递增的 `version`；写入方可用 expected version 检测过期状态，避免静默覆盖。
 - stale `expected_version` 返回 `409 conversation_conflict`，客户端应重新读取会话后重试。
-- 会话 API 从 `x-tenant-id` 读取租户上下文，默认仅用于本地开发的 `local`；不同租户不能读取或追加彼此会话。
+- 未配置 authenticator 的开发模式从 `x-tenant-id` 读取租户上下文，默认仅用于本地开发的 `local`；配置 JWT 后 tenant 由 token 提供，若请求头存在则必须与 token 一致。
 - `x-user-id` 记录会话归属，默认本地开发用户为 `local`；`agent_runs` 表为后续 Agent 执行审计预留 tenant/conversation/status 字段。
 - Agent run API：`POST /api/v1/conversations/{id}/runs` 创建 queued run，`PATCH /api/v1/runs/{id}` 更新状态，`GET /api/v1/runs/{id}` 查询；所有路径按 tenant 隔离。
 - run 状态跃迁受限为 `queued→running→completed/failed/cancelled`；终态不可回退，非法跃迁返回 `409 run_state_conflict`。
@@ -51,5 +51,7 @@ API 集成测试会先执行 Alembic upgrade，再用两个独立 app 实例验�
 - run 查询返回 `created_at/started_at/completed_at/duration_ms`，用于审计执行耗时；未开始的 queued run 的耗时为 null。
 - 非流式 Chat 响应返回 `run_id`；执行自动记录 queued/running/completed 或 failed/cancelled，失败原因保存在 run 记录中。
 - `Idempotency-Key`（或请求体 `idempotency_key`）按 tenant 去重；重复提交返回 `409 idempotency_reused` 和原 run ID。
+
+配置 authenticator 后，认证成功、无效 token、租户范围不匹配和角色拒绝会写入结构化安全审计事件；事件只保留固定原因、tenant 和 actor hash，不记录 token、subject 原文或请求正文。
 
 SSE、取消传播和持久化会话将在后续独立目标中加入。

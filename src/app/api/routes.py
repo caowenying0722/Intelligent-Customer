@@ -32,6 +32,7 @@ from src.app.schemas import (
     IngestionJobResponse,
     IndexRebuildRequest,
 )
+from src.app.security.audit import AuditSink
 from src.app.security.auth import JWTAuthenticator
 from src.app.security.dependencies import auth_dependency
 
@@ -42,10 +43,13 @@ def build_router(
     ingestion_operation: Callable | None = None,
     index_rebuild_operation: Callable | None = None,
     authenticator: JWTAuthenticator | None = None,
+    audit_sink: AuditSink | None = None,
 ) -> APIRouter:
     router = APIRouter(
         prefix="/api/v1",
-        dependencies=[Depends(auth_dependency(authenticator))] if authenticator else [],
+        dependencies=[Depends(auth_dependency(authenticator, audit_sink))]
+        if authenticator
+        else [],
     )
 
     def request_tenant_id(request: Request) -> str:
