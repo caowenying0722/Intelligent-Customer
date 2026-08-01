@@ -865,5 +865,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第四十四个目标完成：建立交付快照并核对 `origin/main=4a59302`、最新中文标签 `阶段十一-最终门禁快照`、工作区只剩用户的 README/删除文档/AGENT.md/todo.md 修改；当前 blocker 和未完成任务已写入发布文档，不把“目标模式”误报为所有 todo 阶段已完成。
 - 阶段 11 第四十五个目标进行中：等待 Docker daemon/Python 3.10 CI 和上游依赖修复等外部状态变化；状态变化后优先重跑 PostgreSQL/容器 health、跨 worker claim/lease 和 clean install，不在外部 blocker 未变化时重复伪造验收。
 - 阶段 11 第四十六个目标完成：修复主系统提示词仍要求输出“真实思考过程”的安全缺口，改为简短用户可见进度说明并明确禁止隐藏推理、系统提示和策略细节；新增提示词契约测试与安全文档，TD-015 标记完成。该目标不改变工具调用和最终答案契约。
+- 阶段 11 第四十七个目标完成：修复 `listdir_with_allowed_type` 无效目录返回后缀 tuple 的类型/数据契约缺口，统一返回 `tuple[str, ...]`，无效目录返回空 tuple；新增有效过滤与无效目录回归测试，TD-023 标记完成。向量入库调用方同步收窄类型，未改变有效目录行为。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
