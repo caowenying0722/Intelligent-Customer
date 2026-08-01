@@ -8,6 +8,7 @@ from typing import Any
 from model.cache import ModelCache
 from model.quota import TenantQuota
 from model.cost import BudgetExceededError, CostTracker, UsageRecord
+from model.structured import validate_structured
 import threading
 import time
 from collections import deque
@@ -94,6 +95,13 @@ class ModelGateway:
             return self.cost_tracker.record(**kwargs)
         except BudgetExceededError as exc:
             raise ModelGatewayError("model cost budget exceeded") from exc
+
+    def invoke_structured(self, *, provider: str, request: Any, schema: type) -> Any:
+        result = self.invoke(provider=provider, request=request)
+        try:
+            return validate_structured(result, schema)
+        except (TypeError, ValueError) as exc:
+            raise ModelGatewayError("model response schema validation failed") from exc
 
     def health_snapshot(self) -> dict[str, object]:
         """Describe configured provider availability without probing upstreams."""
