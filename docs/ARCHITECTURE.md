@@ -95,7 +95,7 @@ flowchart TB
 
 ### API 与客户端
 
-- FastAPI 使用应用工厂和 lifespan 管理依赖，路由只做协议转换、认证依赖和错误映射。
+- FastAPI 使用应用工厂和 lifespan 管理依赖；`src/app/api/routes.py` 只做协议转换、请求断开检查和错误映射，业务编排位于 application service。
 - API v1 首批提供 chat、conversation、live、ready 和 metrics；SSE 事件为 `metadata`、`token`、`citation`、`tool_status`、`completed`、`error`。
 - Streamlit 默认作为 HTTP/SSE 客户端；迁移期允许显式配置进程内兼容模式，并记录删除条件。
 - request ID 在入口生成或接受可信上游值，贯穿错误、日志和响应。
