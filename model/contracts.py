@@ -33,4 +33,6 @@ class ModelResponse(BaseModel):
     output: str
     finish_reason: str = "stop"
     usage: ModelUsage = ModelUsage()
+    retry_count: int = Field(default=0, ge=0)
+    fallback_chain: list[str] = Field(default_factory=list)
     trace_metadata: dict[str, str] = Field(default_factory=dict)

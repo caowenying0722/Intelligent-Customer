@@ -781,5 +781,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 7 首个目标完成：新增 provider-neutral `validate_structured()` 与 Gateway `invoke_structured()`，使用 Pydantic schema 校验响应；malformed output 不重试并映射为稳定错误。
 - 阶段 7 第二个目标完成：新增 Pydantic `ModelRequest`/`ModelResponse`/`ModelUsage` 契约与 Gateway `invoke_contract()`，统一输出 provider/model/output/usage/trace metadata。
 - 阶段 7 第三个目标完成：`invoke_contract()` 复用 tenant-scoped cache 并填充 latency/cache_hit usage；缓存命中跳过 provider，token/cost 不做隐式猜测。
+- 阶段 7 第四个目标完成：统一 `ModelResponse` 增加 retry_count、fallback_chain、finish_reason；Gateway 仅接受显式路由元数据，不从供应商私有响应猜测。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

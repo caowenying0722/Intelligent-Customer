@@ -105,7 +105,16 @@ class ModelGateway:
         except (TypeError, ValueError) as exc:
             raise ModelGatewayError("model response schema validation failed") from exc
 
-    def invoke_contract(self, request: ModelRequest) -> ModelResponse:
+    def invoke_contract(
+        self,
+        request: ModelRequest,
+        *,
+        finish_reason: str = "stop",
+        retry_count: int = 0,
+        fallback_chain: list[str] | None = None,
+    ) -> ModelResponse:
+        if retry_count < 0:
+            raise ValueError("retry_count must not be negative")
         started = time.monotonic()
         cache_hits_before = 0
         if self.cache is not None and hasattr(self.cache, "stats"):
@@ -132,6 +141,9 @@ class ModelGateway:
             provider=request.provider,
             model=request.model,
             output=output,
+            finish_reason=finish_reason,
+            retry_count=retry_count,
+            fallback_chain=list(fallback_chain or []),
             usage=ModelUsage(
                 latency_ms=(time.monotonic() - started) * 1000,
                 cache_hit=cache_hits_after > cache_hits_before,
