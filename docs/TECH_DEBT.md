@@ -18,7 +18,7 @@
 | TD-012 | 入库 MD5 记录和向量写入非原子，异常被吞后继续 | Medium | 崩溃/并发下可能重复或遗漏；调用者不知道部分失败 | `rag/vector_store.py:73-136` | 显式任务状态、内容哈希唯一约束、批次幂等、分类错误和有限重试 | 6 | 待处理 |
 | TD-013 | 业务 YAML 仍在首次相关模块加载时读取 | Medium | schema、范围、URL 和路径已 fail-fast，但配置生命周期尚未统一到应用 composition root | `utils/settings.py`、`utils/config_handler.py` | 安全类型化 YAML 与兼容 dict 已完成；数据库 URL 已集中校验并接入 readiness，阶段 2 应用工厂仍需继续统一加载配置 | 1/2 | 部分完成 |
 | TD-014 | middleware 模块未接线且未做脱敏 | Medium | 死代码产生虚假能力印象；若直接启用会泄露完整消息和工具参数 | `agent/tools/middleware.py`、`tests/test_security_redaction.py` | 已具备可导入的脱敏行为和 metadata 测试；是否接线留给 Agent runtime 目标 | 1/4/8 | 部分完成（已脱敏） |
-| TD-015 | 系统提示词要求输出“真实思考过程” | Medium | 泄露内部推理/策略，增加提示注入和数据暴露面 | `prompts/main_prompt.txt:51-53` | 改成简短用户可见状态，不要求 chain-of-thought；工具审计使用结构化事件 | 4/9 | 待处理 |
+| TD-015 | 系统提示词要求输出“真实思考过程” | Medium | 泄露内部推理/策略，增加提示注入和数据暴露面 | `prompts/main_prompt.txt`、`tests/test_prompt_contract.py` | 已改成简短用户可见状态，不要求 chain-of-thought；工具审计使用结构化事件 | 4/9 | 已完成 |
 | TD-016 | 评测报告不记录 commit、dirty state、dataset version 或延迟 | Medium | 结果不可追溯、不可复现，无法做 CI 回归与性能比较 | `evaluation/runner.py`、`evaluation/regression_report.py` | 已记录 commit/dirty、dataset version/path/SHA-256；逐样本耗时和完整错误分类仍待补齐 | 10 | 部分完成 |
 | TD-017 | 引用有效性只验证编号范围，不验证证据支持 | Medium | 无依据回答也可得到 1.0 citation validity | `evaluation/local_metrics.py:100-133` | 区分格式有效、引用覆盖和 entailment/人工标签；加入错误引用样本 | 10 | 待处理 |
 | TD-018 | 核心主链缺少自动化测试 | Medium | 74 个测试通过但源码分支覆盖率仅 41%，仍不能证明完整 Agent、RAG 和入库交互可靠 | `tests/`、`pyproject.toml` | 分层新增 unit/integration/contract/evaluation 测试；默认 fake model；基于高风险模块逐步提高门禁 | 1/2/10 | 部分完成 |
