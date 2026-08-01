@@ -1,0 +1,10 @@
+from pathlib import Path
+
+
+def test_quality_workflow_validates_manifest_and_prepares_artifacts() -> None:
+    workflow = Path(".github/workflows/quality.yml").read_text(encoding="utf-8")
+
+    assert "mkdir -p output/ci" in workflow
+    assert "python -m evaluation.dataset_manifest" in workflow
+    assert "python scripts/run_deterministic_regression.py" in workflow
+    assert "python -m evaluation.quality_gate" in workflow
