@@ -21,6 +21,7 @@ def evaluate_quality_gate(
     *,
     minimum_metrics: dict[str, float],
     require_complete: bool = True,
+    require_candidate_not_worse: bool = True,
 ) -> GateResult:
     regression = summary.get("retrieval_regression", {})
     failures: list[str] = []
@@ -36,6 +37,17 @@ def evaluate_quality_gate(
             failures.append(f"missing metric: {name}")
         elif float(value) < minimum:
             failures.append(f"{name}={value} is below minimum {minimum}")
+    comparison = summary.get("comparison")
+    if require_candidate_not_worse and isinstance(comparison, dict):
+        baseline = comparison.get("baseline_metrics", {})
+        candidate = comparison.get("candidate_metrics", {})
+        for metric in ("mrr", "recall@1", "recall@3", "ndcg@3"):
+            if metric in baseline and metric in candidate:
+                if float(candidate[metric]) < float(baseline[metric]):
+                    failures.append(
+                        f"candidate {metric} regressed from {baseline[metric]} "
+                        f"to {candidate[metric]}"
+                    )
     return GateResult(passed=not failures, failures=tuple(failures))
 
 
