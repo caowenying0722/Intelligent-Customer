@@ -1,13 +1,20 @@
 import os
 import random
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Protocol
 
 from langchain_core.tools import tool
 
+from src.app.observability.tracing import get_current_tracer
 from utils.logger_handler import logger
 from utils.path_tool import get_abs_path
+
+
+def _tool_span(name: str):
+    tracer = get_current_tracer()
+    return tracer.start_span(name) if tracer is not None else nullcontext(None)
 
 
 class RagService(Protocol):
@@ -101,16 +108,24 @@ DEFAULT_WEATHER = {
 @tool
 def rag_summarize(query: str) -> str:
     """从向量存储中检索参考资料"""
-    return get_rag_service().rag_summarize(query)
+    with _tool_span("tool.rag_summarize") as span:
+        result = get_rag_service().rag_summarize(query)
+        if span is not None:
+            span.set_attribute("tool.status", "completed")
+        return result
 
 
 @tool
 def get_weather(city: str) -> str:
     """获取指定城市的天气，以消息字符串的形式返回"""
-    # 如果城市在数据库中，使用对应数据；否则使用默认天气
-    weather_info = WEATHER_DATA.get(city, DEFAULT_WEATHER)
+    with _tool_span("tool.get_weather") as span:
+        # 如果城市在数据库中，使用对应数据；否则使用默认天气
+        weather_info = WEATHER_DATA.get(city, DEFAULT_WEATHER)
 
-    return f"城市{city}天气为{weather_info['天气']}，气温{weather_info['气温']}摄氏度，空气湿度{weather_info['湿度']}%，{weather_info['风向']}{weather_info['风速']}级，AQI{weather_info['AQI']}，最近6小时降雨概率{weather_info['降雨']}"
+        result = f"城市{city}天气为{weather_info['天气']}，气温{weather_info['气温']}摄氏度，空气湿度{weather_info['湿度']}%，{weather_info['风向']}{weather_info['风速']}级，AQI{weather_info['AQI']}，最近6小时降雨概率{weather_info['降雨']}"
+        if span is not None:
+            span.set_attribute("tool.status", "completed")
+        return result
 
 
 @tool
