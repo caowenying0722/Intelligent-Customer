@@ -22,6 +22,7 @@ from src.app.observability.metrics import (
     metrics_token_matches,
     render_prometheus,
 )
+from src.app.observability.tracing import TraceContext
 from src.app.security.audit import AuditSink
 from src.app.security.auth import JWTAuthenticator
 from utils.settings import get_settings
@@ -163,6 +164,15 @@ def create_app(
         request.state.request_id = request_id
         response = await call_next(request)
         response.headers["x-request-id"] = request_id
+        return response
+
+    @app.middleware("http")
+    async def trace_context_middleware(request: Request, call_next):
+        context = TraceContext.from_traceparent(request.headers.get("traceparent"))
+        request.state.trace_context = context
+        request.state.trace_id = context.trace_id
+        response = await call_next(request)
+        response.headers["traceparent"] = context.traceparent
         return response
 
     @app.get("/health/live")
