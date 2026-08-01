@@ -4,7 +4,15 @@ from datetime import datetime
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, String, create_engine, select, text
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    String,
+    create_engine,
+    inspect,
+    select,
+    text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
 from src.app.domain.conversations import (
@@ -12,6 +20,8 @@ from src.app.domain.conversations import (
     Conversation,
     Message,
 )
+
+EXPECTED_SCHEMA_REVISION = "0002_add_conversation_version"
 
 
 class Base(DeclarativeBase):
@@ -151,4 +161,9 @@ class SqlAlchemyConversationRepository:
     def check_ready(self) -> bool:
         with self.engine.connect() as connection:
             connection.execute(text("SELECT 1"))
-        return True
+            if not inspect(connection).has_table("alembic_version"):
+                return False
+            version = connection.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one_or_none()
+        return version == EXPECTED_SCHEMA_REVISION

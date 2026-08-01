@@ -4,6 +4,8 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect
 
+from src.app.infrastructure.postgres import SqlAlchemyConversationRepository
+
 
 def test_migration_upgrade_and_downgrade_on_empty_sqlite_database() -> None:
     database = Path("output") / "migration_smoke.db"
@@ -14,6 +16,9 @@ def test_migration_upgrade_and_downgrade_on_empty_sqlite_database() -> None:
     config.set_main_option("sqlalchemy.url", f"sqlite:///{database.as_posix()}")
 
     command.upgrade(config, "head")
+    repository = SqlAlchemyConversationRepository(f"sqlite:///{database.as_posix()}")
+    assert repository.check_ready()
+    repository.close()
     engine = create_engine(f"sqlite:///{database.as_posix()}")
     assert set(inspect(engine).get_table_names()) >= {
         "alembic_version",
@@ -22,5 +27,8 @@ def test_migration_upgrade_and_downgrade_on_empty_sqlite_database() -> None:
     }
     command.downgrade(config, "base")
     assert set(inspect(engine).get_table_names()) == {"alembic_version"}
+    repository = SqlAlchemyConversationRepository(f"sqlite:///{database.as_posix()}")
+    assert not repository.check_ready()
+    repository.close()
     engine.dispose()
     database.unlink()
