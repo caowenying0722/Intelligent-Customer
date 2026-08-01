@@ -887,5 +887,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第六十六个目标完成：RagSummarizeService 增加非阻塞 `check_ready()`，FastAPI 应用工厂可注入 RAG 服务并在 lifespan 启动单飞文档加载；readiness 对加载中、加载失败和存储异常失败关闭，资源逆序释放。新增 RAG 状态及 API 生命周期回归，TD-004 更新为应用边界已接入但默认进程索引仍有限制。当前门禁为 364 tests、63% coverage、239 formatted files。
 - 阶段 11 第六十七个目标完成：将模型 gateway/cache/quota/idempotency 测试中的 11 个 `func-returns-value` lambda mock 诊断改为明确返回值的 fake provider；相关 33 个行为测试通过，实际 `python -m mypy tests` 从 44 项降至 33 项，剩余诊断不伪称已通过。TD-019 记录当前边界。当前门禁为 364 tests、63% coverage、239 formatted files。
 - 阶段 11 第六十八个目标完成：将 ingestion/worker/index 测试中的 9 个 `Event.set()`/`Event.wait()`/`time.sleep()` tuple/lambda 回调改为显式函数；相关 29 个行为测试通过，实际 `python -m mypy tests` 从 33 项降至 24 项，剩余 Optional/schema/Protocol/RRF 诊断不伪称已通过。TD-019 继续记录当前边界。当前门禁为 364 tests、63% coverage、239 formatted files。
+- 阶段 11 第六十九个目标完成：对 ingestion worker/repository 测试中的 job、document metadata 和 submission 返回值增加显式非空断言；相关 24 个 ingestion 测试通过，实际 `python -m mypy tests` 从 24 项降至 8 项，剩余 schema/Protocol、dataset manifest 和 RRF key 诊断不伪称已通过。TD-019 继续记录当前边界。当前门禁为 364 tests、63% coverage、239 formatted files。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

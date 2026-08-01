@@ -87,10 +87,9 @@ def test_queued_ingestion_job_can_be_cancelled() -> None:
             tenant_id="tenant-a", idempotency_key="queued", operation=lambda: None
         )
         assert manager.cancel(tenant_id="tenant-a", job_id=queued.job_id) is True
-        assert (
-            manager.get(tenant_id="tenant-a", job_id=queued.job_id).status
-            == IngestionJobStatus.CANCELLED
-        )
+        cancelled = manager.get(tenant_id="tenant-a", job_id=queued.job_id)
+        assert cancelled is not None
+        assert cancelled.status == IngestionJobStatus.CANCELLED
         release.set()
     finally:
         manager.close()
@@ -150,6 +149,7 @@ def test_running_job_cancel_is_request_and_progress_is_bounded() -> None:
         manager.update_progress(tenant_id="tenant-a", job_id=job.job_id, progress=40)
         assert manager.cancel(tenant_id="tenant-a", job_id=job.job_id) is True
         current = manager.get(tenant_id="tenant-a", job_id=job.job_id)
+        assert current is not None
         assert current.progress == 40
         assert current.cancel_requested is True
         with pytest.raises(ValueError):
@@ -190,9 +190,9 @@ def test_close_waits_for_running_job_before_returning() -> None:
         release.set()
         assert closed.wait(1)
         closer.join(1)
-        assert manager.get(tenant_id="tenant-a", job_id=job.job_id).status == (
-            IngestionJobStatus.COMPLETED
-        )
+        completed = manager.get(tenant_id="tenant-a", job_id=job.job_id)
+        assert completed is not None
+        assert completed.status == IngestionJobStatus.COMPLETED
     finally:
         release.set()
         if not closed.is_set():

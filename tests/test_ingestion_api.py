@@ -96,6 +96,8 @@ def test_document_delete_is_tenant_scoped_and_removes_file() -> None:
     )
     try:
         with TestClient(app) as client:
+            metadata = service.metadata
+            assert metadata is not None
             uploaded = client.post(
                 "/api/v1/documents",
                 headers={"x-tenant-id": "tenant-a"},
@@ -106,7 +108,7 @@ def test_document_delete_is_tenant_scoped_and_removes_file() -> None:
                     "idempotency_key": "delete-1",
                 },
             ).json()
-            document = service.metadata.get(tenant_id="tenant-a", document_id=uuid4())
+            document = metadata.get(tenant_id="tenant-a", document_id=uuid4())
             assert document is None
             assert (
                 client.delete(
@@ -121,9 +123,10 @@ def test_document_delete_is_tenant_scoped_and_removes_file() -> None:
             )
             assert deleted.status_code == 200
             assert deleted.json()["status"] == "deleted"
-            record = service.metadata.get(
+            record = metadata.get(
                 tenant_id="tenant-a", document_id=UUID(uploaded["document_id"])
             )
+            assert record is not None
             assert record.status.value == "deleted"
             assert not (storage_root / record.storage_name).exists()
     finally:

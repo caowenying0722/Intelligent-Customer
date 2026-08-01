@@ -107,10 +107,9 @@ def test_worker_persists_fast_terminal_state_instead_of_stale_running() -> None:
         ):
             time.sleep(0.01)
         time.sleep(0.05)
-        assert (
-            manager.get(tenant_id="tenant-a", job_id=job.job_id).status
-            == IngestionJobStatus.COMPLETED
-        )
+        completed = manager.get(tenant_id="tenant-a", job_id=job.job_id)
+        assert completed is not None
+        assert completed.status == IngestionJobStatus.COMPLETED
         assert store.updated[-1]["status"] == IngestionJobStatus.COMPLETED
     finally:
         manager.close()
@@ -137,11 +136,10 @@ def test_worker_persists_retryable_failure_only_after_exhaustion() -> None:
             ),
         )
         deadline = time.monotonic() + 1
-        while (
-            time.monotonic() < deadline
-            and manager.get(tenant_id="tenant-a", job_id=job.job_id).status
-            != IngestionJobStatus.FAILED
-        ):
+        while time.monotonic() < deadline:
+            current = manager.get(tenant_id="tenant-a", job_id=job.job_id)
+            if current is not None and current.status == IngestionJobStatus.FAILED:
+                break
             time.sleep(0.01)
         assert store.updated[-1]["status"] == IngestionJobStatus.FAILED
         assert store.updated[-1]["error"] == "temporary"

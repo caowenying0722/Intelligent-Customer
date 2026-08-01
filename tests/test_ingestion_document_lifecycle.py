@@ -101,10 +101,9 @@ def test_document_lifecycle_marks_failed_when_operation_raises() -> None:
             index_version="idx-1",
             operation=lambda path, upload, record: 1 / 0,
         )
-        assert (
-            _finish(jobs, "tenant-a", submission.job.job_id).status
-            == IngestionJobStatus.FAILED
-        )
+        failed = _finish(jobs, "tenant-a", submission.job.job_id)
+        assert failed is not None
+        assert failed.status == IngestionJobStatus.FAILED
         assert (
             registry.get(
                 tenant_id="tenant-a", document_id=submission.document.document_id
@@ -202,10 +201,10 @@ def test_document_lifecycle_persists_original_failure_message() -> None:
                 ValueError("boom")
             ),
         )
-        assert (
-            _finish(jobs, "tenant-a", submission.job.job_id).status
-            == IngestionJobStatus.FAILED
-        )
+        assert submission.job is not None
+        failed = _finish(jobs, "tenant-a", submission.job.job_id)
+        assert failed is not None
+        assert failed.status == IngestionJobStatus.FAILED
         assert "boom" in store.errors
     finally:
         jobs.close()

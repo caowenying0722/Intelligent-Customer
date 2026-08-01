@@ -35,6 +35,7 @@ def test_ingestion_factory_selects_sql_repository_and_recovers_state() -> None:
             index_version="idx-1",
             operation=lambda path, upload, record: None,
         )
+        assert submission.job is not None
         deadline = time.monotonic() + 2
         repository = SqlAlchemyIngestionRepository(f"sqlite:///{database.as_posix()}")
         try:
