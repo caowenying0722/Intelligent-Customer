@@ -19,6 +19,7 @@ from src.app.infrastructure.factory import (
 from src.app.observability.metrics import (
     HttpMetrics,
     empty_gateway_snapshot,
+    metrics_token_matches,
     render_prometheus,
 )
 from src.app.security.audit import AuditSink
@@ -39,14 +40,19 @@ def create_app(
     ingestion_operation: Callable | None = None,
     index_rebuild_operation: Callable | None = None,
     model_health_token: str | None = None,
+    metrics_token: str | None = None,
     authenticator: JWTAuthenticator | None = None,
     audit_sink: AuditSink | None = None,
 ) -> FastAPI:
     settings = get_settings()
     if model_health_token is None:
         model_health_token = settings.model_health_token_value
+    if metrics_token is None:
+        metrics_token = settings.metrics_token_value
     if settings.application_env == "production" and not model_health_token:
         raise ValueError("MODEL_HEALTH_TOKEN is required in production")
+    if settings.application_env == "production" and not metrics_token:
+        raise ValueError("METRICS_TOKEN is required in production")
     http_metrics = HttpMetrics()
 
     @asynccontextmanager
@@ -169,8 +175,12 @@ def create_app(
             return JSONResponse(status_code=503, content={"status": "not_ready"})
         return {"status": "ready"}
 
-    @app.get("/metrics")
-    async def metrics() -> dict[str, object]:
+    @app.get("/metrics", response_model=None)
+    async def metrics(request: Request) -> dict[str, object] | JSONResponse:
+        if not metrics_token_matches(
+            metrics_token, request.headers.get("x-metrics-token")
+        ):
+            return JSONResponse(status_code=401, content={"detail": "unauthorized"})
         gateway = getattr(chat_service, "model_gateway", None)
         if gateway is None or not hasattr(gateway, "audit_snapshot"):
             return {
@@ -188,8 +198,14 @@ def create_app(
             "http": http_metrics.snapshot(),
         }
 
-    @app.get("/metrics/prometheus", response_class=PlainTextResponse)
-    async def prometheus_metrics() -> PlainTextResponse:
+    @app.get(
+        "/metrics/prometheus", response_class=PlainTextResponse, response_model=None
+    )
+    async def prometheus_metrics(request: Request) -> PlainTextResponse | JSONResponse:
+        if not metrics_token_matches(
+            metrics_token, request.headers.get("x-metrics-token")
+        ):
+            return JSONResponse(status_code=401, content={"detail": "unauthorized"})
         gateway = getattr(chat_service, "model_gateway", None)
         if gateway is None or not hasattr(gateway, "audit_snapshot"):
             gateway_snapshot = empty_gateway_snapshot()

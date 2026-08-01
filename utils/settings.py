@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     model_cooldown_seconds: float = Field(default=30.0, gt=0, le=3600)
     model_rate_limit_per_second: int | None = Field(default=None, ge=1, le=10000)
     model_health_token: SecretStr | None = None
+    metrics_token: SecretStr | None = None
     model_cache_max_entries: int = Field(default=1024, ge=1, le=100_000)
     model_cache_ttl_seconds: float = Field(default=60.0, gt=0, le=86_400)
     model_cache_max_entries_per_tenant: int | None = Field(
@@ -163,6 +164,10 @@ class Settings(BaseSettings):
             if self.model_health_token
             else None
         )
+
+    @property
+    def metrics_token_value(self) -> str | None:
+        return self.metrics_token.get_secret_value() if self.metrics_token else None
 
 
 @lru_cache(maxsize=1)

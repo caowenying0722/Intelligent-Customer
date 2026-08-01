@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from hmac import compare_digest
 from math import isfinite
 from threading import Lock
 from time import perf_counter
@@ -10,6 +11,13 @@ from typing import Any, cast
 
 MAX_PROVIDER_SERIES = 32
 HTTP_DURATION_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)
+
+
+def metrics_token_matches(expected: str | None, supplied: str | None) -> bool:
+    """Check an optional metrics token without leaking timing information."""
+    if expected is None:
+        return True
+    return supplied is not None and compare_digest(expected, supplied)
 
 
 class HttpMetrics:
