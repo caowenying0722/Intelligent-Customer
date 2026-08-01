@@ -54,6 +54,7 @@
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 | `python scripts/run_deterministic_regression.py --output output/ci/target73-deterministic.json` | 通过：3/3 样本，model_calls=0 | retrieval-regression-v1；recall@1=0.5、recall@3/5/10=1.0、MRR=1.0；artifact commit=`aac459e`、dirty=true |
+| `python -m evaluation.quality_gate --summary output/ci/target73-deterministic.json --config config/evaluation_quality_gate.yml` | 通过 | 质量门禁实际消费 target73 artifact；不代表真实 provider 或生产质量 |
 | `python scripts/run_red_team_regression.py --output output/ci/target73-red-team.json` | 通过：4/4 拒绝、0 漏检 | red-team-prompt-injection-v1；model_calls=0 |
 | `python scripts/run_load_smoke.py --requests 10 --concurrency 2 --output output/ci/target73-load.json` | 通过：10 完成、0 错误 | fake 模式；error_rate=0、throughput_rps=305.25、p50=3.98ms、p95=16.11ms；仅本地 smoke，不作生产性能结论 |
 
