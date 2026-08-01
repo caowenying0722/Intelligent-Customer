@@ -11,6 +11,7 @@ from model.cost import BudgetExceededError, CostTracker, UsageRecord
 from model.structured import validate_structured
 from model.contracts import ModelRequest, ModelResponse, ModelUsage
 from model.errors import ModelError, ModelErrorCode
+from model.audit import start_trace
 import time
 import threading
 import time
@@ -139,6 +140,7 @@ class ModelGateway:
         if retry_count < 0:
             raise ValueError("retry_count must not be negative")
         started = time.monotonic()
+        trace = start_trace(request)
         cache_hits_before = 0
         if self.cache is not None and hasattr(self.cache, "stats"):
             cache_hits_before = self.cache.stats().get("hits", 0)
@@ -171,7 +173,10 @@ class ModelGateway:
                 latency_ms=(time.monotonic() - started) * 1000,
                 cache_hit=cache_hits_after > cache_hits_before,
             ),
-            trace_metadata={"request_id": request.request_id} if request.request_id else {},
+            trace_metadata={
+                "request_id": request.request_id or "",
+                "request_fingerprint": trace.request_fingerprint,
+            },
         )
 
     def health_snapshot(self) -> dict[str, object]:

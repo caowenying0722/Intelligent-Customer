@@ -13,7 +13,9 @@ def test_gateway_returns_provider_neutral_contract():
     assert isinstance(response, ModelResponse)
     assert response.output == "answer:hello"
     assert response.provider == "fake"
-    assert response.trace_metadata == {"request_id": "r1"}
+    assert response.trace_metadata["request_id"] == "r1"
+    assert len(response.trace_metadata["request_fingerprint"]) == 64
+    assert "hello" not in response.trace_metadata["request_fingerprint"]
     assert response.fallback_chain == []
     assert response.retry_count == 0
     assert response.usage.latency_ms >= 0
