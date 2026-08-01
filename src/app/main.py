@@ -43,6 +43,11 @@ def create_app(
         )
         lifecycle_resources = (*lifecycle_resources, repository)
 
+    if readiness_check is None and chat_service is not None:
+        candidate = getattr(chat_service.conversation_repository, "check_ready", None)
+        if callable(candidate):
+            readiness_check = candidate
+
     app = FastAPI(
         title="Intelligent Customer Service", version="0.1.0", lifespan=lifespan
     )

@@ -26,6 +26,21 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.allowed_origins, ["http://localhost:8501"])
         self.assertEqual(settings.api_host, "127.0.0.1")
         self.assertEqual(settings.api_port, 8000)
+        self.assertIsNone(settings.database_url)
+
+    def test_database_url_accepts_supported_schemes_and_rejects_others(self) -> None:
+        self.assertEqual(
+            Settings.model_validate({"database_url": "sqlite:///app.db"}).database_url,
+            "sqlite:///app.db",
+        )
+        self.assertEqual(
+            Settings.model_validate(
+                {"database_url": "postgresql+psycopg://user:pass@db/app"}
+            ).database_url,
+            "postgresql+psycopg://user:pass@db/app",
+        )
+        with self.assertRaisesRegex(ValidationError, "DATABASE_URL"):
+            Settings.model_validate({"database_url": "redis://localhost/0"})
 
     def test_legacy_provider_alias_and_json_origins_are_supported(self) -> None:
         env = {

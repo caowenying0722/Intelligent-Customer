@@ -32,6 +32,8 @@ class ConversationRepositoryProtocol(Protocol):
 
     def close(self) -> None: ...
 
+    def check_ready(self) -> bool: ...
+
 
 class ConversationRepository:
     """Thread-safe process-local repository; replace with PostgreSQL in stage 3."""
@@ -72,3 +74,6 @@ class ConversationRepository:
 
     def close(self) -> None:
         """Keep the in-memory adapter compatible with lifecycle-managed stores."""
+
+    def check_ready(self) -> bool:
+        return True

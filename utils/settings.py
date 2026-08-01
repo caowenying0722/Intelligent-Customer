@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import (
     AliasChoices,
@@ -46,6 +47,9 @@ class Settings(BaseSettings):
     )
     api_host: str = Field(default="127.0.0.1", min_length=1)
     api_port: int = Field(default=8000, ge=1, le=65535)
+    database_url: str | None = Field(
+        default=None, validation_alias=AliasChoices("DATABASE_URL")
+    )
 
     openai_api_key: SecretStr | None = None
     deepseek_api_key: SecretStr | None = None
@@ -91,6 +95,18 @@ class Settings(BaseSettings):
             if origin != "*" and not origin.startswith(("http://", "https://")):
                 raise ValueError(f"Invalid allowed origin: {origin}")
         return list(dict.fromkeys(normalized))
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def validate_database_url(cls, value: object) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        parsed = urlparse(str(value).strip())
+        if parsed.scheme not in {"postgresql", "postgresql+psycopg", "sqlite"}:
+            raise ValueError(
+                "DATABASE_URL must use postgresql, postgresql+psycopg, or sqlite"
+            )
+        return str(value).strip()
 
     @model_validator(mode="after")
     def reject_production_wildcard_origin(self) -> Settings:

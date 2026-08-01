@@ -16,7 +16,7 @@
 | TD-010 | 会话只存在 Streamlit 内存，且历史消息不传回 Agent | High | 刷新/重启丢失状态，所谓多轮只展示不推理，无法横向扩容 | `app.py:12-18,26-43`、`agent/react_agent.py:48-53` | 先定义 conversation repository，再用内存实现兼容，后续 PostgreSQL + checkpoint | 2/3/4 | 待处理 |
 | TD-011 | Chroma persist path 曾相对当前工作目录 | Medium | 从不同 cwd 启动曾会创建/读取不同数据库 | `utils/config_handler.py`、`utils/path_tool.py`、`config/chroma.yml` | 所有业务路径现由 schema loader 相对项目根解析为绝对路径，并覆盖非根 cwd 测试 | 1 | 已完成 |
 | TD-012 | 入库 MD5 记录和向量写入非原子，异常被吞后继续 | Medium | 崩溃/并发下可能重复或遗漏；调用者不知道部分失败 | `rag/vector_store.py:73-136` | 显式任务状态、内容哈希唯一约束、批次幂等、分类错误和有限重试 | 6 | 待处理 |
-| TD-013 | 业务 YAML 仍在首次相关模块加载时读取 | Medium | schema、范围、URL 和路径已 fail-fast，但配置生命周期尚未统一到应用 composition root | `utils/settings.py`、`utils/config_handler.py` | 安全类型化 YAML 与兼容 dict 已完成；阶段 2 应用工厂显式加载并注入配置 | 1/2 | 部分完成 |
+| TD-013 | 业务 YAML 仍在首次相关模块加载时读取 | Medium | schema、范围、URL 和路径已 fail-fast，但配置生命周期尚未统一到应用 composition root | `utils/settings.py`、`utils/config_handler.py` | 安全类型化 YAML 与兼容 dict 已完成；数据库 URL 已集中校验并接入 readiness，阶段 2 应用工厂仍需继续统一加载配置 | 1/2 | 部分完成 |
 | TD-014 | middleware 模块未接线且未做脱敏 | Medium | 死代码产生虚假能力印象；若直接启用会泄露完整消息和工具参数 | `agent/tools/middleware.py` | 当前 LangChain 版本下可导入；后续重写为脱敏结构化事件并接线，或删除；增加行为测试 | 1/4/8 | 部分完成 |
 | TD-015 | 系统提示词要求输出“真实思考过程” | Medium | 泄露内部推理/策略，增加提示注入和数据暴露面 | `prompts/main_prompt.txt:51-53` | 改成简短用户可见状态，不要求 chain-of-thought；工具审计使用结构化事件 | 4/9 | 待处理 |
 | TD-016 | 评测报告不记录 commit、dirty state、dataset version 或延迟 | Medium | 结果不可追溯、不可复现，无法做 CI 回归与性能比较 | `evaluation/runner.py:155-190` | 增加 run manifest、数据哈希、配置快照、逐样本耗时和错误分类 | 10 | 待处理 |

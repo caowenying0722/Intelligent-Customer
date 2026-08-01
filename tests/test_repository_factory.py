@@ -13,4 +13,5 @@ def test_repository_factory_selects_sqlalchemy_for_explicit_url() -> None:
     repository = build_conversation_repository("sqlite+pysqlite:///:memory:")
 
     assert isinstance(repository, SqlAlchemyConversationRepository)
+    assert repository.check_ready()
     repository.close()

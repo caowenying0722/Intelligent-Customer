@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, String, create_engine, select
+from sqlalchemy import DateTime, ForeignKey, String, create_engine, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
 from src.app.domain.conversations import Conversation, Message
@@ -104,3 +104,8 @@ class SqlAlchemyConversationRepository:
 
     def close(self) -> None:
         self.engine.dispose()
+
+    def check_ready(self) -> bool:
+        with self.engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        return True
