@@ -56,10 +56,20 @@ class ChatApplicationService:
         return parsed
 
     async def chat(
-        self, message: str, conversation_id: str | None = None, tenant_id: str = "local"
+        self,
+        message: str,
+        conversation_id: str | None = None,
+        tenant_id: str = "local",
+        expected_version: int | None = None,
     ) -> tuple[str, UUID]:
         resolved_id = self._conversation_id(tenant_id, conversation_id)
-        self.conversation_repository.append(tenant_id, resolved_id, "user", message)
+        self.conversation_repository.append(
+            tenant_id,
+            resolved_id,
+            "user",
+            message,
+            expected_version=expected_version,
+        )
         try:
             if self._async_runner is not None:
                 result = self._async_runner(self.agent, message)

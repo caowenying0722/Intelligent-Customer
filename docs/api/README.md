@@ -31,7 +31,7 @@ API 集成测试会先执行 Alembic upgrade，再用两个独立 app 实例验�
 
 当前聊天边界：
 
-- `POST /api/v1/chat` 接收严格的 `{"message": "...", "conversation_id": "..."}` schema；省略 ID 会创建新的内存会话。
+- `POST /api/v1/chat` 接收严格的 `{"message": "...", "conversation_id": "...", "expected_version": 0}` schema；省略 ID 会创建新的内存会话。
 - `ChatApplicationService` 通过注入的 Agent 执行，并用 `asyncio.wait_for` 设置服务级 timeout。
 - Agent 异常只映射为稳定的 `chat_failed`/`chat_timeout` 错误，不返回堆栈或供应商原始响应。
 - 默认应用未注入 Agent 时返回 `503 chat_unavailable`。
@@ -40,6 +40,7 @@ API 集成测试会先执行 Alembic upgrade，再用两个独立 app 实例验�
 - `POST /api/v1/chat/stream` 返回 `text/event-stream`，事件顺序为 `metadata`、零个或多个 `token`、最多一个 `completed`；失败使用 `error` envelope。
 - `GET /api/v1/conversations/{conversation_id}` 返回当前进程内会话消息；不存在时返回 `404 conversation_not_found`。
 - 会话响应包含单调递增的 `version`；写入方可用 expected version 检测过期状态，避免静默覆盖。
+- stale `expected_version` 返回 `409 conversation_conflict`，客户端应重新读取会话后重试。
 - 会话 API 从 `x-tenant-id` 读取租户上下文，默认仅用于本地开发的 `local`；不同租户不能读取或追加彼此会话。
 
 SSE、取消传播和持久化会话将在后续独立目标中加入。

@@ -125,6 +125,24 @@ def test_tenant_context_prevents_cross_tenant_conversation_access() -> None:
     assert response.json()["code"] == "conversation_not_found"
 
 
+def test_stale_chat_version_returns_conflict_contract() -> None:
+    service = ChatApplicationService(FakeAgent())
+    client = TestClient(create_app(chat_service=service))
+    created = client.post("/api/v1/chat", json={"message": "first"}).json()
+
+    response = client.post(
+        "/api/v1/chat",
+        json={
+            "message": "stale",
+            "conversation_id": created["conversation_id"],
+            "expected_version": 0,
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "conversation_conflict"
+
+
 def test_chat_route_rejects_extra_fields_without_calling_agent() -> None:
     client = TestClient(create_app(chat_service=ChatApplicationService(FakeAgent())))
 

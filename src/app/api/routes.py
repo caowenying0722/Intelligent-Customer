@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.app.application.chat import ChatApplicationService
+from src.app.domain.conversations import ConcurrencyConflict
 from src.app.schemas import (
     ChatRequest,
     ChatResponse,
@@ -39,6 +40,16 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
                 payload.message,
                 payload.conversation_id,
                 request.headers.get("x-tenant-id", "local"),
+                payload.expected_version,
+            )
+        except ConcurrencyConflict:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "code": "conversation_conflict",
+                    "message": "conversation changed; refresh and retry",
+                    "request_id": request.state.request_id,
+                },
             )
         except Exception as exc:  # noqa: BLE001 - stable boundary, no traceback.
             status_code = 504 if "timed out" in str(exc) else 400
