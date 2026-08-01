@@ -20,6 +20,22 @@ def reciprocal_rank_fusion(
     The input order is the rank order for each retriever. Items with the same
     key are de-duplicated and retain the first encountered representative.
     """
+    return [
+        item
+        for item, _ in reciprocal_rank_fusion_scored(
+            rankings, k=k, limit=limit, key_fn=key_fn
+        )
+    ]
+
+
+def reciprocal_rank_fusion_scored(
+    rankings: Sequence[Sequence[T]],
+    *,
+    k: int = 60,
+    limit: int | None = None,
+    key_fn: Callable[[T], str] | None = None,
+) -> list[tuple[T, float]]:
+    """Return fused representatives together with their RRF scores."""
     if k <= 0:
         raise ValueError("k must be positive")
     if limit is not None and limit < 0:
@@ -45,4 +61,4 @@ def reciprocal_rank_fusion(
     )
     if limit is not None:
         ordered_keys = ordered_keys[:limit]
-    return [representatives[item_key] for item_key in ordered_keys]
+    return [(representatives[item_key], scores[item_key]) for item_key in ordered_keys]

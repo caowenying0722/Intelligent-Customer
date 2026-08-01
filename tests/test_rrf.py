@@ -1,7 +1,7 @@
 import pytest
 from langchain_core.documents import Document
 
-from rag.rrf import reciprocal_rank_fusion
+from rag.rrf import reciprocal_rank_fusion, reciprocal_rank_fusion_scored
 from rag.retrieval_types import RetrievalResult
 from rag.simple_bm25 import RRFHybridRetriever
 
@@ -13,6 +13,7 @@ def test_rrf_deduplicates_and_matches_hand_calculation() -> None:
 
     # b and a both receive 1/2 + 1/3; the stable first-seen order wins.
     assert result == ["a", "b", "c", "d"]
+    assert reciprocal_rank_fusion_scored([["a"], ["a"]], k=1) == [("a", 1.0)]
 
 
 def test_rrf_supports_empty_rankings_and_limit() -> None:
@@ -93,3 +94,4 @@ def test_rrf_adapter_exposes_versioned_results() -> None:
     assert len(results) == 1
     assert results[0].tenant_id == "tenant-a"
     assert results[0].index_version == "idx-2"
+    assert results[0].fused_score is not None

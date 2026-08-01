@@ -48,6 +48,7 @@ class RetrievalResult:
         index_version: str,
         final_rank: int | None = None,
         source: str | None = None,
+        fused_score: float | None = None,
     ) -> "RetrievalResult":
         metadata = dict(document.metadata)
         actual_tenant = str(metadata.get("tenant_id", tenant_id))
@@ -62,6 +63,7 @@ class RetrievalResult:
             document_version=str(metadata.get("document_version", "unknown")),
             index_version=index_version,
             source=source or str(metadata.get("source", "unknown")),
+            fused_score=fused_score,
             final_rank=final_rank,
             metadata=metadata,
         )

@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from langchain_core.documents import Document
 
-from rag.rrf import reciprocal_rank_fusion
+from rag.rrf import reciprocal_rank_fusion, reciprocal_rank_fusion_scored
 from rag.retrieval_types import RetrievalResult
 
 
@@ -141,15 +141,25 @@ class RRFHybridRetriever:
         self, query: str, *, tenant_id: str, index_version: str
     ) -> list[RetrievalResult]:
         """Return the same fusion output with an explicit tenant/version contract."""
-        documents = self.invoke(query)
+        rankings = [
+            self.vector_retriever.invoke(query),
+            self.keyword_retriever.invoke(query),
+        ]
+        scored_documents = reciprocal_rank_fusion_scored(
+            rankings,
+            k=self.fusion_k,
+            limit=self.k,
+            key_fn=_doc_key,
+        )
         results: list[RetrievalResult] = []
-        for rank, document in enumerate(documents, start=1):
+        for rank, (document, fused_score) in enumerate(scored_documents, start=1):
             results.append(
                 RetrievalResult.from_document(
                     document,
                     tenant_id=tenant_id,
                     index_version=index_version,
                     final_rank=rank,
+                    fused_score=fused_score,
                 )
             )
         return results
