@@ -16,12 +16,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
 from src.app.domain.conversations import (
+    AgentRun,
     ConcurrencyConflict,
     Conversation,
     Message,
 )
 
-EXPECTED_SCHEMA_REVISION = "0003_add_identity_and_agent_runs"
+EXPECTED_SCHEMA_REVISION = "0004_add_agent_run_error"
 
 
 class Base(DeclarativeBase):
@@ -65,6 +66,7 @@ class AgentRunRow(Base):
         ForeignKey("conversations.id"), index=True
     )
     status: Mapped[str] = mapped_column(String(32))
+    error: Mapped[str | None] = mapped_column(String(4000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -187,3 +189,63 @@ class SqlAlchemyConversationRepository:
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one_or_none()
         return version == EXPECTED_SCHEMA_REVISION
+
+    def create_run(self, tenant_id: str, conversation_id: UUID) -> AgentRun:
+        if self.get(tenant_id, conversation_id) is None:
+            raise KeyError(conversation_id)
+        run = AgentRun(uuid4(), tenant_id, conversation_id, "queued")
+        with Session(self.engine) as session:
+            session.add(
+                AgentRunRow(
+                    id=str(run.run_id),
+                    tenant_id=tenant_id,
+                    conversation_id=str(conversation_id),
+                    status=run.status,
+                    created_at=run.created_at,
+                )
+            )
+            session.commit()
+        return run
+
+    def get_run(self, tenant_id: str, run_id: UUID) -> AgentRun | None:
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(AgentRunRow).where(
+                    AgentRunRow.id == str(run_id), AgentRunRow.tenant_id == tenant_id
+                )
+            )
+            if row is None:
+                return None
+            return AgentRun(
+                run_id=UUID(row.id),
+                tenant_id=row.tenant_id,
+                conversation_id=UUID(row.conversation_id),
+                status=row.status,
+                error=row.error,
+                created_at=row.created_at,
+            )
+
+    def update_run(
+        self, tenant_id: str, run_id: UUID, status: str, error: str | None = None
+    ) -> AgentRun:
+        if status not in {"queued", "running", "completed", "failed", "cancelled"}:
+            raise ValueError("invalid run status")
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(AgentRunRow).where(
+                    AgentRunRow.id == str(run_id), AgentRunRow.tenant_id == tenant_id
+                )
+            )
+            if row is None:
+                raise KeyError(run_id)
+            row.status = status
+            row.error = error
+            session.commit()
+            return AgentRun(
+                run_id=UUID(row.id),
+                tenant_id=row.tenant_id,
+                conversation_id=UUID(row.conversation_id),
+                status=row.status,
+                error=row.error,
+                created_at=row.created_at,
+            )

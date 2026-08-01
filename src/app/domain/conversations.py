@@ -28,6 +28,16 @@ class ConcurrencyConflict(RuntimeError):
     """The conversation changed since the caller last read it."""
 
 
+@dataclass(frozen=True)
+class AgentRun:
+    run_id: UUID
+    tenant_id: str
+    conversation_id: UUID
+    status: str
+    error: str | None = None
+    created_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+
+
 class ConversationRepositoryProtocol(Protocol):
     def create(self, tenant_id: str, user_id: str = "local") -> Conversation: ...
 
@@ -45,6 +55,14 @@ class ConversationRepositoryProtocol(Protocol):
     def close(self) -> None: ...
 
     def check_ready(self) -> bool: ...
+
+    def create_run(self, tenant_id: str, conversation_id: UUID) -> AgentRun: ...
+
+    def get_run(self, tenant_id: str, run_id: UUID) -> AgentRun | None: ...
+
+    def update_run(
+        self, tenant_id: str, run_id: UUID, status: str, error: str | None = None
+    ) -> AgentRun: ...
 
 
 class ConversationRepository:
@@ -102,3 +120,37 @@ class ConversationRepository:
 
     def check_ready(self) -> bool:
         return True
+
+    def create_run(self, tenant_id: str, conversation_id: UUID) -> AgentRun:
+        if self.get(tenant_id, conversation_id) is None:
+            raise KeyError(conversation_id)
+        run = AgentRun(uuid4(), tenant_id, conversation_id, "queued")
+        with self._lock:
+            if not hasattr(self, "_runs"):
+                self._runs: dict[UUID, AgentRun] = {}
+            self._runs[run.run_id] = run
+        return run
+
+    def get_run(self, tenant_id: str, run_id: UUID) -> AgentRun | None:
+        run = getattr(self, "_runs", {}).get(run_id)
+        return run if run is not None and run.tenant_id == tenant_id else None
+
+    def update_run(
+        self, tenant_id: str, run_id: UUID, status: str, error: str | None = None
+    ) -> AgentRun:
+        if status not in {"queued", "running", "completed", "failed", "cancelled"}:
+            raise ValueError("invalid run status")
+        with self._lock:
+            run = self.get_run(tenant_id, run_id)
+            if run is None:
+                raise KeyError(run_id)
+            updated = AgentRun(
+                run_id=run.run_id,
+                tenant_id=run.tenant_id,
+                conversation_id=run.conversation_id,
+                status=status,
+                error=error,
+                created_at=run.created_at,
+            )
+            self._runs[run_id] = updated
+            return updated

@@ -35,3 +35,16 @@ class ConversationResponse(BaseModel):
     user_id: str
     status: str
     messages: list[MessageResponse]
+
+
+class RunUpdateRequest(BaseModel):
+    status: str
+    error: str | None = None
+
+
+class AgentRunResponse(BaseModel):
+    run_id: str
+    conversation_id: str
+    status: str
+    error: str | None = None
+    created_at: str

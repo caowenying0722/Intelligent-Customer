@@ -143,6 +143,31 @@ def test_stale_chat_version_returns_conflict_contract() -> None:
     assert response.json()["code"] == "conversation_conflict"
 
 
+def test_agent_run_lifecycle_is_tenant_scoped() -> None:
+    service = ChatApplicationService(FakeAgent())
+    client = TestClient(create_app(chat_service=service))
+    conversation = client.post("/api/v1/chat", json={"message": "run"}).json()
+
+    created = client.post(
+        f"/api/v1/conversations/{conversation['conversation_id']}/runs"
+    )
+    assert created.status_code == 200
+    run_id = created.json()["run_id"]
+    assert created.json()["status"] == "queued"
+
+    updated = client.patch(
+        f"/api/v1/runs/{run_id}", json={"status": "failed", "error": "boom"}
+    )
+    assert updated.status_code == 200
+    assert updated.json()["status"] == "failed"
+    assert updated.json()["error"] == "boom"
+
+    cross_tenant = client.get(
+        f"/api/v1/runs/{run_id}", headers={"x-tenant-id": "other"}
+    )
+    assert cross_tenant.status_code == 404
+
+
 def test_chat_route_rejects_extra_fields_without_calling_agent() -> None:
     client = TestClient(create_app(chat_service=ChatApplicationService(FakeAgent())))
 

@@ -9,11 +9,13 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from src.app.application.chat import ChatApplicationService
 from src.app.domain.conversations import ConcurrencyConflict
 from src.app.schemas import (
+    AgentRunResponse,
     ChatRequest,
     ChatResponse,
     ConversationResponse,
     ErrorResponse,
     MessageResponse,
+    RunUpdateRequest,
 )
 
 
@@ -138,6 +140,118 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
                 )
                 for message in conversation.messages
             ],
+        )
+
+    @router.post(
+        "/conversations/{conversation_id}/runs", response_model=AgentRunResponse
+    )
+    async def create_run(request: Request, conversation_id: str):
+        if chat_service is None:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "run_unavailable",
+                    "message": "run service is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
+        try:
+            run = chat_service.conversation_repository.create_run(
+                request.headers.get("x-tenant-id", "local"), UUID(conversation_id)
+            )
+        except (KeyError, ValueError):
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": "conversation_not_found",
+                    "message": "conversation not found",
+                    "request_id": request.state.request_id,
+                },
+            )
+        return AgentRunResponse(
+            run_id=str(run.run_id),
+            conversation_id=str(run.conversation_id),
+            status=run.status,
+            error=run.error,
+            created_at=run.created_at.isoformat(),
+        )
+
+    @router.get("/runs/{run_id}", response_model=AgentRunResponse)
+    async def get_run(request: Request, run_id: str):
+        if chat_service is None:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "run_unavailable",
+                    "message": "run service is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
+        try:
+            run = chat_service.conversation_repository.get_run(
+                request.headers.get("x-tenant-id", "local"), UUID(run_id)
+            )
+        except ValueError:
+            run = None
+        if run is None:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": "run_not_found",
+                    "message": "agent run not found",
+                    "request_id": request.state.request_id,
+                },
+            )
+        return AgentRunResponse(
+            run_id=str(run.run_id),
+            conversation_id=str(run.conversation_id),
+            status=run.status,
+            error=run.error,
+            created_at=run.created_at.isoformat(),
+        )
+
+    @router.patch("/runs/{run_id}", response_model=AgentRunResponse)
+    async def update_run(request: Request, run_id: str, payload: RunUpdateRequest):
+        if chat_service is None:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "run_unavailable",
+                    "message": "run service is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
+        try:
+            run = chat_service.conversation_repository.update_run(
+                request.headers.get("x-tenant-id", "local"),
+                UUID(run_id),
+                payload.status,
+                payload.error,
+            )
+        except ValueError:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "code": "invalid_run_status",
+                    "message": "invalid agent run status",
+                    "request_id": request.state.request_id,
+                },
+            )
+        except (KeyError,):
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": "run_not_found",
+                    "message": "agent run not found",
+                    "request_id": request.state.request_id,
+                },
+            )
+        return AgentRunResponse(
+            run_id=str(run.run_id),
+            conversation_id=str(run.conversation_id),
+            status=run.status,
+            error=run.error,
+            created_at=run.created_at.isoformat(),
         )
 
     return router
