@@ -6,7 +6,11 @@ from uuid import UUID, uuid4
 from sqlalchemy import DateTime, ForeignKey, String, create_engine, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
-from src.app.domain.conversations import Conversation, Message
+from src.app.domain.conversations import (
+    ConcurrencyConflict,
+    Conversation,
+    Message,
+)
 
 
 class Base(DeclarativeBase):
@@ -18,6 +22,7 @@ class ConversationRow(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(128), index=True)
+    version: Mapped[int] = mapped_column(default=0)
     messages: Mapped[list["MessageRow"]] = relationship(
         back_populates="conversation",
         cascade="all, delete-orphan",
@@ -68,6 +73,7 @@ class SqlAlchemyConversationRepository:
             return Conversation(
                 tenant_id=row.tenant_id,
                 conversation_id=UUID(row.id),
+                version=row.version,
                 messages=[
                     Message(
                         role=item.role, content=item.content, created_at=item.created_at
@@ -77,7 +83,12 @@ class SqlAlchemyConversationRepository:
             )
 
     def append(
-        self, tenant_id: str, conversation_id: UUID, role: str, content: str
+        self,
+        tenant_id: str,
+        conversation_id: UUID,
+        role: str,
+        content: str,
+        expected_version: int | None = None,
     ) -> Message:
         if role not in {"user", "assistant", "system"}:
             raise ValueError("unsupported message role")
@@ -92,6 +103,8 @@ class SqlAlchemyConversationRepository:
             )
             if row is None:
                 raise KeyError(conversation_id)
+            if expected_version is not None and row.version != expected_version:
+                raise ConcurrencyConflict(conversation_id)
             message = Message(
                 role=role, content=content, created_at=datetime.now().astimezone()
             )
@@ -103,6 +116,7 @@ class SqlAlchemyConversationRepository:
                     created_at=message.created_at,
                 )
             )
+            row.version += 1
             session.commit()
             return message
 

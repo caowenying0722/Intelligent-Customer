@@ -14,7 +14,28 @@ def test_sqlalchemy_repository_persists_order_and_tenant_boundary() -> None:
     loaded = repository.get("tenant-a", UUID(str(created.conversation_id)))
     assert loaded is not None
     assert [message.content for message in loaded.messages] == ["hello", "world"]
+    assert loaded.version == 2
     assert repository.get("tenant-b", created.conversation_id) is None
+    repository.close()
+
+
+def test_stale_expected_version_is_rejected() -> None:
+    repository = SqlAlchemyConversationRepository(
+        "sqlite+pysqlite:///:memory:", initialize_schema=True
+    )
+    created = repository.create("tenant-a")
+    repository.append("tenant-a", created.conversation_id, "user", "first")
+
+    from src.app.domain.conversations import ConcurrencyConflict
+
+    try:
+        repository.append(
+            "tenant-a", created.conversation_id, "user", "stale", expected_version=0
+        )
+    except ConcurrencyConflict:
+        pass
+    else:
+        raise AssertionError("stale version must be rejected")
     repository.close()
 
 

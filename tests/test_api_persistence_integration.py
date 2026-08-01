@@ -44,6 +44,7 @@ def test_api_recovers_conversation_after_application_restart() -> None:
         )
 
     assert recovered.status_code == 200
+    assert recovered.json()["version"] == 2
     assert [item["content"] for item in recovered.json()["messages"]] == [
         "remember me",
         "persisted:remember me",

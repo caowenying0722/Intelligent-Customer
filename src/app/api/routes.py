@@ -115,6 +115,7 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
             )
         return ConversationResponse(
             conversation_id=str(conversation.conversation_id),
+            version=conversation.version,
             messages=[
                 MessageResponse(
                     role=message.role,

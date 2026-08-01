@@ -18,7 +18,12 @@ class Message:
 class Conversation:
     tenant_id: str
     conversation_id: UUID
+    version: int = 0
     messages: list[Message] = field(default_factory=list)
+
+
+class ConcurrencyConflict(RuntimeError):
+    """The conversation changed since the caller last read it."""
 
 
 class ConversationRepositoryProtocol(Protocol):
@@ -27,7 +32,12 @@ class ConversationRepositoryProtocol(Protocol):
     def get(self, tenant_id: str, conversation_id: UUID) -> Conversation | None: ...
 
     def append(
-        self, tenant_id: str, conversation_id: UUID, role: str, content: str
+        self,
+        tenant_id: str,
+        conversation_id: UUID,
+        role: str,
+        content: str,
+        expected_version: int | None = None,
     ) -> Message: ...
 
     def close(self) -> None: ...
@@ -58,18 +68,29 @@ class ConversationRepository:
             return conversation
 
     def append(
-        self, tenant_id: str, conversation_id: UUID, role: str, content: str
+        self,
+        tenant_id: str,
+        conversation_id: UUID,
+        role: str,
+        content: str,
+        expected_version: int | None = None,
     ) -> Message:
         with self._lock:
             conversation = self._conversations.get(conversation_id)
             if conversation is None or conversation.tenant_id != tenant_id:
                 raise KeyError(conversation_id)
+            if (
+                expected_version is not None
+                and conversation.version != expected_version
+            ):
+                raise ConcurrencyConflict(conversation_id)
             message = Message(
                 role=role,
                 content=content,
                 created_at=datetime.now(tz=timezone.utc),
             )
             conversation.messages.append(message)
+            conversation.version += 1
             return message
 
     def close(self) -> None:
