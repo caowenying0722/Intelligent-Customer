@@ -10,6 +10,14 @@ from typing import Any
 
 
 class ModelCache:
+    @classmethod
+    def from_settings(cls, settings: Any) -> "ModelCache":
+        return cls(
+            max_entries=settings.model_cache_max_entries,
+            ttl_seconds=settings.model_cache_ttl_seconds,
+            max_entries_per_tenant=settings.model_cache_max_entries_per_tenant,
+        )
+
     def __init__(
         self,
         *,

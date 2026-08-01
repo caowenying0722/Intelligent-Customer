@@ -8,6 +8,13 @@ from typing import Any, Callable
 
 
 class RedisCacheAdapter:
+    @classmethod
+    def from_settings(cls, client: Any, settings: Any) -> "RedisCacheAdapter":
+        return cls(
+            client,
+            namespace=settings.model_cache_namespace,
+            ttl_seconds=int(settings.model_cache_ttl_seconds),
+        )
     def __init__(
         self,
         client: Any,
