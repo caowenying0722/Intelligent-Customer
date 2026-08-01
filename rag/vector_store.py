@@ -5,11 +5,11 @@ from utils.config_handler import chroma_conf
 from model.factory import embed_model
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.retrievers import BM25Retriever
-from langchain.retrievers import EnsembleRetriever
 from utils.path_tool import get_abs_path
 from utils.file_handler import pdf_loader, txt_loader, listdir_with_allowed_type, get_file_md5_hex
 from utils.logger_handler import logger
+from rag.tokenization import cjk_bm25_tokenizer
+from rag.simple_bm25 import SimpleBM25Retriever, WeightedHybridRetriever
 
 import os
 
@@ -38,7 +38,8 @@ class VectorStoreService:
         return documents
 
     def get_retriever(self):
-        vector_retriever = self.vector_store.as_retriever(search_kwargs={"k": chroma_conf["k"]})
+        retrieval_k = chroma_conf.get("candidate_k", chroma_conf["k"])
+        vector_retriever = self.vector_store.as_retriever(search_kwargs={"k": retrieval_k})
 
         if chroma_conf.get("retrieval_type") == "hybrid":
             all_docs = self._get_all_documents()
@@ -46,12 +47,18 @@ class VectorStoreService:
                 logger.warning("[混合检索]向量库中暂无文档，降级为纯向量检索")
                 return vector_retriever
 
-            bm25_retriever = BM25Retriever.from_documents(all_docs)
-            bm25_retriever.k = chroma_conf["k"]
+            bm25_retriever = SimpleBM25Retriever(
+                all_docs,
+                preprocess_func=cjk_bm25_tokenizer,
+                k=retrieval_k,
+            )
 
-            return EnsembleRetriever(
-                retrievers=[vector_retriever, bm25_retriever],
-                weights=[chroma_conf.get("vector_weight", 0.6), chroma_conf.get("bm25_weight", 0.4)],
+            return WeightedHybridRetriever(
+                vector_retriever=vector_retriever,
+                keyword_retriever=bm25_retriever,
+                vector_weight=chroma_conf.get("vector_weight", 0.6),
+                keyword_weight=chroma_conf.get("bm25_weight", 0.4),
+                k=retrieval_k,
             )
 
         return vector_retriever

@@ -6,14 +6,25 @@ from rag.rag_service import RagSummarizeService
 import random
 from utils.config_handler import agent_conf
 from utils.path_tool import get_abs_path
+from datetime import datetime
 
 rag = RagSummarizeService()
 
 user_ids = ["1001", "1002", "1003", "1004", "1005", "1006", "1007", "1008", "1009", "1010",]
-month_arr = ["2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
-             "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", ]
 
 external_data = {}
+
+# 城市天气数据库
+WEATHER_DATA = {
+    "深圳": {"天气": "晴天", "气温": 28, "湿度": 65, "风向": "南风", "风速": 2, "AQI": 35, "降雨": "极低"},
+    "合肥": {"天气": "多云", "气温": 24, "湿度": 55, "风向": "东风", "风速": 1, "AQI": 42, "降雨": "低"},
+    "杭州": {"天气": "小雨", "气温": 22, "湿度": 75, "风向": "西南风", "风速": 3, "AQI": 38, "降雨": "中"},
+    "北京": {"天气": "晴天", "气温": 20, "湿度": 45, "风向": "北风", "风速": 2, "AQI": 28, "降雨": "极低"},
+    "上海": {"天气": "多云", "气温": 25, "湿度": 70, "风向": "东风", "风速": 1, "AQI": 45, "降雨": "低"},
+}
+
+# 默认城市天气数据
+DEFAULT_WEATHER = {"天气": "晴天", "气温": 26, "湿度": 50, "风向": "南风", "风速": 1, "AQI": 21, "降雨": "极低"}
 
 
 @tool
@@ -25,7 +36,10 @@ def rag_summarize(query: str) -> str:
 @tool
 def get_weather(city: str) -> str:
     """获取指定城市的天气，以消息字符串的形式返回"""
-    return f"城市{city}天气为晴天，气温26摄氏度，空气湿度50%，南风1级，AQI21，最近6小时降雨概率极低"
+    # 如果城市在数据库中，使用对应数据；否则使用默认天气
+    weather_info = WEATHER_DATA.get(city, DEFAULT_WEATHER)
+
+    return f"城市{city}天气为{weather_info['天气']}，气温{weather_info['气温']}摄氏度，空气湿度{weather_info['湿度']}%，{weather_info['风向']}{weather_info['风速']}级，AQI{weather_info['AQI']}，最近6小时降雨概率{weather_info['降雨']}"
 
 
 @tool
@@ -43,7 +57,7 @@ def get_user_id() -> str:
 @tool
 def get_current_month() -> str:
     """获取当前月份，以纯字符串形式返回"""
-    return random.choice(month_arr)
+    return datetime.now().strftime("%Y-%m")
 
 
 def generate_external_data():

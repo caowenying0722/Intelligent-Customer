@@ -1,6 +1,7 @@
 collection_name : agent
 persist_directory : chroma_db
 k :  3
+candidate_k :  8
 data_path : data
 md5_hex_store : md5.txt
 allow_knowledge_file_type : ["txt","pdf"]
@@ -13,4 +14,9 @@ separators : ["\n\n","。",".","?","？","!"," ",""]
 retrieval_type : hybrid          # 可选: vector / hybrid
 bm25_weight : 0.4                # BM25 关键词检索权重
 vector_weight : 0.6              # 向量语义检索权重
+
+# 召回后证据重排序：用于提升答案引用质量，并支持后续替换为 BGE reranker。
+rerank_enabled : true
+rerank_top_k : 3
+low_confidence_threshold : 0.28
 

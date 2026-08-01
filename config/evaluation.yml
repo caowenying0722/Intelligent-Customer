@@ -1,0 +1,17 @@
+dataset_path: data/evaluation/rag_eval_dataset.jsonl
+output_dir: output/evaluation
+generate_answers: true
+retriever_mode: hybrid
+
+# RAGAS uses an LLM judge and embeddings, so it may call the configured model API.
+# Keep it off for quick local regression runs; enable with --run-ragas when needed.
+ragas:
+  enabled: false
+  data_mode: minimal
+  eval_mode: per_sample
+  metrics:
+    - faithfulness
+    - answer_relevancy
+    - context_precision
+    - context_recall
+    - factual_correctness(mode=f1)

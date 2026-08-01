@@ -9,6 +9,7 @@ __pycache__/
 .venv/
 venv/
 env/
+.local_deps/
 
 # Packaging / build
 build/
