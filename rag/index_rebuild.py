@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Protocol
 
 
@@ -17,11 +18,27 @@ class IndexRebuildError(RuntimeError):
 
 
 class BlueGreenIndexCoordinator:
-    def __init__(self, backend: AliasBackend, *, alias_name: str = "active") -> None:
+    def __init__(
+        self, backend: AliasBackend, *, alias_name: str = "active", timeout_seconds: float = 300.0
+    ) -> None:
         if not alias_name.strip():
             raise ValueError("alias_name must not be empty")
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
         self.backend = backend
         self.alias_name = alias_name
+        self.timeout_seconds = timeout_seconds
+
+    def _bounded(self, operation: Callable[[], object], label: str) -> object:
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="index-rebuild")
+        future = executor.submit(operation)
+        try:
+            return future.result(timeout=self.timeout_seconds)
+        except TimeoutError as exc:
+            future.cancel()
+            raise IndexRebuildError(f"{label} exceeded configured timeout") from exc
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def rebuild(
         self,
@@ -38,13 +55,17 @@ class BlueGreenIndexCoordinator:
         if not previous_collection.strip():
             raise ValueError("previous_collection must not be empty")
         try:
-            candidate = build_candidate()
+            candidate = self._bounded(build_candidate, "candidate build")
+        except IndexRebuildError:
+            raise
         except Exception as exc:
             raise IndexRebuildError("candidate index build failed") from exc
         if not isinstance(candidate, str) or not candidate.strip():
             raise IndexRebuildError("candidate builder returned an invalid collection")
         try:
-            valid = validate_candidate(candidate)
+            valid = self._bounded(lambda: validate_candidate(candidate), "candidate validation")
+        except IndexRebuildError:
+            raise
         except Exception as exc:
             raise IndexRebuildError("candidate index validation failed") from exc
         if not valid:

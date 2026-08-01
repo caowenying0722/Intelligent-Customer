@@ -1,4 +1,5 @@
 import pytest
+import time
 
 from rag.index_rebuild import BlueGreenIndexCoordinator, IndexRebuildError
 
@@ -48,3 +49,14 @@ def test_rebuild_rolls_back_when_activation_fails():
             validate_candidate=lambda _: True,
         )
     assert [name for name, _ in backend.calls] == ["switch", "rollback"]
+
+
+def test_rebuild_times_out_a_blocking_builder():
+    backend = Backend()
+    with pytest.raises(IndexRebuildError, match="timeout"):
+        BlueGreenIndexCoordinator(backend, timeout_seconds=0.01).rebuild(
+            previous_collection="stable-1",
+            build_candidate=lambda: (time.sleep(0.1), "build-2")[1],
+            validate_candidate=lambda _: True,
+        )
+    assert backend.calls == []
