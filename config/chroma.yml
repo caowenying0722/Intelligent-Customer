@@ -1,4 +1,5 @@
 collection_name : agent
+storage_mode : embedded       # 安全默认：仅本地嵌入式客户端，不暴露 Chroma HTTP API
 persist_directory : chroma_db
 k :  3
 candidate_k :  8

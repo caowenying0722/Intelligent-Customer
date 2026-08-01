@@ -21,6 +21,7 @@ from utils.path_tool import get_abs_path
 def valid_chroma_config() -> dict[str, object]:
     return {
         "collection_name": "agent",
+        "storage_mode": "embedded",
         "persist_directory": "chroma_db",
         "k": 3,
         "candidate_k": 8,
@@ -66,6 +67,11 @@ class ConfigHandlerTest(unittest.TestCase):
         for config in invalid_configs:
             with self.subTest(config=config), self.assertRaises(ValidationError):
                 ChromaConfig.model_validate(config)
+
+        remote = valid_chroma_config()
+        remote["storage_mode"] = "remote"
+        with self.assertRaises(ValidationError):
+            ChromaConfig.model_validate(remote)
 
     def test_loader_resolves_paths_against_explicit_project_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

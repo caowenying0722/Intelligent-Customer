@@ -30,6 +30,7 @@ class RagConfig(StrictConfigModel):
 
 class ChromaConfig(StrictConfigModel):
     collection_name: str = Field(min_length=1)
+    storage_mode: Literal["embedded"] = "embedded"
     persist_directory: Path
     k: int = Field(ge=1, le=100)
     candidate_k: int = Field(ge=1, le=200)

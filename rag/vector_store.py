@@ -22,6 +22,8 @@ from utils.path_tool import get_abs_path
 
 class VectorStoreService:
     def __init__(self, embedding_model: Embeddings | None = None):
+        if chroma_conf.get("storage_mode", "embedded") != "embedded":
+            raise RuntimeError("only embedded Chroma storage mode is supported")
         self.vector_store = Chroma(
             collection_name=chroma_conf["collection_name"],
             embedding_function=(
