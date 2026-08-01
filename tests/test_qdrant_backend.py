@@ -16,6 +16,14 @@ class FakeQdrantClient:
         self.calls.append(kwargs)
         return ["point"]
 
+    def upsert(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"status": "completed"}
+
+    def update_collection_aliases(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"status": "completed"}
+
 
 def test_qdrant_search_always_carries_tenant_and_index_filter() -> None:
     client = FakeQdrantClient()
@@ -65,3 +73,46 @@ def test_qdrant_backend_wraps_client_failures() -> None:
     backend = QdrantVectorBackend(BrokenClient(), collection_name="knowledge")
     with pytest.raises(VectorBackendError, match="search failed"):
         backend.search([0.1], tenant_id="tenant-a", index_version="idx-1")
+
+
+def test_qdrant_upsert_batches_and_validates_scope() -> None:
+    client = FakeQdrantClient()
+    backend = QdrantVectorBackend(client, collection_name="knowledge")
+    points = [
+        {
+            "id": index,
+            "vector": [0.1],
+            "payload": {"tenant_id": "tenant-a", "index_version": "idx-1"},
+        }
+        for index in range(3)
+    ]
+    assert (
+        backend.upsert(
+            points, tenant_id="tenant-a", index_version="idx-1", batch_size=2
+        )
+        == 3
+    )
+    upsert_calls = [call for call in client.calls if "points" in call]
+    assert [len(call["points"]) for call in upsert_calls] == [2, 1]
+    with pytest.raises(ValueError, match="outside"):
+        backend.upsert(
+            [{"id": "bad", "payload": {"tenant_id": "tenant-b"}}],
+            tenant_id="tenant-a",
+            index_version="idx-1",
+        )
+
+
+def test_qdrant_alias_switch_is_atomic_and_bounded() -> None:
+    client = FakeQdrantClient()
+    backend = QdrantVectorBackend(client, collection_name="knowledge")
+    backend.switch_active_alias(alias_name="active", target_collection="build-2")
+    alias_call = client.calls[-1]
+    assert alias_call["change_aliases"] == [
+        {"delete_alias": {"alias_name": "active"}},
+        {
+            "create_alias": {
+                "collection_name": "build-2",
+                "alias_name": "active",
+            }
+        },
+    ]

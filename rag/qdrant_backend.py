@@ -7,6 +7,7 @@ testing the application does not require qdrant-client or a running service.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable, Sequence
 from typing import Any
 
 
@@ -43,6 +44,22 @@ class QdrantVectorBackend:
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
 
+    def _run_bounded(self, operation: Callable[[], Any], label: str) -> Any:
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="qdrant-call")
+        future = executor.submit(operation)
+        try:
+            return future.result(timeout=self.timeout_seconds)
+        except TimeoutError as exc:
+            future.cancel()
+            raise TimeoutError(f"Qdrant {label} exceeded its configured timeout") from exc
+        except Exception as exc:
+            future.cancel()
+            if isinstance(exc, ValueError):
+                raise
+            raise VectorBackendError(f"Qdrant {label} failed") from exc
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
     def search(
         self,
         query_vector: list[float],
@@ -76,17 +93,63 @@ class QdrantVectorBackend:
                 return list(self.client.query_points(**kwargs).points)
             raise VectorBackendError("Qdrant client has no search method")
 
-        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="qdrant-search")
-        future = executor.submit(call_backend)
-        try:
-            return future.result(timeout=self.timeout_seconds)
-        except TimeoutError as exc:
-            future.cancel()
-            raise TimeoutError("Qdrant search exceeded its configured timeout") from exc
-        except Exception as exc:
-            future.cancel()
-            if isinstance(exc, ValueError):
-                raise
-            raise VectorBackendError("Qdrant search failed") from exc
-        finally:
-            executor.shutdown(wait=False, cancel_futures=True)
+        return self._run_bounded(call_backend, "search")
+
+    def upsert(
+        self,
+        points: Sequence[dict[str, Any]],
+        *,
+        tenant_id: str,
+        index_version: str,
+        batch_size: int = 64,
+    ) -> int:
+        """Upsert bounded batches after validating every point's scope payload."""
+        if not tenant_id.strip() or not index_version.strip():
+            raise ValueError("tenant_id and index_version must not be empty")
+        if batch_size < 1 or batch_size > 1000:
+            raise ValueError("batch_size must be between 1 and 1000")
+        normalized = list(points)
+        for point in normalized:
+            payload = point.get("payload")
+            if not isinstance(payload, dict):
+                raise ValueError("every point must have a payload")
+            if (
+                payload.get("tenant_id") != tenant_id
+                or payload.get("index_version") != index_version
+            ):
+                raise ValueError("point payload is outside the requested scope")
+
+        for offset in range(0, len(normalized), batch_size):
+            batch = normalized[offset : offset + batch_size]
+
+            def call_backend(batch: list[dict[str, Any]] = batch) -> Any:
+                return self.client.upsert(
+                    collection_name=self.collection_name,
+                    points=batch,
+                    wait=True,
+                    timeout=self.timeout_seconds,
+                )
+
+            self._run_bounded(call_backend, "upsert")
+        return len(normalized)
+
+    def switch_active_alias(self, *, alias_name: str, target_collection: str) -> None:
+        """Atomically replace an active alias with a validated target collection."""
+        if not alias_name.strip() or not target_collection.strip():
+            raise ValueError("alias_name and target_collection must not be empty")
+
+        def call_backend() -> Any:
+            return self.client.update_collection_aliases(
+                change_aliases=[
+                    {"delete_alias": {"alias_name": alias_name}},
+                    {
+                        "create_alias": {
+                            "collection_name": target_collection,
+                            "alias_name": alias_name,
+                        }
+                    },
+                ],
+                timeout=self.timeout_seconds,
+            )
+
+        self._run_bounded(call_backend, "alias switch")
