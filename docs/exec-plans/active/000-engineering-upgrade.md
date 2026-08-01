@@ -734,5 +734,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 4 第十八个目标完成：增加租户隔离的文档删除服务与 `DELETE /api/v1/documents/{document_id}`，安全清理内部文件、保留 deleted 审计状态并验证删除幂等。
 - 阶段 4 第十九个目标完成：补充 SQLAlchemy 文档删除状态的跨实例与租户隔离验收，确保持久化适配器与内存实现保持一致。
 - 阶段 4 第二十个目标完成：新增注入式 `POST /api/v1/indexes/rebuild` 异步任务边界，复用有界 job manager，强制幂等键并验证租户隔离；实际解析/Embedding/alias 切换仍由 worker 实现提供。
+- 阶段 4 第二十一个目标完成：新增 `BlueGreenIndexCoordinator`，将候选构建、校验、原子 alias 切换和失败回滚封装为有限步骤；校验失败不触碰 active alias，切换失败尝试恢复已知稳定集合。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
