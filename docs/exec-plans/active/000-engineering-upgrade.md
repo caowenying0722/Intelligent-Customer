@@ -762,5 +762,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 5 第十四个目标完成：阶段五模型链路整体验收 smoke 通过，Gateway、工厂、Chat 普通/流式、metrics、健康路由与 Settings 组合共 50 passed、6 subtests；全程使用 fake provider。
 - 阶段 6 首个目标完成：新增 tenant/model/prompt-version scoped `ModelCache`，支持 SHA-256 key、TTL、容量淘汰、命中统计和严格参数校验；不保存原始 prompt 到 key。
 - 阶段 6 第二个目标完成：Model Gateway 增加显式 `invoke_cached()`，缓存命中跳过 provider，按 tenant/model/prompt-version 隔离；provider 失败不写入缓存并由 fake provider 测试验证。
+- 阶段 6 第三个目标完成：新增注入式 `RedisCacheAdapter`，支持 namespace/TTL/JSON 序列化；Redis 读写异常 fail-open 为 miss，不依赖真实 Redis 服务。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
