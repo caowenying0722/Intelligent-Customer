@@ -1,5 +1,6 @@
 from pathlib import Path
 from uuid import uuid4
+import threading
 
 from alembic import command
 from alembic.config import Config
@@ -89,7 +90,11 @@ def test_lifespan_recovers_persisted_index_rebuild_job() -> None:
     repository.create_job(job=job)
     repository.close()
     seen = []
-    app = create_app(database_url=url, index_rebuild_operation=lambda version: seen.append(version))
+    done = threading.Event()
+    def rebuild(version):
+        seen.append(version)
+        done.set()
+    app = create_app(database_url=url, index_rebuild_operation=rebuild)
     with TestClient(app):
-        pass
+        assert done.wait(1)
     assert seen == ["v3"]

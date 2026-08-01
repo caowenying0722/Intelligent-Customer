@@ -745,5 +745,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 4 第二十九个目标完成：持久化 running 取消请求同步内存 manager，恢复 worker 在执行前后检查协作取消并写入 cancelled 终态；取消测试验证不误报 completed。
 - 阶段 4 第三十个目标完成：补充持久化取消/失败终态字段一致性验收，验证 progress、attempt、error 在仓储读回与 API 查询链路中保持真实值。
 - 阶段 4 第三十一个目标完成：新增端到端 ingestion smoke，串联文档上传、任务查询、索引重建、queued 取消、上传完成、文档删除与跨租户 404，确认 API/application/storage 链路闭环。
+- 阶段 4 第三十二个目标完成：发布前相关门禁通过，ingestion/index/Qdrant 组合测试共 44 passed；修正跨重启恢复 smoke 的异步等待，避免竞态误报。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
