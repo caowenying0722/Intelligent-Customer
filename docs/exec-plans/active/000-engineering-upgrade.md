@@ -847,6 +847,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第二十六个目标完成：修复认证代码直接依赖 PyJWT 未进入 runtime/dev lock 的真实 clean-install 缺口，补齐无当前已知漏洞的 2.13.0 pin、锁文件和环境测试；全量门禁通过，pip-audit 仅保留既有三项无修复上游漏洞。
 - 阶段 11 第二十七个目标完成：修复后台 ingestion worker 在应用关闭时不等待已提交任务、可能与 SQLite/数据库资源释放竞争的生命周期缺口；关闭时取消排队任务、等待运行任务终态，新增关闭等待和持久化清理回归测试。全量 `316 passed`、25 subtests，覆盖率 59%，Ruff/Mypy/secret scan、pip check、dataset、deterministic、red-team、load smoke 均通过。
 - 阶段 11 第二十八个目标完成：补齐 Worker 级 Prometheus 聚合指标（队列深度、等待/处理耗时、重试、失败和取消），禁止 job/tenant 等高基数标签，并为指标快照、重试、取消和 API 暴露路径增加 4 个测试。全量 `320 passed`、25 subtests，覆盖率 59%，Ruff/Mypy/secret scan、pip check、dataset、deterministic、red-team、load smoke 均通过。
-- 阶段 11 第二十九个目标进行中：校正当前状态文档与真实代码/门禁结果，清理过期测试数量、可观测性和部署能力描述，保留已知 Docker/Python/依赖漏洞限制并增加可追溯命令记录。
+- 阶段 11 第二十九个目标完成：校正 `docs/CURRENT_STATE.md` 与真实代码/门禁结果，清理过期测试数量、可观测性和部署能力描述，保留已知 Docker/Python/依赖漏洞限制并增加可追溯命令记录。
+- 阶段 11 第三十个目标进行中：补齐 API 访问日志的结构化脱敏基线，只记录 method/status/duration/request_id/trace_id，禁止 Authorization、Cookie、query、prompt、正文和供应商原始错误进入日志，并增加 middleware 回归测试。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
