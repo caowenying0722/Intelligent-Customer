@@ -81,6 +81,35 @@ def build_router(
                     "request_id": request.state.request_id,
                 },
             )
+        job_store = getattr(ingestion_service, "job_store", None)
+        if job_store is not None:
+            get_persisted = getattr(job_store, "get_job_by_idempotency", None)
+            if callable(get_persisted):
+                persisted = get_persisted(
+                    tenant_id=tenant_id, idempotency_key=idempotency_key
+                )
+                if persisted is not None:
+                    return IngestionJobResponse(
+                        job_id=str(persisted.job_id),
+                        tenant_id=persisted.tenant_id,
+                        status=persisted.status.value,
+                        error=persisted.error,
+                        created_at=persisted.created_at.isoformat(),
+                        started_at=(
+                            persisted.started_at.isoformat()
+                            if persisted.started_at
+                            else None
+                        ),
+                        completed_at=(
+                            persisted.completed_at.isoformat()
+                            if persisted.completed_at
+                            else None
+                        ),
+                        progress=persisted.progress,
+                        attempt=persisted.attempt,
+                        max_attempts=persisted.max_attempts,
+                        cancel_requested=persisted.cancel_requested,
+                    )
         try:
             job = ingestion_service.jobs.submit(
                 tenant_id=tenant_id,
@@ -89,7 +118,6 @@ def build_router(
                 task_type="index_rebuild",
                 task_payload=payload.index_version,
             )
-            job_store = getattr(ingestion_service, "job_store", None)
             if job_store is not None:
                 job_store.create_job(job=job)
                 current = (

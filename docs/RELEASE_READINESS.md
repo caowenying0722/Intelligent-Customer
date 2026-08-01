@@ -6,8 +6,8 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：327 passed，26 subtests | 默认不调用付费模型 |
-| `coverage run -m pytest -q && coverage report` | 通过：327 passed，26 subtests；总覆盖率 59%，门槛 41% | 当前本地基线 |
+| `python -m pytest -q` | 通过：329 passed，26 subtests | 默认不调用付费模型 |
+| `coverage run -m pytest -q && coverage report` | 通过：329 passed，26 subtests；总覆盖率 59%，门槛 41% | 当前本地基线 |
 | `python -m ruff format --check .` | 通过 | 222 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 | 测试动态 mock 不纳入源码类型门禁 |
@@ -27,6 +27,7 @@
 | 外部调用 timeout audit | 通过：51 passed，6 subtests | 模型、Qdrant、OTLP、数据库池、RAG/重排/索引重建均有边界；静态天气无外部调用 |
 | 入库删除/任务并发幂等 | 通过：1 个测试 | running operation 完成后不会把已删除文档 resurrect 为 active |
 | Blue/Green validation timeout safety | 通过：1 个测试 | 未完成 candidate validation 时 active alias 保持不变 |
+| 持久化 rebuild idempotency reuse | 通过：1 个测试 | 已存在 tenant/idempotency key 时复用持久化 job，不重复调用 operation |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 

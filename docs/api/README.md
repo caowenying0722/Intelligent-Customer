@@ -59,7 +59,7 @@ API access logger 输出 JSON 事件，仅含 method、status_code、duration_ms
 - 非流式 Chat 响应返回 `run_id`；执行自动记录 queued/running/completed 或 failed/cancelled，失败原因保存在 run 记录中。
 - `Idempotency-Key`（或请求体 `idempotency_key`）按 tenant 去重；重复提交返回 `409 idempotency_reused` 和原 run ID。
 
-文档上传先校验并原子落盘，再创建有界入库 job；同 tenant 内容 hash 去重，job key 只保证 at-least-once 下的提交去重，不宣称 exactly-once。删除正在处理的文档后，worker 完成不会将其恢复为 `active`；真实 parser/embedding/index operation 仍必须自行设计可重入副作用。
+文档上传先校验并原子落盘，再创建有界入库 job；同 tenant 内容 hash 去重，持久化 rebuild job 命中同一 tenant/idempotency key 时复用已有 job，不重复调用 operation。该保护仍是 at-least-once，不宣称跨进程 exactly-once；真实 parser/embedding/index operation 仍必须自行设计可重入副作用。删除正在处理的文档后，worker 完成不会将其恢复为 `active`。
 
 配置 authenticator 后，认证成功、无效 token、租户范围不匹配和角色拒绝会写入结构化安全审计事件；事件只保留固定原因、tenant 和 actor hash，不记录 token、subject 原文或请求正文。
 

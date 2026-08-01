@@ -194,6 +194,18 @@ class SqlAlchemyIngestionRepository:
             )
             return self._job(row) if row else None
 
+    def get_job_by_idempotency(
+        self, *, tenant_id: str, idempotency_key: str
+    ) -> IngestionJob | None:
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(IngestionJobRow).where(
+                    IngestionJobRow.tenant_id == tenant_id,
+                    IngestionJobRow.idempotency_key == idempotency_key,
+                )
+            )
+            return self._job(row) if row else None
+
     def update_job_status(
         self,
         *,

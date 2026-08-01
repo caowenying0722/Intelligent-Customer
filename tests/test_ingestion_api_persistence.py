@@ -82,6 +82,36 @@ def test_api_database_url_persists_index_rebuild_job() -> None:
     database.unlink()
 
 
+def test_api_database_url_reuses_persisted_rebuild_idempotency() -> None:
+    database = Path("output") / "index-rebuild-api-idempotency.db"
+    try:
+        if database.exists():
+            database.unlink()
+        config = Config(str(Path("alembic.ini").resolve()))
+        config.set_main_option("sqlalchemy.url", f"sqlite:///{database.as_posix()}")
+        command.upgrade(config, "head")
+        url = f"sqlite:///{database.as_posix()}"
+        calls = []
+        app = create_app(
+            database_url=url,
+            index_rebuild_operation=lambda version: calls.append(version),
+        )
+        with TestClient(app) as client:
+            headers = {"x-tenant-id": "tenant-a", "idempotency-key": "rebuild-1"}
+            first = client.post(
+                "/api/v1/indexes/rebuild", headers=headers, json={"index_version": "v2"}
+            )
+            second = client.post(
+                "/api/v1/indexes/rebuild", headers=headers, json={"index_version": "v2"}
+            )
+            assert first.status_code == second.status_code == 200
+            assert first.json()["job_id"] == second.json()["job_id"]
+        assert calls == ["v2"]
+    finally:
+        if database.exists():
+            database.unlink()
+
+
 def test_lifespan_recovers_persisted_index_rebuild_job() -> None:
     database = Path("output") / "index-rebuild-recovery.db"
     try:
