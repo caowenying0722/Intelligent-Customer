@@ -2,7 +2,7 @@ import pytest
 from langchain_core.documents import Document
 
 from rag.rrf import reciprocal_rank_fusion, reciprocal_rank_fusion_scored
-from rag.retrieval_types import RetrievalResult
+from rag.retrieval_types import RetrievalResult, filter_documents_by_scope
 from rag.simple_bm25 import RRFHybridRetriever
 
 
@@ -56,6 +56,7 @@ def test_retrieval_result_requires_tenant_and_index_metadata() -> None:
                 "chunk_id": "chunk-1",
                 "document_id": "doc-1",
                 "source": "manual.pdf",
+                "index_version": "idx-1",
             },
         ),
         tenant_id="tenant-a",
@@ -75,6 +76,28 @@ def test_retrieval_result_requires_tenant_and_index_metadata() -> None:
         )
 
 
+def test_scope_filter_fails_closed_for_tenant_and_index_mismatch() -> None:
+    documents = [
+        Document(
+            page_content="allowed",
+            metadata={"tenant_id": "tenant-a", "index_version": "idx-1"},
+        ),
+        Document(
+            page_content="other tenant",
+            metadata={"tenant_id": "tenant-b", "index_version": "idx-1"},
+        ),
+        Document(
+            page_content="old index",
+            metadata={"tenant_id": "tenant-a", "index_version": "idx-0"},
+        ),
+        Document(page_content="unscoped", metadata={}),
+    ]
+    filtered = filter_documents_by_scope(
+        documents, tenant_id="tenant-a", index_version="idx-1"
+    )
+    assert [document.page_content for document in filtered] == ["allowed"]
+
+
 def test_rrf_adapter_exposes_versioned_results() -> None:
     class FakeRetriever:
         def invoke(self, query: str):
@@ -83,6 +106,7 @@ def test_rrf_adapter_exposes_versioned_results() -> None:
                     page_content="answer",
                     metadata={
                         "tenant_id": "tenant-a",
+                        "index_version": "idx-2",
                         "chunk_id": "chunk-1",
                         "document_id": "doc-1",
                     },

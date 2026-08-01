@@ -8,6 +8,20 @@ from typing import Any, Mapping
 from langchain_core.documents import Document
 
 
+def filter_documents_by_scope(
+    documents: list[Document], *, tenant_id: str, index_version: str
+) -> list[Document]:
+    """Fail closed when candidate metadata is absent or outside the requested scope."""
+    if not tenant_id.strip() or not index_version.strip():
+        raise ValueError("tenant_id and index_version must not be empty")
+    return [
+        document
+        for document in documents
+        if document.metadata.get("tenant_id") == tenant_id
+        and document.metadata.get("index_version") == index_version
+    ]
+
+
 @dataclass(frozen=True, slots=True)
 class RetrievalResult:
     """A tenant-scoped retrieval candidate with auditable version metadata."""
@@ -51,9 +65,12 @@ class RetrievalResult:
         fused_score: float | None = None,
     ) -> "RetrievalResult":
         metadata = dict(document.metadata)
-        actual_tenant = str(metadata.get("tenant_id", tenant_id))
+        actual_tenant = str(metadata.get("tenant_id", ""))
         if actual_tenant != tenant_id:
             raise ValueError("document tenant_id does not match requested tenant")
+        actual_index = str(metadata.get("index_version", ""))
+        if actual_index != index_version:
+            raise ValueError("document index_version does not match requested index")
         chunk_id = str(metadata.get("chunk_id") or metadata.get("id") or "")
         document_id = str(metadata.get("document_id") or metadata.get("source") or "")
         return cls(

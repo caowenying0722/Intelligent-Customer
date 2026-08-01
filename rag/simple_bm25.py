@@ -7,7 +7,7 @@ from collections.abc import Callable
 from langchain_core.documents import Document
 
 from rag.rrf import reciprocal_rank_fusion, reciprocal_rank_fusion_scored
-from rag.retrieval_types import RetrievalResult
+from rag.retrieval_types import RetrievalResult, filter_documents_by_scope
 
 
 def _safe_divide(numerator: float, denominator: float) -> float:
@@ -142,8 +142,16 @@ class RRFHybridRetriever:
     ) -> list[RetrievalResult]:
         """Return the same fusion output with an explicit tenant/version contract."""
         rankings = [
-            self.vector_retriever.invoke(query),
-            self.keyword_retriever.invoke(query),
+            filter_documents_by_scope(
+                self.vector_retriever.invoke(query),
+                tenant_id=tenant_id,
+                index_version=index_version,
+            ),
+            filter_documents_by_scope(
+                self.keyword_retriever.invoke(query),
+                tenant_id=tenant_id,
+                index_version=index_version,
+            ),
         ]
         scored_documents = reciprocal_rank_fusion_scored(
             rankings,
