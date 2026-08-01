@@ -2,7 +2,7 @@ import base64
 import shutil
 import time
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
@@ -75,3 +75,34 @@ def test_document_upload_requires_injected_processor() -> None:
         )
     assert response.status_code == 503
     assert response.json()["code"] == "ingestion_unavailable"
+
+
+def test_document_delete_is_tenant_scoped_and_removes_file() -> None:
+    storage_root = Path("output") / f"api-delete-{uuid4().hex}"
+    jobs = IngestionJobManager(max_workers=1)
+    service = DocumentIngestionService(
+        SecureUploadStorage(storage_root), jobs, DocumentMetadataRegistry()
+    )
+    app = create_app(ingestion_service=service, ingestion_operation=lambda path, upload, record: None)
+    try:
+        with TestClient(app) as client:
+            uploaded = client.post(
+                "/api/v1/documents", headers={"x-tenant-id": "tenant-a"},
+                json={"filename": "manual.txt", "content_base64": base64.b64encode(b"delete-me").decode(), "content_type": "text/plain", "idempotency_key": "delete-1"},
+            ).json()
+            document = service.metadata.get(tenant_id="tenant-a", document_id=uuid4())
+            assert document is None
+            assert client.delete(
+                f"/api/v1/documents/{uploaded['document_id']}", headers={"x-tenant-id": "tenant-b"}
+            ).status_code == 404
+            deleted = client.delete(
+                f"/api/v1/documents/{uploaded['document_id']}", headers={"x-tenant-id": "tenant-a"}
+            )
+            assert deleted.status_code == 200
+            assert deleted.json()["status"] == "deleted"
+            record = service.metadata.get(tenant_id="tenant-a", document_id=UUID(uploaded["document_id"]))
+            assert record.status.value == "deleted"
+            assert not (storage_root / record.storage_name).exists()
+    finally:
+        service.close()
+        shutil.rmtree(storage_root, ignore_errors=True)

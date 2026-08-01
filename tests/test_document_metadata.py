@@ -61,3 +61,22 @@ def test_document_registry_rejects_invalid_processing_metadata() -> None:
             chunker_version="c1", embedding_model="e1", embedding_dimension=0,
             index_version="idx-1",
         )
+
+
+def test_document_registry_delete_is_idempotent_and_releases_hash() -> None:
+    registry = DocumentMetadataRegistry()
+    record, _ = registry.register(
+        tenant_id="tenant-a", upload=_upload(), parser_version="p1",
+        chunker_version="c1", embedding_model="e1", embedding_dimension=3,
+        index_version="idx-1",
+    )
+    deleted = registry.delete(tenant_id="tenant-a", document_id=record.document_id)
+    assert deleted.status == DocumentStatus.DELETED
+    assert registry.delete(tenant_id="tenant-a", document_id=record.document_id) == deleted
+    replacement, created = registry.register(
+        tenant_id="tenant-a", upload=_upload(), parser_version="p1",
+        chunker_version="c1", embedding_model="e1", embedding_dimension=3,
+        index_version="idx-2",
+    )
+    assert created is True
+    assert replacement.document_id != record.document_id

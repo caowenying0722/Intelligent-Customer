@@ -104,6 +104,24 @@ def build_router(
             index_version=document.index_version,
         )
 
+    @router.delete("/documents/{document_id}", response_model=DocumentStatusResponse)
+    async def delete_document(request: Request, document_id: str):
+        if ingestion_service is None:
+            return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "document ingestion is not configured", "request_id": request.state.request_id})
+        try:
+            document = ingestion_service.delete_document(
+                tenant_id=request.headers.get("x-tenant-id", "local"),
+                document_id=UUID(document_id),
+            )
+        except (ValueError, KeyError):
+            return JSONResponse(status_code=404, content={"code": "document_not_found", "message": "document not found", "request_id": request.state.request_id})
+        return DocumentStatusResponse(
+            document_id=str(document.document_id), tenant_id=document.tenant_id,
+            original_name=document.original_name, content_hash=document.content_hash,
+            document_version=document.document_version, status=document.status.value,
+            index_version=document.index_version,
+        )
+
     @router.get("/jobs/{job_id}", response_model=IngestionJobResponse)
     async def get_ingestion_job(request: Request, job_id: str):
         if ingestion_service is None:

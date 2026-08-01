@@ -125,6 +125,11 @@ class SqlAlchemyIngestionRepository:
             tenant_id=tenant_id, document_id=document_id, status=status
         )
 
+    def delete(self, *, tenant_id: str, document_id: UUID) -> DocumentRecord:
+        return self.update_document_status(
+            tenant_id=tenant_id, document_id=document_id, status=DocumentStatus.DELETED
+        )
+
     def create_job(
         self, *, job: IngestionJob, document_id: UUID
     ) -> IngestionJob:

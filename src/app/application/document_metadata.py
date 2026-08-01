@@ -108,3 +108,15 @@ class DocumentMetadataRegistry:
             updated = replace(record, status=status)
             self._records[document_id] = updated
             return updated
+
+    def delete(self, *, tenant_id: str, document_id: UUID) -> DocumentRecord:
+        with self._lock:
+            record = self._records.get(document_id)
+            if record is None or record.tenant_id != tenant_id:
+                raise KeyError("document not found")
+            if record.status == DocumentStatus.DELETED:
+                return record
+            self._by_hash.pop((tenant_id, record.content_hash), None)
+            updated = replace(record, status=DocumentStatus.DELETED)
+            self._records[document_id] = updated
+            return updated

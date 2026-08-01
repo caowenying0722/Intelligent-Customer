@@ -79,6 +79,26 @@ class DocumentIngestionService:
         if self.job_store is not None and hasattr(self.job_store, "close"):
             self.job_store.close()
 
+    def delete_document(self, *, tenant_id: str, document_id: UUID) -> DocumentRecord:
+        if self.metadata is None:
+            raise RuntimeError("document metadata registry is not configured")
+        with self._lock:
+            document = self.metadata.get(tenant_id=tenant_id, document_id=document_id)
+            if document is None:
+                raise KeyError("document not found")
+            if document.status != DocumentStatus.DELETED:
+                self.storage.remove(document.storage_name)
+                document = self.metadata.delete(
+                    tenant_id=tenant_id, document_id=document_id
+                )
+                if self.job_store is not None:
+                    self.job_store.update_document_status(
+                        tenant_id=tenant_id,
+                        document_id=document_id,
+                        status=DocumentStatus.DELETED,
+                    )
+            return document
+
     def submit_document(
         self,
         *,
