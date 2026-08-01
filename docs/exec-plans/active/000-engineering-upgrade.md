@@ -671,5 +671,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 2 第三个目标完成：新增基础 SSE envelope（`metadata`/`token`/`completed`/`error`）和 `POST /api/v1/chat/stream`；fake Agent contract 测试确认完成事件最多一次，生产同步 Agent 的底层取消限制已记录。
 - 阶段 2 第四个目标完成：新增线程安全进程内 `ConversationRepository`、严格可选 `conversation_id`、消息顺序追加和重用会话测试；服务重启丢失数据的限制明确留给阶段 3 PostgreSQL。
 - 阶段 2 第五个目标完成：增加原生异步 Agent runner、取消原样传播和 SSE 断开检查；同步 Agent 的线程取消限制已保留并记录，9 个 API/取消测试通过。
+- 阶段 2 第六个目标完成：新增 `python -m src.app.server` 启动入口、FastAPI lifespan 资源逆序关闭和启动 smoke；10 个 API/lifecycle 测试通过。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

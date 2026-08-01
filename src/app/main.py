@@ -5,7 +5,8 @@ models, vector stores, or network clients during import or test startup.
 """
 
 import json
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
@@ -21,9 +22,25 @@ def create_app(
     *,
     readiness_check: ReadinessCheck | None = None,
     chat_service: ChatApplicationService | None = None,
+    lifecycle_resources: tuple[object, ...] = (),
 ) -> FastAPI:
     """Build an API app with injectable, side-effect-free readiness checks."""
-    app = FastAPI(title="Intelligent Customer Service", version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        yield
+        for resource in reversed(lifecycle_resources):
+            close = getattr(resource, "close", None)
+            if close is not None:
+                close()
+                continue
+            async_close = getattr(resource, "aclose", None)
+            if async_close is not None:
+                await async_close()
+
+    app = FastAPI(
+        title="Intelligent Customer Service", version="0.1.0", lifespan=lifespan
+    )
 
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):

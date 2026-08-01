@@ -29,6 +29,6 @@
 | TD-023 | `listdir_with_allowed_type` 在目录无效时返回后缀 tuple | Medium | 调用方会把 `txt/pdf` 当文件路径，错误含糊 | `utils/file_handler.py:28-37` | 返回空 tuple 或抛专用配置错误；增加不存在目录测试 | 1 | 待处理 |
 | TD-024 | 模拟“流式”通过阻塞 sleep 逐字符输出 | Medium | 占用 Streamlit 执行线程，不支持上游取消/背压/TTFT | `app.py:32-41` | FastAPI SSE 传稳定事件，Streamlit HTTP 客户端消费；取消传播到 Agent | 2 | 待处理 |
 | TD-025 | 尚无结构化日志、trace 或 metrics | Medium | 故障无法按请求关联，无法观测模型/RAG/工具耗时 | `utils/logger_handler.py:14-50`、`src/app/main.py` | API middleware 已注入并回传 request ID；后续 OTel + Prometheus，控制标签基数 | 2/8 | 部分完成 |
-| TD-026 | 默认模型和 RAG 仍使用进程内缓存实例 | Medium | import-time 单例已删除且核心构造器可注入，但尚无 API composition root 或生命周期关闭钩子 | `model/factory.py`、`agent/react_agent.py`、`rag/rag_service.py` | 在 FastAPI 应用工厂集中创建/关闭依赖；adapter/interface 继续分离 | 1/2/7 | 部分完成 |
+| TD-026 | 默认模型和 RAG 仍使用进程内缓存实例 | Medium | import-time 单例已删除且核心构造器可注入；API 生命周期已有通用关闭钩子，但默认依赖尚未集中构造 | `model/factory.py`、`agent/react_agent.py`、`rag/rag_service.py`、`src/app/main.py` | FastAPI 应用工厂已支持注入并逆序关闭资源；后续集中创建模型/RAG 并完善生命周期测试 | 1/2/7 | 部分完成 |
 | TD-027 | 低置信度与域外判断是少量硬编码关键词 | Low | 容易误拒答或漏过，不能作为通用安全 guardrail | `rag/guardrails.py:10-27` | 保留为明确 baseline；用版本化策略、可测试分类器和人工升级路径演进 | 5/9/10 | 待处理 |
 | TD-028 | 当前运行依赖仍有 3 条已知漏洞记录，涉及 3 个直接或传递包 | Blocker | 剩余直接或传递依赖漏洞会阻止依赖安全门禁通过 | `requirements.txt`、`requirements.lock`、`python -m pip_audit -r requirements.txt` | 已完成 PDF、UI、LangChain/LangGraph 和 ML 栈迁移；锁文件保留受影响版本，不使用 ignore 掩盖；等待上游修复或替换依赖前，发布门禁必须保持失败 | 1 | 外部阻塞，已记录风险 |

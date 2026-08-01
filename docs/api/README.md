@@ -8,6 +8,14 @@ from src.app.main import create_app
 app = create_app()
 ```
 
+本地启动入口：
+
+```text
+python -m src.app.server
+```
+
+应用生命周期支持注入可关闭资源；退出时按逆序调用 `close()` 或 `aclose()`，默认应用不创建外部资源。
+
 健康检查：
 
 - `GET /health/live`：只确认进程可响应，不访问昂贵依赖。

@@ -146,3 +146,16 @@ def test_async_runner_cancellation_is_not_mapped_to_chat_failure() -> None:
 
     asyncio.run(exercise())
     assert cancelled.is_set()
+
+
+def test_application_lifespan_closes_resources_on_shutdown() -> None:
+    class Resource:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    resource = Resource()
+    with TestClient(create_app(lifecycle_resources=(resource,))) as client:
+        assert client.get("/health/live").status_code == 200
+    assert resource.closed
