@@ -101,3 +101,7 @@ class IngestionJobResponse(BaseModel):
     created_at: str
     started_at: str | None = None
     completed_at: str | None = None
+    progress: int = 0
+    attempt: int = 0
+    max_attempts: int = 3
+    cancel_requested: bool = False

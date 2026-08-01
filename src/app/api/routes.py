@@ -126,6 +126,8 @@ def build_router(
             error=job.error, created_at=job.created_at.isoformat(),
             started_at=job.started_at.isoformat() if job.started_at else None,
             completed_at=job.completed_at.isoformat() if job.completed_at else None,
+            progress=job.progress, attempt=job.attempt,
+            max_attempts=job.max_attempts, cancel_requested=job.cancel_requested,
         )
 
     @router.post("/jobs/{job_id}/cancel", response_model=IngestionJobResponse)
@@ -154,6 +156,8 @@ def build_router(
         return IngestionJobResponse(
             job_id=str(job.job_id), tenant_id=job.tenant_id, status=job.status.value,
             error=job.error, created_at=job.created_at.isoformat(),
+            progress=job.progress, attempt=job.attempt,
+            max_attempts=job.max_attempts, cancel_requested=job.cancel_requested,
         )
 
     @router.post(

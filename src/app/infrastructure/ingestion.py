@@ -187,6 +187,24 @@ class SqlAlchemyIngestionRepository:
             session.commit()
             return self._job(row)
 
+    def update_progress(
+        self, *, tenant_id: str, job_id: UUID, progress: int
+    ) -> IngestionJob:
+        if progress < 0 or progress > 100:
+            raise ValueError("progress must be between 0 and 100")
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(IngestionJobRow).where(
+                    IngestionJobRow.tenant_id == tenant_id,
+                    IngestionJobRow.id == str(job_id),
+                )
+            )
+            if row is None:
+                raise KeyError("ingestion job not found")
+            row.progress = progress
+            session.commit()
+            return self._job(row)
+
     def list_recoverable_jobs(self, *, tenant_id: str | None = None) -> list[IngestionJob]:
         with Session(self.engine) as session:
             statement = select(IngestionJobRow).where(
@@ -248,4 +266,5 @@ class SqlAlchemyIngestionRepository:
             created_at=row.created_at, started_at=row.started_at,
             completed_at=row.completed_at, error=row.error, result=row.result_ref,
             attempt=row.attempt, max_attempts=row.max_attempts,
+            progress=row.progress, cancel_requested=row.cancel_requested,
         )

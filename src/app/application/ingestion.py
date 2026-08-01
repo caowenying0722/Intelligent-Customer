@@ -41,6 +41,8 @@ class IngestionJob:
     result: Any = None
     attempt: int = 0
     max_attempts: int = 3
+    progress: int = 0
+    cancel_requested: bool = False
 
 
 class IngestionJobManager:
@@ -122,10 +124,29 @@ class IngestionJobManager:
             if job is None or job.tenant_id != tenant_id:
                 return False
             future = self._futures[job_id]
-            if not future.cancel():
-                return False
-            self._jobs[job_id] = self._replace(job, status=IngestionJobStatus.CANCELLED)
-            return True
+            if future.cancel():
+                self._jobs[job_id] = self._replace(job, status=IngestionJobStatus.CANCELLED)
+                return True
+            if job.status == IngestionJobStatus.RUNNING:
+                self._jobs[job_id] = self._replace(job, cancel_requested=True)
+                return True
+            return False
+
+    def update_progress(self, *, tenant_id: str, job_id: UUID, progress: int) -> IngestionJob:
+        if progress < 0 or progress > 100:
+            raise ValueError("progress must be between 0 and 100")
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None or job.tenant_id != tenant_id:
+                raise KeyError("ingestion job not found")
+            updated = self._replace(job, progress=progress)
+            self._jobs[job_id] = updated
+            return updated
+
+    def is_cancel_requested(self, *, tenant_id: str, job_id: UUID) -> bool:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            return bool(job and job.tenant_id == tenant_id and job.cancel_requested)
 
     def close(self) -> None:
         self._executor.shutdown(wait=False, cancel_futures=True)

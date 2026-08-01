@@ -104,6 +104,28 @@ def test_ingestion_retries_retryable_errors_with_bounded_attempts() -> None:
         manager.close()
 
 
+def test_running_job_cancel_is_request_and_progress_is_bounded() -> None:
+    manager = IngestionJobManager(max_workers=1)
+    started = threading.Event()
+    release = threading.Event()
+    try:
+        job = manager.submit(
+            tenant_id="tenant-a", idempotency_key="running-cancel",
+            operation=lambda: (started.set(), release.wait(1)),
+        )
+        assert started.wait(1)
+        manager.update_progress(tenant_id="tenant-a", job_id=job.job_id, progress=40)
+        assert manager.cancel(tenant_id="tenant-a", job_id=job.job_id) is True
+        current = manager.get(tenant_id="tenant-a", job_id=job.job_id)
+        assert current.progress == 40
+        assert current.cancel_requested is True
+        with pytest.raises(ValueError):
+            manager.update_progress(tenant_id="tenant-a", job_id=job.job_id, progress=101)
+        release.set()
+    finally:
+        manager.close()
+
+
 def test_ingestion_does_not_retry_permanent_errors_and_exhaustion_fails() -> None:
     manager = IngestionJobManager(max_workers=1, max_attempts=2, retry_backoff_seconds=0)
     attempts = 0
