@@ -16,6 +16,7 @@
 | `docker compose config --quiet` | 通过 | API 单服务 Compose 配置有效，镜像使用 `requirements.lock` |
 | `docker compose --profile observability config --quiet` | 通过 | 仅验证静态 profile 配置；Collector/Prometheus 镜像拉取与健康尚未在当前网络完成 |
 | Grafana dashboard/profile config | 通过：静态测试 | 已验证 PromQL、datasource 挂载和本地只读端口；镜像拉取与健康尚未在当前网络完成 |
+| Collector/Prometheus/Grafana isolated health smoke | 通过：3 个 HTTP 200 | 三个镜像已拉取并以 `--no-deps` 启动；未包含 API，因此不是端到端 scrape/OTLP smoke |
 | `/metrics/prometheus` 集成测试 | 通过：8 个测试 | 有界 HTTP/模型网关聚合指标，生产 token 保护，无 tenant/user/request/prompt 内容 |
 | W3C/HTTP/Agent/LLM/SSE/RAG/Tool/Worker/OTLP config smoke | 通过：13 个测试 | 当前进程线程池捕获 parent context；OTLP 仅 mock 配置验证，未执行真实 Collector 网络调用 |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
@@ -29,7 +30,7 @@
 
 ## 已知未完成
 
-- Compose 当前包含 API 基础服务和可选 OpenTelemetry Collector/Prometheus/Grafana profile；PostgreSQL、Redis、Qdrant、Worker 和生产 trace backend 尚未纳入。profile 镜像拉取、health、真实 OTLP export 尚未在当前网络完成，Grafana 仅为本地匿名只读配置，重启任务不保留 parent context。
+- Compose 当前包含 API 基础服务和可选 OpenTelemetry Collector/Prometheus/Grafana profile；三个 observability 镜像的独立 health endpoint 已实测 200，但 API 基础镜像 build 仍被 Docker Hub token 网络阻塞，端到端 scrape/OTLP 未完成。PostgreSQL、Redis、Qdrant、Worker 和生产 trace backend 尚未纳入；Grafana 仅为本地匿名只读配置，重启任务不保留 parent context。
 - CI 已在依赖漏洞审计前加入 Docker build 步骤；远端 runner 的镜像构建结果仍待实际 workflow 运行确认。
 - 尚未执行真实 Docker health、迁移、SSE 和后台 job 容器 smoke。
 - hidden evaluation、真实 provider 评测和生产网络压测未执行。
