@@ -315,6 +315,23 @@ def test_unhandled_exception_does_not_leak_details() -> None:
     assert "secret provider" not in response.text
 
 
+def test_chat_run_error_does_not_store_agent_exception_details() -> None:
+    class FailingAgent(FakeAgent):
+        def run(self, message: str) -> str:
+            raise RuntimeError("secret provider response")
+
+    service = ChatApplicationService(FailingAgent())
+    client = TestClient(create_app(chat_service=service))
+
+    response = client.post("/api/v1/chat", json={"message": "hello"})
+
+    assert response.status_code == 400
+    runs = client.get("/api/v1/runs").json()["items"]
+    assert len(runs) == 1
+    assert runs[0]["error"] == "chat_failed"
+    assert "secret provider" not in str(runs[0])
+
+
 def test_chat_route_maps_timeout_without_traceback() -> None:
     async def never_finishes(_agent: object, _message: str):
         await asyncio.sleep(1)

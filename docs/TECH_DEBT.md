@@ -32,3 +32,4 @@
 | TD-026 | 默认模型和 RAG 仍使用进程内缓存实例 | Medium | import-time 单例已删除且核心构造器可注入；API 已可按 `DATABASE_URL` 选择并关闭 repository，但默认模型/RAG 尚未集中构造 | `model/factory.py`、`agent/react_agent.py`、`rag/rag_service.py`、`src/app/main.py` | FastAPI 应用工厂已支持 agent/repository 注入、SQLAlchemy 选择和逆序关闭；后续集中创建模型/RAG 并完善生命周期测试 | 1/2/7 | 部分完成 |
 | TD-027 | 低置信度与域外判断是少量硬编码关键词 | Low | 容易误拒答或漏过，不能作为通用安全 guardrail | `rag/guardrails.py:10-27` | 保留为明确 baseline；用版本化策略、可测试分类器和人工升级路径演进 | 5/9/10 | 待处理 |
 | TD-028 | 当前运行依赖仍有 3 条已知漏洞（ChromaDB/RAGAS/DiskCache） | Blocker | 剩余直接或传递依赖漏洞会阻止安全发布 | `requirements.txt`、`requirements.lock`、`docs/security/dependency-audit.md` | 保持 pip-audit 失败且不使用 ignore；等待上游修复或替换依赖，继续执行 embedded/关闭 RAGAS/不启用 DiskCache 的补偿控制 | 1 | 外部阻塞，已复核 |
+| TD-029 | Chat 失败时 run.error 曾保存完整异常文本 | High | 运行查询接口可能把供应商/内部错误正文返回给租户 | `src/app/application/chat.py`、`tests/test_api_factory.py` | 失败终态只保存 `chat_timeout`、模型错误码或 `chat_failed`，管理端显式 PATCH 的业务错误不受本边界覆盖 | 1/2/9 | 已完成 |

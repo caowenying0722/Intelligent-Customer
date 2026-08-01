@@ -119,6 +119,14 @@ class ChatApplicationService:
         lines.append(f"[当前用户问题] {message}")
         return "\n".join(lines)
 
+    @staticmethod
+    def _safe_run_error(error: BaseException) -> str:
+        if isinstance(error, (TimeoutError, asyncio.TimeoutError)):
+            return "chat_timeout"
+        if isinstance(error, ModelGatewayError):
+            return error.to_contract().code.value
+        return "chat_failed"
+
     async def chat(
         self,
         message: str,
@@ -208,15 +216,15 @@ class ChatApplicationService:
             raise
         except (TimeoutError, asyncio.TimeoutError) as exc:
             self.conversation_repository.update_run(
-                tenant_id, run.run_id, "failed", str(exc)
+                tenant_id, run.run_id, "failed", self._safe_run_error(exc)
             )
             raise ChatApplicationError("chat execution timed out") from exc
         except Exception as exc:  # noqa: BLE001 - map provider details to safe error.
-            self.conversation_repository.update_run(
-                tenant_id, run.run_id, "failed", str(exc)
-            )
             model_error = (
                 exc.to_contract() if isinstance(exc, ModelGatewayError) else None
+            )
+            self.conversation_repository.update_run(
+                tenant_id, run.run_id, "failed", self._safe_run_error(exc)
             )
             raise ChatApplicationError(
                 "chat execution failed", model_error=model_error

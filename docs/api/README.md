@@ -56,6 +56,7 @@ API access logger 输出 JSON 事件，仅含 method、status_code、duration_ms
 - Agent run API：`POST /api/v1/conversations/{id}/runs` 创建 queued run，`PATCH /api/v1/runs/{id}` 更新状态，`GET /api/v1/runs/{id}` 查询；所有路径按 tenant 隔离。
 - run 状态跃迁受限为 `queued→running→completed/failed/cancelled`；终态不可回退，非法跃迁返回 `409 run_state_conflict`。
 - `GET /api/v1/runs` 支持 `status`、`created_after`、`created_before`、`limit`（1-100）和 `offset` 分页，并始终按 tenant 过滤和创建时间倒序返回。
+- Chat 自动写入的 run 失败原因只保存稳定类别（`chat_timeout`、模型错误码或 `chat_failed`），不会把 Agent/供应商异常正文返回给运行查询；管理端显式 PATCH 的 `error` 字段仍是调用方责任。
 - run 查询返回 `created_at/started_at/completed_at/duration_ms`，用于审计执行耗时；未开始的 queued run 的耗时为 null。
 - 非流式 Chat 响应返回 `run_id`；执行自动记录 queued/running/completed 或 failed/cancelled，失败原因保存在 run 记录中。
 - `Idempotency-Key`（或请求体 `idempotency_key`）按 tenant 去重；重复提交返回 `409 idempotency_reused` 和原 run ID。
