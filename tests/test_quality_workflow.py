@@ -13,3 +13,5 @@ def test_quality_workflow_validates_manifest_and_prepares_artifacts() -> None:
         "python -m mypy agent rag model evaluation utils scripts src/app app.py"
         in workflow
     )
+    assert "coverage run -m pytest -q" in workflow
+    assert "coverage report" in workflow

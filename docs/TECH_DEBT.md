@@ -22,7 +22,7 @@
 | TD-016 | 评测报告不记录 commit、dirty state、dataset version 或延迟 | Medium | 结果不可追溯、不可复现，无法做 CI 回归与性能比较 | `evaluation/runner.py`、`evaluation/regression_report.py` | 已记录 commit/dirty、dataset version/path/SHA-256；逐样本耗时和完整错误分类仍待补齐 | 10 | 部分完成 |
 | TD-017 | 引用有效性只验证编号范围，不验证证据支持 | Medium | 无依据回答也可得到 1.0 citation validity | `evaluation/local_metrics.py:100-133` | 区分格式有效、引用覆盖和 entailment/人工标签；加入错误引用样本 | 10 | 待处理 |
 | TD-018 | 核心主链缺少自动化测试 | Medium | 74 个测试通过但源码分支覆盖率仅 41%，仍不能证明完整 Agent、RAG 和入库交互可靠 | `tests/`、`pyproject.toml` | 分层新增 unit/integration/contract/evaluation 测试；默认 fake model；基于高风险模块逐步提高门禁 | 1/2/10 | 部分完成 |
-| TD-019 | 静态检查和覆盖率尚未接入 CI 门禁 | Medium | 覆盖率和测试动态类型仍可能回退，需持续质量门禁 | `pyproject.toml`、`requirements-dev.txt`、`.github/workflows/quality.yml` | Ruff、源码 Mypy、测试、secret scan 和 deterministic gate 已接入；覆盖率/测试 mock 类型门禁仍待独立目标 | 1/10 | 部分完成 |
+| TD-019 | 测试动态类型仍未纳入 Mypy 门禁 | Medium | 测试 mock 类型可能回退，但运行行为由 pytest 和覆盖率门禁覆盖 | `pyproject.toml`、`requirements-dev.txt`、`.github/workflows/quality.yml` | Ruff、源码 Mypy、coverage、测试、secret scan 和 deterministic gate 已接入；测试类型清理可单独推进 | 1/10 | 部分完成 |
 | TD-020 | 评测输出含问题、答案、参考答案、召回全文和绝对路径，过去未被忽略 | Medium | 可能误提交用户/知识库数据和本机信息 | `evaluation/runner.py:95-106,175-217`、`.gitignore` | 忽略 `output/`（本轮完成）；后续增加脱敏 artifact profile 与保留策略 | 1/9/10 | 部分完成 |
 | TD-021 | README 仓库地址曾与 Git remote 不一致 | Low | 推送到了错误目标或克隆命令与开发 remote 不一致 | `README.md:19,122,277`、本地 `origin` | 用户已确认并将 `origin` 修正为 `caowenying0722/Intelligent-Customer` | 1/11 | 已完成 |
 | TD-022 | QUICKSTART 包含开发者个人绝对路径 | Low | 其他机器按文档命令无法启动 | `QUICKSTART.md:107,116` | 改成从仓库根目录运行的相对命令 | 1 | 本轮完成 |

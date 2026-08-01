@@ -40,7 +40,9 @@ jobs:
         # Runtime tests include intentionally dynamic mocks; source typing is gated separately.
         run: python -m mypy agent rag model evaluation utils scripts src/app app.py
       - name: Unit and integration tests
-        run: python -m pytest -q
+        run: coverage run -m pytest -q
+      - name: Coverage gate
+        run: coverage report
       - name: Validate evaluation dataset manifest
         run: python -m evaluation.dataset_manifest
       - name: Deterministic retrieval regression
