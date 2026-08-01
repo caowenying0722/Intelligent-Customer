@@ -2,9 +2,17 @@
 
 import uvicorn
 
+from utils.settings import get_settings
+
 
 def main() -> None:
-    uvicorn.run("src.app.main:app", host="127.0.0.1", port=8000, reload=False)
+    settings = get_settings()
+    uvicorn.run(
+        "src.app.main:app",
+        host=settings.api_host,
+        port=settings.api_port,
+        reload=False,
+    )
 
 
 if __name__ == "__main__":
