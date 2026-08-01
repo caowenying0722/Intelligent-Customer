@@ -16,10 +16,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
 from src.app.domain.conversations import (
+    RUN_TRANSITIONS,
     AgentRun,
     ConcurrencyConflict,
     Conversation,
     Message,
+    RunStateConflict,
 )
 
 EXPECTED_SCHEMA_REVISION = "0005_add_run_idempotency"
@@ -263,6 +265,8 @@ class SqlAlchemyConversationRepository:
             )
             if row is None:
                 raise KeyError(run_id)
+            if status not in RUN_TRANSITIONS[row.status]:
+                raise RunStateConflict(f"{row.status}->{status}")
             row.status = status
             row.error = error
             session.commit()

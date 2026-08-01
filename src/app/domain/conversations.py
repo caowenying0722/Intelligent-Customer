@@ -34,6 +34,19 @@ class IdempotencyConflict(RuntimeError):
         self.run_id = run_id
 
 
+class RunStateConflict(RuntimeError):
+    pass
+
+
+RUN_TRANSITIONS: dict[str, set[str]] = {
+    "queued": {"queued", "running", "cancelled"},
+    "running": {"running", "completed", "failed", "cancelled"},
+    "completed": {"completed"},
+    "failed": {"failed"},
+    "cancelled": {"cancelled"},
+}
+
+
 @dataclass(frozen=True)
 class AgentRun:
     run_id: UUID
@@ -174,6 +187,8 @@ class ConversationRepository:
             run = self.get_run(tenant_id, run_id)
             if run is None:
                 raise KeyError(run_id)
+            if status not in RUN_TRANSITIONS[run.status]:
+                raise RunStateConflict(f"{run.status}->{status}")
             updated = AgentRun(
                 run_id=run.run_id,
                 tenant_id=run.tenant_id,

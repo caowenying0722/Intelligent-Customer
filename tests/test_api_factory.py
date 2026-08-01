@@ -159,6 +159,8 @@ def test_agent_run_lifecycle_is_tenant_scoped() -> None:
     run_id = created.json()["run_id"]
     assert created.json()["status"] == "queued"
 
+    started = client.patch(f"/api/v1/runs/{run_id}", json={"status": "running"})
+    assert started.status_code == 200
     updated = client.patch(
         f"/api/v1/runs/{run_id}", json={"status": "failed", "error": "boom"}
     )
@@ -170,6 +172,10 @@ def test_agent_run_lifecycle_is_tenant_scoped() -> None:
         f"/api/v1/runs/{run_id}", headers={"x-tenant-id": "other"}
     )
     assert cross_tenant.status_code == 404
+
+    terminal = client.patch(f"/api/v1/runs/{run_id}", json={"status": "running"})
+    assert terminal.status_code == 409
+    assert terminal.json()["code"] == "run_state_conflict"
 
 
 def test_idempotency_key_prevents_duplicate_chat_run() -> None:

@@ -7,7 +7,11 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.app.application.chat import ChatApplicationService
-from src.app.domain.conversations import ConcurrencyConflict, IdempotencyConflict
+from src.app.domain.conversations import (
+    ConcurrencyConflict,
+    IdempotencyConflict,
+    RunStateConflict,
+)
 from src.app.schemas import (
     AgentRunResponse,
     ChatRequest,
@@ -239,6 +243,15 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
                 UUID(run_id),
                 payload.status,
                 payload.error,
+            )
+        except RunStateConflict:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "code": "run_state_conflict",
+                    "message": "invalid agent run state transition",
+                    "request_id": request.state.request_id,
+                },
             )
         except ValueError:
             return JSONResponse(
