@@ -26,6 +26,12 @@ def parse_args() -> argparse.Namespace:
         "--output", default=None, help="Directory for evaluation reports."
     )
     parser.add_argument(
+        "--artifact-profile",
+        choices=["redacted", "full"],
+        default=None,
+        help="Report artifact profile; redacted is the safe default, full is for controlled local debugging.",
+    )
+    parser.add_argument(
         "--limit", type=int, default=None, help="Only evaluate the first N samples."
     )
     parser.add_argument(
@@ -126,6 +132,7 @@ def main() -> None:
         ragas_data_mode=args.ragas_data_mode,
         ragas_eval_mode=args.ragas_eval_mode,
         rag_config_overrides=rag_config_overrides,
+        artifact_profile=args.artifact_profile,
     )
 
 

@@ -44,6 +44,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "answer_mode": "llm",
     "retriever_mode": "hybrid",
     "retrieval_regression_path": "data/evaluation/retrieval_regression_v1.json",
+    "artifact_profile": "redacted",
     "ragas": {
         "enabled": False,
         "metrics": RAGAS_DEFAULT_METRICS,
@@ -221,7 +222,10 @@ def save_evaluation_report(
     ragas_eval_mode: str | None = None,
     judge_llm_snapshot: dict[str, Any] | None = None,
     retrieval_regression_summary: dict[str, Any] | None = None,
+    artifact_profile: str = "redacted",
 ) -> Path:
+    if artifact_profile not in {"redacted", "full"}:
+        raise ValueError("artifact_profile must be 'redacted' or 'full'")
     generated_at = datetime.now(tz=timezone.utc).astimezone()
     timestamp = generated_at.strftime("%Y%m%d_%H%M%S")
     report_dir = resolve_project_path(output_dir) / timestamp
@@ -229,10 +233,20 @@ def save_evaluation_report(
 
     metric_summary = summarize_metric_rows(rows)
     error_types = Counter(row["error_type"] for row in rows if row.get("error_type"))
+    regression_summary = dict(retrieval_regression_summary or {})
+    dataset_display_path = str(dataset_path)
+    if artifact_profile == "full":
+        dataset_display_path = str(resolve_project_path(dataset_path))
+    if "dataset_path" in regression_summary:
+        regression_summary["dataset_path"] = (
+            str(regression_summary["dataset_path"])
+            if artifact_profile == "full"
+            else str(dataset_path)
+        )
     summary = {
         "generated_at": generated_at.isoformat(timespec="seconds"),
         "repository": repository_snapshot(),
-        "dataset_path": str(resolve_project_path(dataset_path)),
+        "dataset_path": dataset_display_path,
         "dataset_sha256": file_sha256(dataset_path),
         "sample_count": len(rows),
         "generate_answers": generate_answers,
@@ -243,12 +257,13 @@ def save_evaluation_report(
         "ragas_metric_names": ragas_metric_names or [],
         "ragas_data_mode": ragas_data_mode,
         "ragas_eval_mode": ragas_eval_mode,
+        "artifact_profile": artifact_profile,
         "judge_llm": judge_llm_snapshot or {},
         "rag_config": rag_config_snapshot or {},
         "metrics": metric_summary,
         "error_count": sum(error_types.values()),
         "error_types": dict(sorted(error_types.items())),
-        "retrieval_regression": retrieval_regression_summary or {},
+        "retrieval_regression": regression_summary,
     }
 
     with (report_dir / "summary.json").open("w", encoding="utf-8") as f:
@@ -256,32 +271,43 @@ def save_evaluation_report(
 
     with (report_dir / "samples.jsonl").open("w", encoding="utf-8") as f:
         for row in rows:
+            if artifact_profile == "redacted":
+                row = {
+                    "id": row["id"],
+                    "metrics": row.get("metrics", {}),
+                    "ragas_metrics": row.get("ragas_metrics", {}),
+                    "duration_ms": row.get("duration_ms"),
+                    "error_type": row.get("error_type"),
+                }
             f.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
 
     metric_names = _flatten_metric_names(rows)
-    csv_columns = [
-        "id",
-        "question",
-        "answer",
-        "reference_answer",
-        "retrieved_sources",
-        "duration_ms",
-        "error_type",
-        *metric_names,
-    ]
+    csv_columns = ["id", "duration_ms", "error_type", *metric_names]
+    if artifact_profile == "full":
+        csv_columns[1:1] = [
+            "question",
+            "answer",
+            "reference_answer",
+            "retrieved_sources",
+        ]
     with (report_dir / "metrics.csv").open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=csv_columns)
         writer.writeheader()
         for row in rows:
             csv_row = {
                 "id": row["id"],
-                "question": row["question"],
-                "answer": row["answer"],
-                "reference_answer": row["reference_answer"],
-                "retrieved_sources": " | ".join(row["retrieved_sources"]),
                 "duration_ms": row.get("duration_ms", ""),
                 "error_type": row.get("error_type", ""),
             }
+            if artifact_profile == "full":
+                csv_row.update(
+                    {
+                        "question": row["question"],
+                        "answer": row["answer"],
+                        "reference_answer": row["reference_answer"],
+                        "retrieved_sources": " | ".join(row["retrieved_sources"]),
+                    }
+                )
             combined_metrics = {}
             combined_metrics.update(row.get("metrics", {}))
             combined_metrics.update(row.get("ragas_metrics", {}))
@@ -305,6 +331,7 @@ def run_evaluation(
     ragas_data_mode: str | None = None,
     ragas_eval_mode: str | None = None,
     rag_config_overrides: dict[str, Any] | None = None,
+    artifact_profile: str | None = None,
 ) -> Path:
     config = load_evaluation_config(config_path)
     if rag_config_overrides:
@@ -336,6 +363,9 @@ def run_evaluation(
     if not generate_answers_enabled and answer_mode == "llm":
         answer_mode = "reference"
     retriever_mode = retriever_mode or str(config.get("retriever_mode", "hybrid"))
+    artifact_profile = artifact_profile or str(
+        config.get("artifact_profile", "redacted")
+    )
     rows, ragas_error = evaluate_samples(
         samples=samples,
         generate_answers=generate_answers_enabled,
@@ -377,6 +407,7 @@ def run_evaluation(
                 "data/evaluation/retrieval_regression_v1.json",
             ),
         ),
+        artifact_profile=artifact_profile,
     )
     print(f"[RAG评测] 报告已生成: {report_dir}")
     return report_dir

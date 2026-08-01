@@ -2,6 +2,7 @@ dataset_path: data/evaluation/rag_eval_dataset.jsonl
 output_dir: output/evaluation
 generate_answers: true
 retriever_mode: hybrid
+artifact_profile: redacted
 
 # RAGAS uses an LLM judge and embeddings, so it may call the configured model API.
 # Keep it off for quick local regression runs; enable with --run-ragas when needed.

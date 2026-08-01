@@ -877,5 +877,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第五十六个目标完成：移除 Streamlit `app.py` 的逐字符 `sleep`，新增 `capture_stream` 直接转发 Agent chunks 的回归测试；明确仅解决本地阻塞，不宣称已完成 HTTP/SSE 客户端、上游取消或背压。当前门禁为 346 tests、62% coverage、233 formatted files。
 - 阶段 11 第五十七个目标完成：按实际锁定 LangGraph API 将脱敏 `monitor_tool` 接入 ReactAgent ToolNode 的 sync/async wrapper，新增 wiring 回归；TD-007/TD-014 标记完成，不保存原始工具参数、消息或异常正文。
 - 阶段 11 第五十八个目标完成：为 VectorStore 入库增加 `DocumentLoadSummary`、MD5 marker flush/fsync、摘要缺失分类和失败类型聚合；新增 append-only marker/summary 回归与状态边界文档。TD-012 保持部分完成，未宣称向量与 marker 原子或 exactly-once。当前门禁为 348 tests、62% coverage、235 formatted files。
+- 阶段 11 第五十九个目标完成：评测 runner/config/CLI 增加默认 `redacted` artifact profile，samples/CSV 去除问题、答案、参考答案、上下文、来源路径和 metadata；`full` 仅显式受控调试可用，新增隐私回归并将 TD-020 标记完成。当前门禁为 349 tests、62% coverage、235 formatted files。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

@@ -41,6 +41,8 @@ python -m evaluation.quality_gate \
 
 每条评测样本还记录 `duration_ms` 和受限的 `error_type`（`timeout`、`upstream`、`invalid_output`、`unknown`）；summary 汇总错误数量和类别，不保存异常正文。单条样本失败会保留空 metrics 并继续生成报告，版本化 quality gate 通过 `require_no_errors: true` 把非零 `error_count` 拒绝为不可采信结果。
 
+评测 artifact 默认使用 `artifact_profile: redacted`：`samples.jsonl` 和 `metrics.csv` 不写问题、回答、参考答案、上下文、来源路径或原始 metadata，只保留样本 ID、指标、耗时和错误类别。需要本地受控调试时显式传 `--artifact-profile full`；不得把 full artifact 提交或上传。
+
 ## Red-team 安全回归
 
 Prompt Injection 数据集位于 `data/evaluation/red_team/`，由 manifest 固定版本和 SHA-256。执行：

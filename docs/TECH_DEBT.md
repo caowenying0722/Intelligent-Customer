@@ -23,7 +23,7 @@
 | TD-017 | 引用有效性只验证编号范围，不验证证据支持 | Medium | 无依据回答也可得到 1.0 citation validity | `evaluation/local_metrics.py`、`tests/test_citation_metrics.py` | 已分离编号格式有效、引用覆盖和确定性 lexical support proxy；真实 entailment/人工标签仍需独立评测 | 10 | 部分完成 |
 | TD-018 | 核心主链缺少自动化测试 | Medium | 74 个测试通过但源码分支覆盖率仅 41%，仍不能证明完整 Agent、RAG 和入库交互可靠 | `tests/`、`pyproject.toml` | 分层新增 unit/integration/contract/evaluation 测试；默认 fake model；基于高风险模块逐步提高门禁 | 1/2/10 | 部分完成 |
 | TD-019 | 测试动态类型仍未纳入 Mypy 门禁 | Medium | 测试 mock 类型可能回退，但运行行为由 pytest 和覆盖率门禁覆盖 | `pyproject.toml`、`requirements-dev.txt`、`.github/workflows/quality.yml` | Ruff、源码 Mypy、coverage、测试、secret scan 和 deterministic gate 已接入；测试类型清理可单独推进 | 1/10 | 部分完成 |
-| TD-020 | 评测输出含问题、答案、参考答案、召回全文和绝对路径，过去未被忽略 | Medium | 可能误提交用户/知识库数据和本机信息 | `evaluation/runner.py:95-106,175-217`、`.gitignore` | 忽略 `output/`（本轮完成）；后续增加脱敏 artifact profile 与保留策略 | 1/9/10 | 部分完成 |
+| TD-020 | 评测输出含问题、答案、参考答案、召回全文和绝对路径，过去未被忽略 | Medium | 可能误提交用户/知识库数据和本机信息 | `evaluation/runner.py`、`scripts/evaluate_rag.py`、`tests/test_evaluation_runner_metadata.py` | 默认 `redacted` artifact 只保留 ID/指标/耗时/错误类别；`full` 必须显式用于受控本地调试，output 继续被 gitignore | 1/9/10 | 已完成 |
 | TD-021 | README 仓库地址曾与 Git remote 不一致 | Low | 推送到了错误目标或克隆命令与开发 remote 不一致 | `README.md:19,122,277`、本地 `origin` | 用户已确认并将 `origin` 修正为 `caowenying0722/Intelligent-Customer` | 1/11 | 已完成 |
 | TD-022 | QUICKSTART 包含开发者个人绝对路径 | Low | 其他机器按文档命令无法启动 | `QUICKSTART.md:107,116` | 改成从仓库根目录运行的相对命令 | 1 | 本轮完成 |
 | TD-023 | `listdir_with_allowed_type` 在目录无效时返回后缀 tuple | Medium | 调用方会把 `txt/pdf` 当文件路径，错误含糊 | `utils/file_handler.py`、`tests/test_file_handler.py` | 无效目录返回类型一致的空 tuple，并增加无效/有效目录测试 | 1 | 已完成 |
