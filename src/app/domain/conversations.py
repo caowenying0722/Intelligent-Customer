@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from threading import Lock
+from typing import Protocol
 from uuid import UUID, uuid4
 
 
@@ -18,6 +19,18 @@ class Conversation:
     tenant_id: str
     conversation_id: UUID
     messages: list[Message] = field(default_factory=list)
+
+
+class ConversationRepositoryProtocol(Protocol):
+    def create(self, tenant_id: str) -> Conversation: ...
+
+    def get(self, tenant_id: str, conversation_id: UUID) -> Conversation | None: ...
+
+    def append(
+        self, tenant_id: str, conversation_id: UUID, role: str, content: str
+    ) -> Message: ...
+
+    def close(self) -> None: ...
 
 
 class ConversationRepository:
@@ -56,3 +69,6 @@ class ConversationRepository:
             )
             conversation.messages.append(message)
             return message
+
+    def close(self) -> None:
+        """Keep the in-memory adapter compatible with lifecycle-managed stores."""

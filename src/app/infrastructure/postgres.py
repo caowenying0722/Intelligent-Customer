@@ -39,9 +39,10 @@ class MessageRow(Base):
 
 
 class SqlAlchemyConversationRepository:
-    def __init__(self, database_url: str):
+    def __init__(self, database_url: str, *, initialize_schema: bool = False):
         self.engine = create_engine(database_url, future=True)
-        Base.metadata.create_all(self.engine)
+        if initialize_schema:
+            Base.metadata.create_all(self.engine)
 
     def create(self, tenant_id: str) -> Conversation:
         conversation = Conversation(tenant_id=tenant_id, conversation_id=uuid4())

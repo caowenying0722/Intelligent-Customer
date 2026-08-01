@@ -678,5 +678,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 3 首个目标完成：进程内会话 repository 的创建、读取和追加均强制 `tenant_id`，API 从 `x-tenant-id` 注入上下文并新增跨租户拒绝测试；JWT/RBAC 和 PostgreSQL 留在后续目标。
 - 阶段 3 第二个目标完成：新增 SQLAlchemy 会话/消息模型和 repository adapter，支持 PostgreSQL URL，SQLite 内存测试验证持久化顺序与 tenant 过滤；Alembic migration 和生产连接配置留在下一目标。
 - 阶段 3 第三个目标完成：加入 Alembic 配置和首个 conversations/messages revision，SQLite 空库 upgrade/downgrade smoke 通过；生产 PostgreSQL 仅通过 `DATABASE_URL` 注入，未在默认测试中启动外部服务。
+- 阶段 3 第四个目标完成：应用工厂支持 `chat_agent` + `DATABASE_URL` 组合根选择 SQLAlchemy 或内存 repository，并将创建的 repository 纳入 lifespan 关闭；默认无 agent/数据库时仍无外部副作用。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

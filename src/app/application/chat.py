@@ -5,7 +5,10 @@ from collections.abc import Awaitable, Callable
 from typing import Protocol
 from uuid import UUID
 
-from src.app.domain.conversations import ConversationRepository
+from src.app.domain.conversations import (
+    ConversationRepository,
+    ConversationRepositoryProtocol,
+)
 
 
 class ChatAgent(Protocol):
@@ -28,7 +31,7 @@ class ChatApplicationService:
         async_runner: Callable[[ChatAgent, str], Awaitable[str]] | None = None,
         async_stream_runner: Callable[[ChatAgent, str], Awaitable[list[str]]]
         | None = None,
-        conversation_repository: ConversationRepository | None = None,
+        conversation_repository: ConversationRepositoryProtocol | None = None,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")

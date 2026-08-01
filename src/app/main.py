@@ -9,7 +9,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from src.app.api.routes import build_router
-from src.app.application.chat import ChatApplicationService
+from src.app.application.chat import ChatAgent, ChatApplicationService
+from src.app.infrastructure.factory import build_conversation_repository
 
 ReadinessCheck = Callable[[], bool]
 
@@ -18,6 +19,8 @@ def create_app(
     *,
     readiness_check: ReadinessCheck | None = None,
     chat_service: ChatApplicationService | None = None,
+    chat_agent: ChatAgent | None = None,
+    database_url: str | None = None,
     lifecycle_resources: tuple[object, ...] = (),
 ) -> FastAPI:
     @asynccontextmanager
@@ -31,6 +34,14 @@ def create_app(
             async_close = getattr(resource, "aclose", None)
             if async_close is not None:
                 await async_close()
+
+    if chat_service is None and chat_agent is not None:
+        repository = build_conversation_repository(database_url)
+        chat_service = ChatApplicationService(
+            chat_agent,
+            conversation_repository=repository,
+        )
+        lifecycle_resources = (*lifecycle_resources, repository)
 
     app = FastAPI(
         title="Intelligent Customer Service", version="0.1.0", lifespan=lifespan

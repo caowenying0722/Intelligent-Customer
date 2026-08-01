@@ -16,6 +16,8 @@ python -m src.app.server
 
 应用生命周期支持注入可关闭资源；退出时按逆序调用 `close()` 或 `aclose()`，默认应用不创建外部资源。
 
+当 `create_app(chat_agent=...)` 且设置 `DATABASE_URL` 时，应用工厂会创建 SQLAlchemy repository 并在 lifespan 结束时释放 engine；未设置时使用可测试的内存 repository。数据库表必须先由 Alembic migration 创建。
+
 健康检查：
 
 - `GET /health/live`：只确认进程可响应，不访问昂贵依赖。
