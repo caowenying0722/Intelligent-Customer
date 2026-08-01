@@ -226,6 +226,8 @@ python scripts/run_ragas_ablation.py --ack-external-judge --ragas-data-mode mini
 | `config/agent.yml` | Agent 行为配置 |
 | `config/evaluation.yml` | RAG 评测集、RAGAS 指标、数据模式和运行模式 |
 
+前四份业务 YAML 通过严格 Pydantic schema 和 `yaml.safe_load` 解析：未知字段、非法 URL、越界检索参数、缺失文件或无效目录会在加载时直接报错。Chroma、数据、MD5、Prompt 和报告 CSV 的相对路径始终以仓库根目录为基准，与启动命令的当前目录无关。
+
 ### 当前 RAG 配置
 ```yaml
 chat_model_name: deepseek-chat

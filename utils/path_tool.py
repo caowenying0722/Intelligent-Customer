@@ -1,31 +1,23 @@
-"""
-为整个工程提供统一的绝对路径
-"""
-import os
+"""Project-root-relative path helpers."""
+
+from __future__ import annotations
+
+from os import PathLike
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 
 def get_project_root() -> str:
-    """
-    获取工程所在的根目录
-    :return: 字符串根目录
-    """
-    # 当前文件的绝对路径
-    current_file= os.path.abspath(__file__)
-    # 获取工程的根目录，先获取文件所在的文件夹的绝对路径
-    current_dir=os.path.dirname(current_file)
-    # 获取工程根目录
-    project_root=os.path.dirname(current_dir)
+    return str(PROJECT_ROOT)
 
-    return project_root
 
-def get_abs_path(relative_path:str)->str:
-    """
-    传递相对路径，得到绝对路径
-    :param relative_path:
-    :return:
-    """
-    project_root=get_project_root()
-    return os.path.join(project_root,relative_path)
+def get_abs_path(relative_path: str | PathLike[str]) -> str:
+    path = Path(relative_path).expanduser()
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return str(path.resolve())
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     print(get_abs_path("config/config.txt"))
-

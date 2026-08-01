@@ -62,7 +62,8 @@ flowchart LR
 - `utils.settings.Settings` 集中读取并校验应用环境、日志级别、模型 provider/密钥/传输、Agent 最大步骤/工具次数以及未来 API 的 host/port/CORS；密钥使用 `SecretStr`，生产环境拒绝通配 CORS。
 - `model.factory` 通过可注入的 `Settings` 构建 OpenAI-compatible 或仓库自定义 Anthropic-compatible 同步适配器；`MODEL_PROVIDER` 为规范变量，旧 `LLM__PROVIDER` 仍可兼容读取。
 - `model.factory` 暴露缓存的惰性访问函数，模块导入不再加载业务 YAML 或创建聊天/嵌入模型；`ReactAgent`、`RagSummarizeService` 和 `VectorStoreService` 均支持显式依赖注入。
-- 现有 RAG/Chroma/Prompt YAML 业务配置仍由 `utils.config_handler` 在首次相关模块加载时读取，schema 和完整延迟加载仍是后续目标。
+- RAG/Chroma/Prompt/Agent YAML 使用 `yaml.safe_load` 和禁止未知字段的 Pydantic schema；数值范围、URL、文件/目录及跨字段关系启动即校验，旧 dict 接口继续兼容。
+- YAML 中的 Chroma 持久化目录、数据、MD5、Prompt 和 CSV 路径统一相对项目根目录解析为绝对路径，不再依赖启动 cwd；配置仍在首次相关模块加载时读取，完整 composition-root 加载留到 FastAPI 阶段。
 - 模型请求默认验证 TLS；企业私有 CA 只能通过 `MODEL_CA_BUNDLE` 指向已有 PEM 文件，非法路径启动即失败，不提供关闭验证的开关。
 - 工具包括本地 RAG、静态天气、随机位置、随机用户 ID、当前月份和本地 CSV 报告数据。没有认证上下文、租户边界、审批或幂等控制。
 - `agent/tools/middleware.py` 没有接入当前 Agent，且其导入依赖与锁定的 LangChain API 不兼容。
@@ -130,12 +131,12 @@ flowchart LR
 | `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，18 个直接运行依赖精确匹配，`pip check` 成功 |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 23 个直接运行/开发依赖精确匹配 |
 | `pip install --dry-run --ignore-installed -r requirements-dev.txt` | 成功 | Python 3.10 可解析；输出同时证明传递依赖仍会漂移，不能替代 lock |
-| `python -m pytest -q` | 成功：58 passed，12 subtests | 包含依赖隔离、集中 Settings、惰性初始化、Agent 步骤/工具上限、TLS 默认验证、CA bundle、超时/重试边界和模型适配器测试 |
-| Ruff lint/format（本目标涉及文件） | 成功 | Agent 上限、Settings 及其测试均通过 |
-| `python -m ruff check .` | 失败：51 项 | 本目标涉及文件已通过；其余既有代码仍包含导入顺序、异常处理、时区等债务 |
-| `python -m ruff format --check .` | 失败：24 个文件待格式化 | 本目标涉及文件已格式化；全仓机械改写留给独立目标 |
+| `python -m pytest -q` | 成功：64 passed，17 subtests | 包含依赖隔离、环境/YAML schema、非根 cwd 路径、惰性初始化、Agent 上限和模型适配器测试 |
+| Ruff lint/format（本目标涉及文件） | 成功 | 类型化 YAML、路径工具及其测试均通过 |
+| `python -m ruff check .` | 失败：49 项 | 本目标涉及文件已通过；其余既有代码仍包含导入顺序、异常处理、时区等债务 |
+| `python -m ruff format --check .` | 失败：22 个文件待格式化 | 本目标涉及文件已格式化；全仓机械改写留给独立目标 |
 | Mypy（本目标涉及文件） | 成功 | 使用 `--explicit-package-bases`；全仓类型门禁仍未建立 |
-| Coverage（本目标涉及文件） | 成功：91% | `agent/react_agent.py`、`utils/settings.py` 与 Agent 上限测试；不是全仓覆盖率 |
+| Coverage（本目标涉及文件） | 成功：94% | `utils/config_handler.py`、`utils/path_tool.py` 与配置测试；不是全仓覆盖率 |
 | `python -m pip_audit -r requirements.txt` | 失败：84 条/13 包 | 真实安全基线；未忽略，进入阶段 1 下一修复目标 |
 
 ## 可复现指标基线
@@ -144,7 +145,7 @@ flowchart LR
 
 | 指标 | 当前值 | 可用性说明 |
 |---|---:|---|
-| 测试数量 / 通过率 | 58 / 100% | 新增环境/依赖隔离、集中配置、惰性初始化、Agent 上限与模型传输安全测试；仍没有完整 Agent/API/RAG 集成覆盖 |
+| 测试数量 / 通过率 | 64 / 100% | 新增环境/依赖隔离、集中配置、YAML schema/路径、惰性初始化、Agent 上限与模型传输安全测试；仍没有完整 Agent/API/RAG 集成覆盖 |
 | 主评测集样本 | 28 | 非冻结、无 dataset version |
 | Focus 评测集样本 | 6 | 非隐藏集 |
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
@@ -172,7 +173,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：58 个单元测试集中在环境约束、集中配置、惰性初始化、Agent 上限、模型传输/协议转换、评测辅助函数和 secret scanner。Agent 业务路由、RAG 核心、文档入库、UI、取消与并发仍没有自动化测试。
+- 测试：64 个单元测试集中在环境/YAML 配置、路径、惰性初始化、Agent 上限、模型传输/协议转换、评测辅助函数和 secret scanner。Agent 业务路由、RAG 核心、文档入库、UI、取消与并发仍没有自动化测试。
 - 可观测性：普通文本日志写控制台和每日文件；没有 request ID、trace、metrics 或字段脱敏。
 - 部署：只有本地 Streamlit 命令；没有 API 服务、进程模型、容器、健康检查、优雅关闭或 CI。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
@@ -185,7 +186,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 4. 随机 user ID 如何代表真实登录用户，如何防止读取其他人的报告？当前没有安全边界。
 5. 如何部署、扩容和恢复会话？当前首次 RAG 请求仍写本地 Chroma，session 只在单进程内存。
 6. 企业私有 CA 如何接入而不关闭 TLS？当前通过显式 PEM 路径创建验证客户端，路径无效时 fail-fast。
-7. 58 个环境/配置/惰性初始化/Agent 上限/模型适配测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
+7. 64 个环境/配置/路径/惰性初始化/Agent 上限/模型适配测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
 
 ## 当前是否适合继续自动修改
 
