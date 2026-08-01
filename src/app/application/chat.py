@@ -37,6 +37,8 @@ class ChatApplicationService:
         model_gateway: ModelGateway | None = None,
         model_provider: str = "default",
         stream_gateway: ModelGateway | None = None,
+        model_name: str = "default",
+        prompt_version: str = "v1",
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -51,6 +53,8 @@ class ChatApplicationService:
         self.model_gateway = model_gateway
         self.model_provider = model_provider
         self.stream_gateway = stream_gateway
+        self.model_name = model_name
+        self.prompt_version = prompt_version
 
     def _conversation_id(
         self, tenant_id: str, conversation_id: str | None, user_id: str
@@ -94,15 +98,25 @@ class ChatApplicationService:
             elif self._run_in_thread is not None:
                 result = self._run_in_thread(self.agent, message)
             else:
-                result = (
-                    asyncio.to_thread(
-                        self.model_gateway.invoke,
-                        provider=self.model_provider,
-                        request=message,
-                    )
-                    if self.model_gateway is not None
-                    else asyncio.to_thread(self.agent.run, message)
-                )
+                if self.model_gateway is not None:
+                    if self.model_gateway.cache is not None:
+                        result = asyncio.to_thread(
+                            self.model_gateway.invoke_cached,
+                            provider=self.model_provider,
+                            model=self.model_name,
+                            tenant_id=tenant_id,
+                            prompt=message,
+                            prompt_version=self.prompt_version,
+                            request=message,
+                        )
+                    else:
+                        result = asyncio.to_thread(
+                            self.model_gateway.invoke,
+                            provider=self.model_provider,
+                            request=message,
+                        )
+                else:
+                    result = asyncio.to_thread(self.agent.run, message)
             answer = await asyncio.wait_for(result, timeout=self.timeout_seconds)
             self.conversation_repository.append(
                 tenant_id, resolved_id, "assistant", answer
