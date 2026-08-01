@@ -29,3 +29,13 @@ python -m pip_audit -r requirements.txt --format json --output output/pip-audit.
 因此本轮没有修改锁文件或添加 pip-audit ignore。继续使用本地 embedded Chroma、关闭默认 RAGAS 外发评测、避免默认 DiskCache 路径，并把这三条漏洞保持为发布 Blocker；待上游修复或替换方案出现后再建立独立升级目标。
 
 另外，本轮审计发现认证代码直接依赖 PyJWT，但此前只存在于开发机间接环境；已将无当前已知漏洞的 `PyJWT==2.13.0` 显式加入 runtime/dev lock，避免 clean install 缺包。
+
+## 目标 73 复核（2026-08-02）
+
+实际执行：
+
+```bash
+python -m pip_audit -r requirements.txt
+```
+
+结果仍失败，当前 pip-audit 直接报告：`chromadb==1.3.7 / PYSEC-2026-311`、`ragas==0.4.3 / PYSEC-2026-3046`、`diskcache==5.6.3 / PYSEC-2026-2447`，均未给出修复版本。该输出与前述包级 advisory 记录共同证明发布 Blocker 仍未解除；没有添加 ignore 或声称升级完成。

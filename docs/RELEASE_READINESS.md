@@ -14,6 +14,9 @@
 | `python -m mypy tests` | 通过：102 个测试源码文件 | 独立测试类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
 | `python -m pip check` | 通过 | 依赖元数据无破损；PyJWT 2.13.0 已显式锁定 |
+| `python -m pip_audit -r requirements.txt` | 失败：3 个无修复漏洞 | `chromadb==1.3.7/PYSEC-2026-311`、`ragas==0.4.3/PYSEC-2026-3046`、`diskcache==5.6.3/PYSEC-2026-2447`；不使用 ignore |
+| `python scripts/check_environment.py --requirements requirements-dev.txt` | 失败 | 当前解释器 Python 3.13，不符合仓库 Python 3.10 支持矩阵 |
+| `docker info` | 失败：命令 45 秒超时 | Docker daemon 当前不可用，不能替代容器验收 |
 | `docker compose config --quiet` | 通过 | API 单服务 Compose 配置有效，镜像使用 `requirements.lock` |
 | `docker compose --profile observability config --quiet` | 通过 | 仅验证静态 profile 配置；Collector/Prometheus 镜像拉取与健康尚未在当前网络完成 |
 | Grafana dashboard/profile config | 通过：静态测试 | 已验证 PromQL、datasource 挂载和本地只读端口；镜像拉取与健康尚未在当前网络完成 |
@@ -49,6 +52,9 @@
 | PostgreSQL/container integration | 阻塞：`docker info` 124 秒超时 | Compose/migration 静态测试 5 passed；Docker daemon 不可用，未执行容器 health/真实 PostgreSQL 锁语义 |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
+| `python scripts/run_deterministic_regression.py --output output/ci/target73-deterministic.json` | 通过：3/3 样本，model_calls=0 | retrieval-regression-v1；recall@1=0.5、recall@3/5/10=1.0、MRR=1.0；artifact commit=`aac459e`、dirty=true |
+| `python scripts/run_red_team_regression.py --output output/ci/target73-red-team.json` | 通过：4/4 拒绝、0 漏检 | red-team-prompt-injection-v1；model_calls=0 |
+| `python scripts/run_load_smoke.py --requests 10 --concurrency 2 --output output/ci/target73-load.json` | 通过：10 完成、0 错误 | fake 模式；error_rate=0、throughput_rps=305.25、p50=3.98ms、p95=16.11ms；仅本地 smoke，不作生产性能结论 |
 
 ## 发布阻塞
 

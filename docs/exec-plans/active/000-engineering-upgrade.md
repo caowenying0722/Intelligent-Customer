@@ -891,5 +891,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第七十个目标完成：按真实生产契约收窄非 schema validator、Pydantic extra、dataset summary、RRF key 和 FakeModel 测试边界；`python -m mypy tests` 实际通过 102 个测试源码文件，CI 新增独立测试类型门禁，TD-019 标记完成。当前门禁为 364 tests、63% coverage、239 formatted files。
 - 阶段 11 第七十一个目标完成：新增 `src/app/server.py:build_server_app()` 作为可执行 API composition root，显式启动时才延迟构造 `ReactAgent`，测试可注入 fake Agent；`main()` 不再运行无 Agent 的空 `src.app.main:app`。新增 server factory/entrypoint API 回归，TD-026 更新为 server 组合根已接入但模型/RAG 全集中构造仍待后续。当前门禁为 365 tests、63% coverage、240 formatted files。
 - 阶段 11 第七十二个目标完成：新增 `build_rag_summarize_tool()` 和 `ReactAgent(rag_service=...)` 注入边界；`build_server_app()` 将显式 RAG service 同时传给 Agent 工具和 FastAPI readiness，保持默认全局工具兼容。新增 fake RAG/Agent 和 server readiness 回归，TD-026 更新为 RAG 注入边界已接入但默认模型/RAG 集中构造仍待后续。当前门禁为 367 tests、63% coverage、240 formatted files。
+- 阶段 11 第七十三个目标完成：复核发布安全/环境/评测门禁；`pip-audit` 真实保留 3 条 PYSEC 无修复漏洞，Python 3.13 环境检查失败，`docker info` 45 秒超时；deterministic 3/3、red-team 4/4、fake load 10/10 均实际通过并记录 artifact，不把 smoke 结果扩大为生产结论。当前代码门禁为 367 tests、63% coverage、240 formatted files。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
