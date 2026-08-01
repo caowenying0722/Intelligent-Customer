@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     database_url: str | None = Field(
         default=None, validation_alias=AliasChoices("DATABASE_URL")
     )
+    database_pool_size: int = Field(default=5, ge=1, le=50)
+    database_max_overflow: int = Field(default=10, ge=0, le=100)
+    database_pool_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    database_connect_timeout_seconds: float = Field(default=10.0, gt=0, le=120)
+    database_isolation_level: Literal[
+        "READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE"
+    ] = "READ COMMITTED"
 
     openai_api_key: SecretStr | None = None
     deepseek_api_key: SecretStr | None = None

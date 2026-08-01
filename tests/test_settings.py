@@ -27,6 +27,8 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.api_host, "127.0.0.1")
         self.assertEqual(settings.api_port, 8000)
         self.assertIsNone(settings.database_url)
+        self.assertEqual(settings.database_pool_size, 5)
+        self.assertEqual(settings.database_isolation_level, "READ COMMITTED")
 
     def test_database_url_accepts_supported_schemes_and_rejects_others(self) -> None:
         self.assertEqual(
@@ -100,6 +102,8 @@ class SettingsTest(unittest.TestCase):
             {"agent_max_tool_calls": 0},
             {"agent_max_tool_calls": 21},
             {"api_port": 70000},
+            {"database_pool_size": 0},
+            {"database_pool_timeout_seconds": 0},
         )
         for values in invalid_values:
             with self.subTest(values=values), self.assertRaises(ValidationError):

@@ -18,6 +18,8 @@ python -m src.app.server
 
 当 `create_app(chat_agent=...)` 且设置 `DATABASE_URL` 时，应用工厂会创建 SQLAlchemy repository、将数据库连接作为 readiness 检查，并在 lifespan 结束时释放 engine；未设置时使用可测试的内存 repository。数据库表必须先由 Alembic migration 创建。
 
+数据库连接池默认 `pool_size=5`、`max_overflow=10`、池等待 30 秒、连接超时 10 秒、事务隔离 `READ COMMITTED`；这些值由 Settings 校验，SQLite 不套用 PostgreSQL 专用池参数。
+
 API 集成测试会先执行 Alembic upgrade，再用两个独立 app 实例验证会话重启恢复；默认 CI 仍使用本地 SQLite，不需要启动付费或外部服务。
 
 健康检查：

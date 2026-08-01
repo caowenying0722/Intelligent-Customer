@@ -1,6 +1,7 @@
 """SQLAlchemy conversation adapter; PostgreSQL is the production target."""
 
 from datetime import datetime
+from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, String, create_engine, select, text
@@ -44,8 +45,32 @@ class MessageRow(Base):
 
 
 class SqlAlchemyConversationRepository:
-    def __init__(self, database_url: str, *, initialize_schema: bool = False):
-        self.engine = create_engine(database_url, future=True)
+    def __init__(
+        self,
+        database_url: str,
+        *,
+        initialize_schema: bool = False,
+        pool_size: int = 5,
+        max_overflow: int = 10,
+        pool_timeout: float = 30.0,
+        connect_timeout: float = 10.0,
+        isolation_level: str = "READ COMMITTED",
+    ):
+        parsed = urlparse(database_url)
+        engine_options: dict[str, object] = {
+            "future": True,
+        }
+        if parsed.scheme.startswith("postgresql"):
+            engine_options.update(
+                {
+                    "isolation_level": isolation_level,
+                    "pool_size": pool_size,
+                    "max_overflow": max_overflow,
+                    "pool_timeout": pool_timeout,
+                    "connect_args": {"connect_timeout": int(connect_timeout)},
+                }
+            )
+        self.engine = create_engine(database_url, **engine_options)
         if initialize_schema:
             Base.metadata.create_all(self.engine)
 

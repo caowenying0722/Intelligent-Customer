@@ -684,5 +684,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 3 第七个目标完成：API 集成测试执行 Alembic upgrade，使用两个独立 app/lifespan 实例验证 SQLite `DATABASE_URL` 下 conversation/message 跨重启恢复与 tenant 查询。
 - 阶段 3 第八个目标完成：conversation 增加 version 字段与 Alembic 0002 revision，SQLAlchemy/内存 repository 支持 expected version 冲突检测；API 恢复测试验证消息版本为 2。
 - 阶段 3 第九个目标完成：Chat API 接受 `expected_version`，stale 写入映射为 409 `conversation_conflict`，并新增客户端冲突 contract 测试。
+- 阶段 3 第十个目标完成：集中校验数据库池大小、溢出、池等待、连接超时和隔离级别；PostgreSQL engine 接收这些参数，SQLite 路径保持兼容，并有参数 contract 测试。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
