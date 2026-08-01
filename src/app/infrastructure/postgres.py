@@ -25,7 +25,7 @@ from src.app.domain.conversations import (
     RunStateConflict,
 )
 
-EXPECTED_SCHEMA_REVISION = "0007_add_run_query_indexes"
+EXPECTED_SCHEMA_REVISION = "0008_add_documents_and_ingestion_jobs"
 
 
 class Base(DeclarativeBase):
@@ -82,6 +82,51 @@ class AgentRunRow(Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class DocumentRow(Base):
+    __tablename__ = "documents"
+    __table_args__ = (
+        Index("ix_documents_tenant_hash", "tenant_id", "content_hash", unique=True),
+        Index("ix_documents_tenant_status_created", "tenant_id", "status", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(128), index=True)
+    original_name: Mapped[str] = mapped_column(String(255))
+    storage_name: Mapped[str] = mapped_column(String(255), unique=True)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    document_version: Mapped[int] = mapped_column(default=1)
+    parser_version: Mapped[str] = mapped_column(String(64))
+    chunker_version: Mapped[str] = mapped_column(String(64))
+    embedding_model: Mapped[str] = mapped_column(String(255))
+    embedding_dimension: Mapped[int] = mapped_column()
+    index_version: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class IngestionJobRow(Base):
+    __tablename__ = "ingestion_jobs"
+    __table_args__ = (
+        Index("ix_ingestion_jobs_tenant_status_created", "tenant_id", "status", "created_at"),
+        Index("ux_ingestion_jobs_tenant_idempotency", "tenant_id", "idempotency_key", unique=True),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(128), index=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(32))
+    progress: Mapped[int] = mapped_column(default=0)
+    attempt: Mapped[int] = mapped_column(default=0)
+    max_attempts: Mapped[int] = mapped_column(default=3)
+    error: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    result_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    cancel_requested: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class SqlAlchemyConversationRepository:

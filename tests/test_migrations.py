@@ -24,7 +24,17 @@ def test_migration_upgrade_and_downgrade_on_empty_sqlite_database() -> None:
         "alembic_version",
         "conversations",
         "messages",
+        "documents",
+        "ingestion_jobs",
     }
+    assert {
+        "ix_documents_tenant_hash",
+        "ix_documents_tenant_status_created",
+    } <= {index["name"] for index in inspect(engine).get_indexes("documents")}
+    assert {
+        "ix_ingestion_jobs_tenant_status_created",
+        "ux_ingestion_jobs_tenant_idempotency",
+    } <= {index["name"] for index in inspect(engine).get_indexes("ingestion_jobs")}
     index_names = {index["name"] for index in inspect(engine).get_indexes("agent_runs")}
     assert {
         "ix_agent_runs_tenant_status_created",
