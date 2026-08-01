@@ -37,6 +37,7 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("MODEL_PROVIDER", "LLM__PROVIDER"),
     )
+    request_timeout_seconds: float = Field(default=30.0, gt=0, le=600)
     model_request_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
     model_max_retries: int = Field(default=2, ge=0, le=5)
     model_max_concurrency: int = Field(default=8, ge=1, le=100)

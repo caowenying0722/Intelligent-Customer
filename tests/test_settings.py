@@ -19,6 +19,7 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.application_env, "development")
         self.assertEqual(settings.log_level, "INFO")
         self.assertEqual(settings.resolved_model_provider, "openai")
+        self.assertEqual(settings.request_timeout_seconds, 30.0)
         self.assertEqual(settings.model_request_timeout_seconds, 120.0)
         self.assertEqual(settings.model_max_retries, 2)
         self.assertEqual(settings.agent_max_steps, 10)
@@ -98,6 +99,7 @@ class SettingsTest(unittest.TestCase):
 
     def test_invalid_bounds_are_rejected(self) -> None:
         invalid_values = (
+            {"request_timeout_seconds": 0},
             {"model_request_timeout_seconds": 0},
             {"model_max_retries": 6},
             {"agent_max_steps": 0},

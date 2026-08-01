@@ -99,6 +99,7 @@ def create_app(
         repository = build_conversation_repository(database_url)
         chat_service = ChatApplicationService(
             chat_agent,
+            timeout_seconds=settings.request_timeout_seconds,
             conversation_repository=repository,
             tracer=api_tracer,
         )

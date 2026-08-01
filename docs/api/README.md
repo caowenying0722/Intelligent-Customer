@@ -39,6 +39,7 @@ API access logger 输出 JSON 事件，仅含 method、status_code、duration_ms
 
 - `POST /api/v1/chat` 接收严格的 `{"message": "...", "conversation_id": "...", "expected_version": 0}` schema；省略 ID 会创建新的内存会话。
 - `ChatApplicationService` 通过注入的 Agent 执行，并用 `asyncio.wait_for` 设置服务级 timeout。
+- `REQUEST_TIMEOUT_SECONDS`（默认 30 秒，范围 0-600）由 Settings 校验，并用于 `create_app(chat_agent=...)` 自动构造的 Chat 服务；显式注入 `chat_service` 时由调用方决定 timeout。
 - 同步 Agent 的 timeout 只终止请求等待，不强制杀死底层线程；外部调用必须自行设置 timeout。异步 Agent/SSE runner 收到客户端取消时传播 `CancelledError`，不会映射成 `chat_failed`。
 - Agent 异常只映射为稳定的 `chat_failed`/`chat_timeout` 错误，不返回堆栈或供应商原始响应。
 - 默认应用未注入 Agent 时返回 `503 chat_unavailable`。
