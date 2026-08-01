@@ -2,7 +2,7 @@
 
 - 状态：Active
 - 建立日期：2026-08-01
-- 当前阶段：阶段 1（基础质量和项目规范）
+- 当前阶段：阶段 2（FastAPI 服务化）
 - 依据：根目录 `AGENT.md`、`todo.md` 与真实代码审计
 - 当前约束：保留用户未提交修改；默认测试不调用付费模型；每阶段独立验收和回滚
 
@@ -667,4 +667,4 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 将 Sentence Transformers 从 3.3.1 升级到 5.2.0，并显式固定 Transformers 5.14.1；HuggingFace adapter 导入、clean dry-run、70 项测试、40% branch coverage、AppTest、secret scan 和离线 BM25 smoke 均通过，pip-audit 降至 3 条/3 包。
 - 拆开 `RagSummarizeService` 构造与文档入库副作用，新增单飞 `start_document_loading()` 后台任务、显式超时和失败传播；74 项测试通过，源码 branch coverage 为 41%，AppTest、secret scan、离线 BM25 smoke 和 pip-audit 均按预期完成。
 
-阶段 1 剩余：从空环境重建/transitive lock 证据、剩余依赖漏洞的风险记录和覆盖率回归阈值。首次 RAG 检索后台化已完成基础边界；readiness、全流程 deadline/cancellation 将在阶段 2 application service 中实现，CI 在阶段 10 固化。
+阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

@@ -42,3 +42,4 @@ source = ["agent", "evaluation", "model", "rag", "scripts", "utils"]
 [tool.coverage.report]
 show_missing = true
 skip_empty = true
+fail_under = 41

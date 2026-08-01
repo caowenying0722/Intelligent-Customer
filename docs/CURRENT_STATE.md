@@ -11,7 +11,7 @@
 - 初始审计 shell 的解释器为 Python 3.13.13；该环境混用全局 site-packages 与 `.local_deps/`，不作为受支持运行环境。
 - 受支持开发版本现由 `.python-version` 固定为 Python 3.10.20；本机 `ics` 环境已验证 19 个直接运行依赖与 `requirements.txt` 精确一致，`app` 可以导入。
 - `requirements-dev.txt` 在运行依赖上固定 pytest、Ruff、Mypy、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
-- 当前只有直接依赖和开发工具精确固定，尚无完整的跨平台 transitive lock；因此不能把它描述为完全可重复的供应链锁定。
+- `requirements.lock` 和 `requirements-dev.lock` 由 Python 3.10 的 pip-tools 7.6.0 生成，固定传递依赖；Python 3.10 对开发锁执行 `pip install --dry-run --ignore-installed` 通过。锁文件按当前 Windows/Python 3.10 解析，其他平台仍需单独验证。
 - 目标环境普通导入 `app` 不再加载 Agent、模型、RAG 或 Chroma；Streamlit 执行 `main()` 后才构建 Agent，RAG 服务可用单飞后台任务预加载 Chroma，首次检索等待显式超时并传播失败。
 - 旧 `.local_deps/` 目录仍存在但已不再由评测/报告脚本自动插入 `sys.path`；初始行为曾覆盖目标环境中的正确二进制包并导致 RAGAS 导入失败。
 - Python 3.13 下执行完整依赖 dry-run 失败：`langchain-community==0.3.31` 要求 NumPy 2.x，而 `langchain-chroma==0.1.4` 在该解释器组合下要求 NumPy 1.x。
@@ -130,12 +130,12 @@ flowchart LR
 |---|---|---|
 | `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，19 个直接运行依赖精确匹配，`pip check` 成功 |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 25 个直接运行/开发依赖精确匹配 |
-| `pip install --dry-run --ignore-installed -r requirements-dev.txt` | 成功 | Python 3.10 可解析；输出同时证明传递依赖仍会漂移，不能替代 lock |
+| `pip install --dry-run --ignore-installed -r requirements-dev.lock` | 成功 | Python 3.10 clean dry-run，锁定的传递依赖可解析 |
 | `python -m pytest -q` | 成功：74 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、RAG 显式加载/后台单飞/超时、Agent 上限、模型适配器、PDF/UI、LangGraph/Chroma 兼容和子进程安全测试 |
 | `python -m ruff check .` | 成功 | 仓库 `pyproject.toml` 固定精确规则集，全仓零诊断 |
 | `python -m ruff format --check .` | 成功：68 files already formatted | 已完成全仓 Python 格式基线 |
 | `python -m mypy agent rag model evaluation utils scripts tests app.py` | 成功：59 source files | 仓库配置固定 Python 3.10、缺失类型依赖和包基线规则 |
-| `python -m coverage run -m pytest -q && coverage report` | 成功：41% | 仅统计源码、启用 branch coverage；当前只记录真实基线，尚未设置回归阈值 |
+| `python -m coverage run -m pytest -q && coverage report` | 成功：42% | 仅统计源码、启用 branch coverage；`fail_under=41` 已设置为当前真实基线 |
 | `python -m pip_audit -r requirements.txt` | 失败：3 条/3 包 | 剩余涉及 `chromadb`、`ragas` 和 `diskcache`；未使用忽略规则 |
 
 ## 可复现指标基线
@@ -162,8 +162,8 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 完整清单见 [TECH_DEBT.md](TECH_DEBT.md)。优先级最高的风险是：
 
-1. 当前运行依赖仍有 3 条已知漏洞记录，涉及 `chromadb`、`ragas` 和 `diskcache`；当前公开索引未给出可直接升级的修复版本。
-2. 依赖集合在 Python 3.13 环境不可解，且尚无完整 transitive lock/空环境重建证明。
+1. 当前运行依赖仍有 3 条已知漏洞记录，涉及 `chromadb`、`ragas` 和 `diskcache`；当前公开索引未给出兼容的直接升级修复版本，pip-audit 门禁必须保持失败并阻止发布。
+2. Python 3.13 不在支持矩阵；Python 3.10 已有传递依赖锁和 clean dry-run 证据。
 3. Agent 步骤和工具调用已有代码级上限，但请求没有全流程 deadline/cancellation，工具副作用也没有幂等控制。
 4. 随机用户身份与本地报告数据没有认证、授权和租户隔离。
 5. 重排使用评测来源文件名，README 质量提升不能视为独立证据。

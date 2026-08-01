@@ -5,7 +5,7 @@
 | 编号 | 问题 | 严重度 | 影响 | 证据文件 | 推荐方案 | 所属阶段 | 状态 |
 |---|---|---|---|---|---|---|---|
 | TD-001 | 曾全局关闭 HTTPS 证书校验 | Blocker | 同进程所有默认 HTTPS context 可遭中间人攻击，模型和文档数据可能泄露 | `model/factory.py`、`model/runtime_config.py` | 已删除全局 monkey patch；默认验证证书，仅允许显式 CA bundle，并覆盖默认/自定义/非法配置测试 | 1 | 已完成 |
-| TD-002 | Python 3.13 下 requirements 无法解析，且尚无完整 transitive lock/clean rebuild 证明 | High | 默认 shell 与支持环境不一致，传递依赖仍可能随时间漂移 | `.python-version`、`requirements*.txt`、`scripts/check_environment.py` | 已固定并验证 Python 3.10 直接依赖且删除 `.local_deps` 注入；后续增加跨平台 transitive lock 和空环境重建 | 1 | 部分完成 |
+| TD-002 | Python 3.13 下 requirements 无法解析 | High | 默认 shell 与支持环境不一致；Python 3.13 不属于支持矩阵 | `.python-version`、`requirements*.txt`、`scripts/check_environment.py` | `.python-version` 固定 Python 3.10；`requirements.lock` 和 `requirements-dev.lock` 由 pip-compile 生成，Python 3.10 clean dry-run 通过 | 1 | 已完成（支持矩阵外环境仍不支持） |
 | TD-003 | Agent 请求没有全流程 deadline 或取消传播 | High | 步骤与工具次数已受限，但单次慢工具/模型仍可长期占用 Worker | `agent/react_agent.py`、`utils/settings.py` | 已接入 Settings 驱动的 recursion/tool-call 上限和安全终止；阶段 2 application service 增加 deadline/cancellation 并测试 | 1/2/4 | 部分完成 |
 | TD-004 | 首次 RAG 工具检索仍可能等待入库 | High | import 和 RAG service 构造已无 Chroma 入库副作用；首次检索会等待有界后台任务，服务层 readiness/API 状态仍待阶段二统一 | `agent/tools/agent_tools.py`、`rag/rag_service.py`、`rag/vector_store.py` | `start_document_loading()` 单飞启动后台加载，`ensure_documents_loaded()` 有显式超时并传播失败；阶段二接入 lifespan/readiness | 1/2/6 | 阶段一完成，阶段二边界待接入 |
 | TD-005 | 启发式重排使用来源文件名，来源名同时是评测标签 | High | 形成相关性捷径，污染 source recall/MRR 与 README 提升结论 | `rag/reranker.py:49-97`、`evaluation/local_metrics.py:27-44` | 删除来源名特征；冻结独立 regression set；保留无泄漏 baseline 并重跑消融 | 1/5/10 | 待处理 |
@@ -31,4 +31,4 @@
 | TD-025 | 无 request ID、结构化日志、trace 或 metrics | Medium | 故障无法按请求关联，无法观测模型/RAG/工具耗时 | `utils/logger_handler.py:14-50` | API middleware 注入 request ID；后续 OTel + Prometheus，控制标签基数 | 2/8 | 待处理 |
 | TD-026 | 默认模型和 RAG 仍使用进程内缓存实例 | Medium | import-time 单例已删除且核心构造器可注入，但尚无 API composition root 或生命周期关闭钩子 | `model/factory.py`、`agent/react_agent.py`、`rag/rag_service.py` | 在 FastAPI 应用工厂集中创建/关闭依赖；adapter/interface 继续分离 | 1/2/7 | 部分完成 |
 | TD-027 | 低置信度与域外判断是少量硬编码关键词 | Low | 容易误拒答或漏过，不能作为通用安全 guardrail | `rag/guardrails.py:10-27` | 保留为明确 baseline；用版本化策略、可测试分类器和人工升级路径演进 | 5/9/10 | 待处理 |
-| TD-028 | 当前运行依赖仍有 3 条已知漏洞记录，涉及 3 个直接或传递包 | Blocker | 剩余直接或传递依赖漏洞会阻止依赖安全门禁通过 | `requirements.txt`、`python -m pip_audit -r requirements.txt` | 已完成 PDF、UI、LangChain/LangGraph 和 ML 栈迁移；继续处理 `chromadb`、`ragas`、`diskcache`，不允许无依据 ignore | 1 | 部分完成 |
+| TD-028 | 当前运行依赖仍有 3 条已知漏洞记录，涉及 3 个直接或传递包 | Blocker | 剩余直接或传递依赖漏洞会阻止依赖安全门禁通过 | `requirements.txt`、`requirements.lock`、`python -m pip_audit -r requirements.txt` | 已完成 PDF、UI、LangChain/LangGraph 和 ML 栈迁移；锁文件保留受影响版本，不使用 ignore 掩盖；等待上游修复或替换依赖前，发布门禁必须保持失败 | 1 | 外部阻塞，已记录风险 |
