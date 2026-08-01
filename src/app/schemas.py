@@ -53,3 +53,9 @@ class AgentRunResponse(BaseModel):
     started_at: str | None = None
     completed_at: str | None = None
     duration_ms: int | None = None
+
+
+class AgentRunListResponse(BaseModel):
+    items: list[AgentRunResponse]
+    limit: int
+    offset: int

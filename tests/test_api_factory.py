@@ -197,6 +197,23 @@ def test_idempotency_key_prevents_duplicate_chat_run() -> None:
     assert second.json()["run_id"] == first.json()["run_id"]
 
 
+def test_agent_run_list_is_paginated_filtered_and_tenant_scoped() -> None:
+    service = ChatApplicationService(FakeAgent())
+    client = TestClient(create_app(chat_service=service))
+    for message in ("one", "two", "three"):
+        client.post("/api/v1/chat", json={"message": message})
+
+    response = client.get("/api/v1/runs?status=completed&limit=2&offset=1")
+    other = client.get("/api/v1/runs", headers={"x-tenant-id": "other"})
+
+    assert response.status_code == 200
+    assert response.json()["limit"] == 2
+    assert response.json()["offset"] == 1
+    assert len(response.json()["items"]) == 2
+    assert other.status_code == 200
+    assert other.json()["items"] == []
+
+
 def test_chat_route_rejects_extra_fields_without_calling_agent() -> None:
     client = TestClient(create_app(chat_service=ChatApplicationService(FakeAgent())))
 

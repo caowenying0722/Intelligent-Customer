@@ -692,5 +692,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 3 第十五个目标完成：Agent run 支持 tenant-scoped `Idempotency-Key`，重复 Chat 不创建第二条 run，Alembic 0005 增加唯一索引并通过 API contract 测试。
 - 阶段 3 第十六个目标完成：集中定义 Agent run 状态跃迁，内存/SQLAlchemy/API 均拒绝终态回退，返回 `run_state_conflict`。
 - 阶段 3 第十七个目标完成：Agent run 记录 started/completed 时间和 duration_ms，Alembic 0006 增加 timing 字段，API 查询返回耗时审计信息。
+- 阶段 3 第十八个目标完成：增加 tenant-scoped Agent run 分页列表，支持状态和创建时间范围过滤，默认 limit 50、最大 100，避免无限制全表读取。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

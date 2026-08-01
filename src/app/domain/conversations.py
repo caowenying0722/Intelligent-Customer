@@ -98,6 +98,16 @@ class ConversationRepositoryProtocol(Protocol):
         self, tenant_id: str, run_id: UUID, status: str, error: str | None = None
     ) -> AgentRun: ...
 
+    def list_runs(
+        self,
+        tenant_id: str,
+        status: str | None = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[AgentRun]: ...
+
 
 class ConversationRepository:
     """Thread-safe process-local repository; replace with PostgreSQL in stage 3."""
@@ -216,3 +226,25 @@ class ConversationRepository:
             )
             self._runs[run_id] = updated
             return updated
+
+    def list_runs(
+        self,
+        tenant_id: str,
+        status: str | None = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[AgentRun]:
+        if not 1 <= limit <= 100 or offset < 0:
+            raise ValueError("invalid pagination")
+        runs = [
+            run
+            for run in getattr(self, "_runs", {}).values()
+            if run.tenant_id == tenant_id
+            and (status is None or run.status == status)
+            and (created_after is None or run.created_at >= created_after)
+            and (created_before is None or run.created_at <= created_before)
+        ]
+        runs.sort(key=lambda item: item.created_at, reverse=True)
+        return runs[offset : offset + limit]

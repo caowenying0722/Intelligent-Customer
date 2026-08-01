@@ -296,3 +296,42 @@ class SqlAlchemyConversationRepository:
                 started_at=row.started_at,
                 completed_at=row.completed_at,
             )
+
+    def list_runs(
+        self,
+        tenant_id: str,
+        status: str | None = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[AgentRun]:
+        if not 1 <= limit <= 100 or offset < 0:
+            raise ValueError("invalid pagination")
+        statement = select(AgentRunRow).where(AgentRunRow.tenant_id == tenant_id)
+        if status is not None:
+            statement = statement.where(AgentRunRow.status == status)
+        if created_after is not None:
+            statement = statement.where(AgentRunRow.created_at >= created_after)
+        if created_before is not None:
+            statement = statement.where(AgentRunRow.created_at <= created_before)
+        with Session(self.engine) as session:
+            rows = session.scalars(
+                statement.order_by(AgentRunRow.created_at.desc())
+                .limit(limit)
+                .offset(offset)
+            ).all()
+            return [
+                AgentRun(
+                    run_id=UUID(row.id),
+                    tenant_id=row.tenant_id,
+                    conversation_id=UUID(row.conversation_id),
+                    status=row.status,
+                    error=row.error,
+                    idempotency_key=row.idempotency_key,
+                    created_at=row.created_at,
+                    started_at=row.started_at,
+                    completed_at=row.completed_at,
+                )
+                for row in rows
+            ]

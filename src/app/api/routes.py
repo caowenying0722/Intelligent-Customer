@@ -1,9 +1,10 @@
 """Chat HTTP routes; business orchestration stays in application services."""
 
 import json
+from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.app.application.chat import ChatApplicationService
@@ -13,6 +14,7 @@ from src.app.domain.conversations import (
     RunStateConflict,
 )
 from src.app.schemas import (
+    AgentRunListResponse,
     AgentRunResponse,
     ChatRequest,
     ChatResponse,
@@ -230,6 +232,62 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
             started_at=run.started_at.isoformat() if run.started_at else None,
             completed_at=run.completed_at.isoformat() if run.completed_at else None,
             duration_ms=run.duration_ms,
+        )
+
+    @router.get("/runs", response_model=AgentRunListResponse)
+    async def list_runs(
+        request: Request,
+        status: str | None = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+        limit: int = Query(default=50, ge=1, le=100),
+        offset: int = Query(default=0, ge=0),
+    ):
+        if chat_service is None:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "run_unavailable",
+                    "message": "run service is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
+        try:
+            runs = chat_service.conversation_repository.list_runs(
+                request.headers.get("x-tenant-id", "local"),
+                status,
+                created_after,
+                created_before,
+                limit,
+                offset,
+            )
+        except ValueError:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "code": "invalid_pagination",
+                    "message": "invalid run pagination",
+                    "request_id": request.state.request_id,
+                },
+            )
+        return AgentRunListResponse(
+            items=[
+                AgentRunResponse(
+                    run_id=str(run.run_id),
+                    conversation_id=str(run.conversation_id),
+                    status=run.status,
+                    error=run.error,
+                    created_at=run.created_at.isoformat(),
+                    started_at=run.started_at.isoformat() if run.started_at else None,
+                    completed_at=run.completed_at.isoformat()
+                    if run.completed_at
+                    else None,
+                    duration_ms=run.duration_ms,
+                )
+                for run in runs
+            ],
+            limit=limit,
+            offset=offset,
         )
 
     @router.patch("/runs/{run_id}", response_model=AgentRunResponse)

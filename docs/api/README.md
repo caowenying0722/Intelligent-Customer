@@ -47,6 +47,7 @@ API 集成测试会先执行 Alembic upgrade，再用两个独立 app 实例验�
 - `x-user-id` 记录会话归属，默认本地开发用户为 `local`；`agent_runs` 表为后续 Agent 执行审计预留 tenant/conversation/status 字段。
 - Agent run API：`POST /api/v1/conversations/{id}/runs` 创建 queued run，`PATCH /api/v1/runs/{id}` 更新状态，`GET /api/v1/runs/{id}` 查询；所有路径按 tenant 隔离。
 - run 状态跃迁受限为 `queued→running→completed/failed/cancelled`；终态不可回退，非法跃迁返回 `409 run_state_conflict`。
+- `GET /api/v1/runs` 支持 `status`、`created_after`、`created_before`、`limit`（1-100）和 `offset` 分页，并始终按 tenant 过滤和创建时间倒序返回。
 - run 查询返回 `created_at/started_at/completed_at/duration_ms`，用于审计执行耗时；未开始的 queued run 的耗时为 null。
 - 非流式 Chat 响应返回 `run_id`；执行自动记录 queued/running/completed 或 failed/cancelled，失败原因保存在 run 记录中。
 - `Idempotency-Key`（或请求体 `idempotency_key`）按 tenant 去重；重复提交返回 `409 idempotency_reused` 和原 run ID。
