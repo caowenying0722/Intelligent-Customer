@@ -136,13 +136,21 @@ def build_router(
             parsed_id = UUID(job_id)
         except ValueError:
             parsed_id = None
-        if parsed_id is None or not ingestion_service.jobs.cancel(
-            tenant_id=request.headers.get("x-tenant-id", "local"), job_id=parsed_id
-        ):
+        tenant_id = request.headers.get("x-tenant-id", "local")
+        job_store = getattr(ingestion_service, "job_store", None)
+        if job_store is not None:
+            try:
+                job = job_store.request_cancel(tenant_id=tenant_id, job_id=parsed_id)
+            except (KeyError, TypeError):
+                job = None
+            cancelled = job is not None
+        else:
+            cancelled = parsed_id is not None and ingestion_service.jobs.cancel(
+                tenant_id=tenant_id, job_id=parsed_id
+            )
+            job = ingestion_service.jobs.get(tenant_id=tenant_id, job_id=parsed_id) if cancelled else None
+        if not cancelled or job is None:
             return JSONResponse(status_code=409, content={"code": "job_not_cancellable", "message": "job not found or already running", "request_id": request.state.request_id})
-        job = ingestion_service.jobs.get(
-            tenant_id=request.headers.get("x-tenant-id", "local"), job_id=parsed_id
-        )
         return IngestionJobResponse(
             job_id=str(job.job_id), tenant_id=job.tenant_id, status=job.status.value,
             error=job.error, created_at=job.created_at.isoformat(),

@@ -185,6 +185,47 @@ class SqlAlchemyIngestionRepository:
             session.commit()
             return self._job(row)
 
+    def list_recoverable_jobs(self, *, tenant_id: str | None = None) -> list[IngestionJob]:
+        with Session(self.engine) as session:
+            statement = select(IngestionJobRow).where(
+                IngestionJobRow.status.in_(["queued", "running"])
+            )
+            if tenant_id is not None:
+                statement = statement.where(IngestionJobRow.tenant_id == tenant_id)
+            rows = session.scalars(statement.order_by(IngestionJobRow.created_at)).all()
+            return [self._job(row) for row in rows]
+
+    def request_cancel(self, *, tenant_id: str, job_id: UUID) -> IngestionJob:
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(IngestionJobRow).where(
+                    IngestionJobRow.tenant_id == tenant_id,
+                    IngestionJobRow.id == str(job_id),
+                )
+            )
+            if row is None:
+                raise KeyError("ingestion job not found")
+            if row.status == IngestionJobStatus.QUEUED.value:
+                row.status = IngestionJobStatus.CANCELLED.value
+                row.completed_at = datetime.now(timezone.utc)
+            elif row.status == IngestionJobStatus.RUNNING.value:
+                row.cancel_requested = True
+            session.commit()
+            return self._job(row)
+
+    def fail_orphaned_jobs(self) -> int:
+        """Mark running jobs from a crashed worker as safely failed on startup."""
+        with Session(self.engine) as session:
+            rows = session.scalars(
+                select(IngestionJobRow).where(IngestionJobRow.status == "running")
+            ).all()
+            for row in rows:
+                row.status = IngestionJobStatus.FAILED.value
+                row.error = "worker restarted before job completion"
+                row.completed_at = datetime.now(timezone.utc)
+            session.commit()
+            return len(rows)
+
     @staticmethod
     def _document(row: DocumentRow) -> DocumentRecord:
         return DocumentRecord(
