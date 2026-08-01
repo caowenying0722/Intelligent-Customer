@@ -860,6 +860,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第三十九个目标完成：审计 queued/running/orphan recovery，确认唯一约束 + claim-before-worker + 启动恢复能证明 at-least-once；新增 `docs/security/job-claim-audit.md`，明确 heartbeat/lease/fencing 和 exactly-once 仍未实现。定向回归 `14 passed`。
 - 阶段 11 第四十个目标完成：复核 SQLAlchemy `IngestionJobRow` 与 Alembic `0008→0010`，增加 migration smoke 对唯一索引 unique/列顺序和 ORM index 的断言，并记录 SQLite 不能替代 PostgreSQL 锁/隔离/lease 验收。相关迁移测试通过。
 - 阶段 11 第四十一个目标完成：复核 Docker/PostgreSQL 集成门禁；`docker info` 124 秒超时，Compose 两套静态 config 和 Docker/migration 测试 `5 passed`，但 PostgreSQL 容器、真实 health/readiness、跨 worker 锁和 OTLP 端到端均未执行，限制已写入 `docs/operations/postgres-container-audit.md`。
-- 阶段 11 第四十二个目标进行中：执行发布前文档/状态/标签一致性审计，检查所有“通过”结论都有真实命令证据，统一剩余 blocker 和下一步，不修改用户未提交 README/删除文件。
+- 阶段 11 第四十二个目标完成：发布前文档/状态/标签一致性审计通过；当前唯一最新基线为 `329 passed`、26 subtests、覆盖率 59%、Ruff format 222 files、Mypy 96 source files，远程 `origin/main` 已到 `a4884a7`，用户未提交 README/删除文件/AGENT.md/todo.md 保持原样。旧阶段数字仅保留在执行计划历史，不作为当前发布结论。
+- 阶段 11 第四十三个目标进行中：执行最终交付前门禁复跑和完整 diff 检查，输出当前 blocker、已推送标签、未完成目标和下一步，不在 Docker daemon 不可用时伪造容器通过。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
