@@ -13,6 +13,7 @@ from langchain_openai import ChatOpenAI
 
 from model.anthropic_compatible import AnthropicCompatibleChatModel
 from model.runtime_config import ModelRuntimeConfig
+from model.gateway import ModelGateway
 from utils.settings import Settings, get_settings
 
 
@@ -163,6 +164,24 @@ def get_chat_model() -> BaseChatModel:
 @lru_cache(maxsize=1)
 def get_embedding_model() -> Embeddings:
     return LazyEmbeddings()
+
+
+def build_chat_gateway(
+    model: BaseChatModel | None = None,
+    *,
+    provider: str = "default",
+    runtime: ModelRuntimeConfig | None = None,
+    max_concurrency: int = 8,
+) -> ModelGateway:
+    """Adapt an explicitly selected chat model behind the bounded gateway."""
+    selected = model if model is not None else get_chat_model()
+    config = runtime or ModelRuntimeConfig.from_env()
+    return ModelGateway(
+        {provider: selected.invoke},
+        timeout_seconds=config.request_timeout_seconds,
+        max_retries=config.max_retries,
+        max_concurrency=max_concurrency,
+    )
 
 
 def clear_model_caches() -> None:
