@@ -45,6 +45,7 @@ API access logger 输出 JSON 事件，仅含 method、status_code、duration_ms
 - 当前会话 repository 是线程安全的进程内实现；服务重启会丢失数据，阶段三替换为 PostgreSQL。
 - 可注入原生异步 Agent runner；任务取消会原样传播，不会被转换成 `chat_failed`。同步 Agent 仍通过受控线程兼容，底层调用本身可能无法强制中止。
 - `POST /api/v1/chat/stream` 返回 `text/event-stream`，事件顺序为 `metadata`、零个或多个 `token`、最多一个 `completed`；失败使用 `error` envelope。
+- SSE 生成器在 metadata 或 token 之间检查客户端断开；断开后直接结束，不补发 completed/error。该路径有真实 APIRoute body-iterator 回归测试；底层同步模型线程仍只能靠 provider 自身 timeout 停止。
 - `GET /api/v1/conversations/{conversation_id}` 返回当前进程内会话消息；不存在时返回 `404 conversation_not_found`。
 - 会话响应包含单调递增的 `version`；写入方可用 expected version 检测过期状态，避免静默覆盖。
 - stale `expected_version` 返回 `409 conversation_conflict`，客户端应重新读取会话后重试。

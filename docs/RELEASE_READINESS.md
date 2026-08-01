@@ -6,9 +6,9 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：324 passed，25 subtests | 默认不调用付费模型 |
-| `coverage run -m pytest -q && coverage report` | 通过：324 passed，25 subtests；总覆盖率 59%，门槛 41% | 当前本地基线 |
-| `python -m ruff format --check .` | 通过 | 219 个 Python 文件已格式化 |
+| `python -m pytest -q` | 通过：325 passed，25 subtests | 默认不调用付费模型 |
+| `coverage run -m pytest -q && coverage report` | 通过：325 passed，25 subtests；总覆盖率 59%，门槛 41% | 当前本地基线 |
+| `python -m ruff format --check .` | 通过 | 220 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 | 测试动态 mock 不纳入源码类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
@@ -22,6 +22,7 @@
 | Worker Prometheus 聚合指标 | 通过：4 个测试 | 队列/活动/等待/处理/重试/终态聚合，无 job/tenant 标签 |
 | API 访问日志脱敏 | 通过：2 个测试 | 仅 method/status/duration/request_id/trace_id；不记录 Authorization/Cookie/query/prompt/正文 |
 | Chat timeout/cancellation regression | 通过：2 个测试 | fake Agent 验证同步线程超时边界和异步 SSE runner 取消传播 |
+| SSE disconnect regression | 通过：1 个测试 | 真实 APIRoute body-iterator 在 metadata 后断开，不发送 token/completed/error |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 
