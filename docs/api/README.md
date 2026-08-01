@@ -44,5 +44,6 @@ API 集成测试会先执行 Alembic upgrade，再用两个独立 app 实例验�
 - 会话响应包含单调递增的 `version`；写入方可用 expected version 检测过期状态，避免静默覆盖。
 - stale `expected_version` 返回 `409 conversation_conflict`，客户端应重新读取会话后重试。
 - 会话 API 从 `x-tenant-id` 读取租户上下文，默认仅用于本地开发的 `local`；不同租户不能读取或追加彼此会话。
+- `x-user-id` 记录会话归属，默认本地开发用户为 `local`；`agent_runs` 表为后续 Agent 执行审计预留 tenant/conversation/status 字段。
 
 SSE、取消传播和持久化会话将在后续独立目标中加入。

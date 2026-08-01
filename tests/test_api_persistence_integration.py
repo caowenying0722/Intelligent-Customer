@@ -32,7 +32,7 @@ def test_api_recovers_conversation_after_application_restart() -> None:
         created = first.post(
             "/api/v1/chat",
             json={"message": "remember me"},
-            headers={"x-tenant-id": "tenant-a"},
+            headers={"x-tenant-id": "tenant-a", "x-user-id": "user-7"},
         ).json()
 
     with TestClient(
@@ -45,6 +45,8 @@ def test_api_recovers_conversation_after_application_restart() -> None:
 
     assert recovered.status_code == 200
     assert recovered.json()["version"] == 2
+    assert recovered.json()["user_id"] == "user-7"
+    assert recovered.json()["status"] == "active"
     assert [item["content"] for item in recovered.json()["messages"]] == [
         "remember me",
         "persisted:remember me",

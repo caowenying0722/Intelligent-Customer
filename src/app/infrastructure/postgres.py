@@ -21,7 +21,7 @@ from src.app.domain.conversations import (
     Message,
 )
 
-EXPECTED_SCHEMA_REVISION = "0002_add_conversation_version"
+EXPECTED_SCHEMA_REVISION = "0003_add_identity_and_agent_runs"
 
 
 class Base(DeclarativeBase):
@@ -34,6 +34,8 @@ class ConversationRow(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(128), index=True)
     version: Mapped[int] = mapped_column(default=0)
+    user_id: Mapped[str] = mapped_column(String(128), default="local")
+    status: Mapped[str] = mapped_column(String(32), default="active")
     messages: Mapped[list["MessageRow"]] = relationship(
         back_populates="conversation",
         cascade="all, delete-orphan",
@@ -52,6 +54,18 @@ class MessageRow(Base):
     content: Mapped[str] = mapped_column(String(4000))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     conversation: Mapped[ConversationRow] = relationship(back_populates="messages")
+
+
+class AgentRunRow(Base):
+    __tablename__ = "agent_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(128), index=True)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class SqlAlchemyConversationRepository:
@@ -84,12 +98,16 @@ class SqlAlchemyConversationRepository:
         if initialize_schema:
             Base.metadata.create_all(self.engine)
 
-    def create(self, tenant_id: str) -> Conversation:
-        conversation = Conversation(tenant_id=tenant_id, conversation_id=uuid4())
+    def create(self, tenant_id: str, user_id: str = "local") -> Conversation:
+        conversation = Conversation(
+            tenant_id=tenant_id, conversation_id=uuid4(), user_id=user_id
+        )
         with Session(self.engine) as session:
             session.add(
                 ConversationRow(
-                    id=str(conversation.conversation_id), tenant_id=tenant_id
+                    id=str(conversation.conversation_id),
+                    tenant_id=tenant_id,
+                    user_id=user_id,
                 )
             )
             session.commit()
@@ -109,6 +127,8 @@ class SqlAlchemyConversationRepository:
                 tenant_id=row.tenant_id,
                 conversation_id=UUID(row.id),
                 version=row.version,
+                user_id=row.user_id,
+                status=row.status,
                 messages=[
                     Message(
                         role=item.role, content=item.content, created_at=item.created_at

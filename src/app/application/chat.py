@@ -44,9 +44,13 @@ class ChatApplicationService:
             conversation_repository or ConversationRepository()
         )
 
-    def _conversation_id(self, tenant_id: str, conversation_id: str | None) -> UUID:
+    def _conversation_id(
+        self, tenant_id: str, conversation_id: str | None, user_id: str
+    ) -> UUID:
         if conversation_id is None:
-            return self.conversation_repository.create(tenant_id).conversation_id
+            return self.conversation_repository.create(
+                tenant_id, user_id
+            ).conversation_id
         try:
             parsed = UUID(conversation_id)
         except ValueError as exc:
@@ -60,9 +64,10 @@ class ChatApplicationService:
         message: str,
         conversation_id: str | None = None,
         tenant_id: str = "local",
+        user_id: str = "local",
         expected_version: int | None = None,
     ) -> tuple[str, UUID]:
-        resolved_id = self._conversation_id(tenant_id, conversation_id)
+        resolved_id = self._conversation_id(tenant_id, conversation_id, user_id)
         self.conversation_repository.append(
             tenant_id,
             resolved_id,

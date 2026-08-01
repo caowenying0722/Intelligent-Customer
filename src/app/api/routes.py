@@ -40,6 +40,7 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
                 payload.message,
                 payload.conversation_id,
                 request.headers.get("x-tenant-id", "local"),
+                request.headers.get("x-user-id", "local"),
                 payload.expected_version,
             )
         except ConcurrencyConflict:
@@ -127,6 +128,8 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
         return ConversationResponse(
             conversation_id=str(conversation.conversation_id),
             version=conversation.version,
+            user_id=conversation.user_id,
+            status=conversation.status,
             messages=[
                 MessageResponse(
                     role=message.role,

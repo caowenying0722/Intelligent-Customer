@@ -32,4 +32,6 @@ class MessageResponse(BaseModel):
 class ConversationResponse(BaseModel):
     conversation_id: str
     version: int
+    user_id: str
+    status: str
     messages: list[MessageResponse]

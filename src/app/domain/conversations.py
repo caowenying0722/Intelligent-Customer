@@ -19,6 +19,8 @@ class Conversation:
     tenant_id: str
     conversation_id: UUID
     version: int = 0
+    user_id: str = "local"
+    status: str = "active"
     messages: list[Message] = field(default_factory=list)
 
 
@@ -27,7 +29,7 @@ class ConcurrencyConflict(RuntimeError):
 
 
 class ConversationRepositoryProtocol(Protocol):
-    def create(self, tenant_id: str) -> Conversation: ...
+    def create(self, tenant_id: str, user_id: str = "local") -> Conversation: ...
 
     def get(self, tenant_id: str, conversation_id: UUID) -> Conversation | None: ...
 
@@ -52,10 +54,12 @@ class ConversationRepository:
         self._conversations: dict[UUID, Conversation] = {}
         self._lock = Lock()
 
-    def create(self, tenant_id: str) -> Conversation:
+    def create(self, tenant_id: str, user_id: str = "local") -> Conversation:
         if not tenant_id:
             raise ValueError("tenant_id is required")
-        conversation = Conversation(tenant_id=tenant_id, conversation_id=uuid4())
+        conversation = Conversation(
+            tenant_id=tenant_id, conversation_id=uuid4(), user_id=user_id
+        )
         with self._lock:
             self._conversations[conversation.conversation_id] = conversation
         return conversation
