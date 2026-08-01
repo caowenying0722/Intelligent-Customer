@@ -23,6 +23,8 @@ python -m src.app.server
 
 所有响应写入 `x-request-id`。客户端可传入该请求头，否则由服务生成 UUID。模型、向量库和会话依赖不会在模块导入或默认应用工厂中构造。
 
+错误响应统一为 `{"code": "...", "message": "...", "request_id": "..."}`；422、HTTP 异常和未处理异常都不会返回堆栈或供应商原始内容。
+
 当前聊天边界：
 
 - `POST /api/v1/chat` 接收严格的 `{"message": "...", "conversation_id": "..."}` schema；省略 ID 会创建新的内存会话。

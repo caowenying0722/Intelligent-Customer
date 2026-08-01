@@ -2,6 +2,7 @@ import asyncio
 from uuid import UUID
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from src.app.application.chat import ChatApplicationService
@@ -112,6 +113,42 @@ def test_chat_route_rejects_extra_fields_without_calling_agent() -> None:
     response = client.post("/api/v1/chat", json={"message": "hi", "secret": "x"})
 
     assert response.status_code == 422
+    assert response.json()["code"] == "validation_error"
+    assert response.json()["request_id"]
+
+
+def test_http_exception_uses_stable_error_contract() -> None:
+    app = create_app()
+
+    @app.get("/test-http-error")
+    async def test_http_error() -> None:
+        raise HTTPException(status_code=409, detail="conflict")
+
+    response = TestClient(app).get(
+        "/test-http-error", headers={"x-request-id": "req-error"}
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "code": "http_error",
+        "message": "conflict",
+        "request_id": "req-error",
+    }
+
+
+def test_unhandled_exception_does_not_leak_details() -> None:
+    app = create_app()
+
+    @app.get("/test-internal-error")
+    async def test_internal_error() -> None:
+        raise RuntimeError("secret provider response")
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/test-internal-error")
+
+    assert response.status_code == 500
+    assert response.json()["code"] == "internal_error"
+    assert "secret provider" not in response.text
 
 
 def test_chat_route_maps_timeout_without_traceback() -> None:

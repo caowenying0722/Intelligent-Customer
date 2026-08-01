@@ -9,7 +9,8 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from uuid import UUID, uuid4
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.app.application.chat import ChatApplicationService
@@ -47,6 +48,40 @@ def create_app(
     app = FastAPI(
         title="Intelligent Customer Service", version="0.1.0", lifespan=lifespan
     )
+
+    def error_payload(request: Request, code: str, message: str) -> dict[str, str]:
+        return {
+            "code": code,
+            "message": message,
+            "request_id": getattr(request.state, "request_id", str(uuid4())),
+        }
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(
+        request: Request, _exc: RequestValidationError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content=error_payload(
+                request, "validation_error", "request validation failed"
+            ),
+        )
+
+    @app.exception_handler(HTTPException)
+    async def http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_payload(request, "http_error", str(exc.detail)),
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_error_handler(
+        request: Request, _exc: Exception
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=500,
+            content=error_payload(request, "internal_error", "internal server error"),
+        )
 
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):
