@@ -27,6 +27,14 @@ def test_otel_endpoint_rejects_credentials_and_query_data():
         Settings(otel_exporter_endpoint="https://example:4317?token=secret")
 
 
+def test_production_rejects_plaintext_otel_endpoint():
+    with pytest.raises(ValueError, match="HTTPS"):
+        Settings(
+            application_env="production",
+            otel_exporter_endpoint="http://otel-collector:4317",
+        )
+
+
 def test_explicit_otel_exporter_uses_configured_timeout_without_network_call():
     class FakeExporter:
         def export(self, spans):

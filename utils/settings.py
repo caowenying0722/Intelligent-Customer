@@ -159,6 +159,12 @@ class Settings(BaseSettings):
     def reject_production_wildcard_origin(self) -> Settings:
         if self.application_env == "production" and "*" in self.allowed_origins:
             raise ValueError("Wildcard ALLOWED_ORIGINS is forbidden in production")
+        if (
+            self.application_env == "production"
+            and self.otel_exporter_endpoint is not None
+            and not self.otel_exporter_endpoint.startswith("https://")
+        ):
+            raise ValueError("OTEL_EXPORTER_OTLP_ENDPOINT must use HTTPS in production")
         return self
 
     @property
