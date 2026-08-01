@@ -44,10 +44,18 @@ def test_worker_recovers_queued_job_with_original_id_and_tenant() -> None:
     manager = IngestionJobManager(max_workers=1)
     started = threading.Event()
     release = threading.Event()
+
+    def operation_for(_persisted):
+        def operation():
+            started.set()
+            release.wait(1)
+
+        return operation
+
     try:
         recovered = IngestionWorker(manager, store).recover_queued(
             tenant_id="tenant-a",
-            operation_for=lambda persisted: lambda: (started.set(), release.wait(1)),
+            operation_for=operation_for,
         )
         assert recovered == [job.job_id]
         assert started.wait(1)
@@ -176,10 +184,18 @@ def test_worker_persists_cooperative_cancellation() -> None:
     manager = IngestionJobManager(max_workers=1)
     started = threading.Event()
     release = threading.Event()
+
+    def operation_for(_persisted):
+        def operation():
+            started.set()
+            release.wait(1)
+
+        return operation
+
     try:
         IngestionWorker(manager, store).recover_queued(
             tenant_id="tenant-a",
-            operation_for=lambda _: lambda: (started.set(), release.wait(1)),
+            operation_for=operation_for,
         )
         assert started.wait(1)
         assert manager.cancel(tenant_id="tenant-a", job_id=job.job_id)

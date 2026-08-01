@@ -22,12 +22,14 @@ def test_document_rebuild_cancel_delete_end_to_end() -> None:
     )
     release_upload = threading.Event()
     upload_started = threading.Event()
+
+    def upload_operation(_path, _upload, _record):
+        upload_started.set()
+        release_upload.wait(1)
+
     app = create_app(
         ingestion_service=service,
-        ingestion_operation=lambda path, upload, record: (
-            upload_started.set(),
-            release_upload.wait(1),
-        ),
+        ingestion_operation=upload_operation,
         index_rebuild_operation=lambda version: None,
     )
     try:

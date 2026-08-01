@@ -55,10 +55,15 @@ def test_rebuild_rolls_back_when_activation_fails():
 
 def test_rebuild_times_out_a_blocking_builder():
     backend = Backend()
+
+    def slow_builder():
+        time.sleep(0.1)
+        return "build-2"
+
     with pytest.raises(IndexRebuildError, match="timeout"):
         BlueGreenIndexCoordinator(backend, timeout_seconds=0.01).rebuild(
             previous_collection="stable-1",
-            build_candidate=lambda: (time.sleep(0.1), "build-2")[1],
+            build_candidate=slow_builder,
             validate_candidate=lambda _: True,
         )
     assert backend.calls == []

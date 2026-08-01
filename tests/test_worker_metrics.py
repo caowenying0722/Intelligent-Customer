@@ -82,11 +82,16 @@ def test_cancelled_queued_job_is_counted_without_identity_labels() -> None:
     manager = IngestionJobManager(max_workers=1, metrics=metrics)
     started = threading.Event()
     release = threading.Event()
+
+    def running_operation():
+        started.set()
+        release.wait(1)
+
     try:
         running = manager.submit(
             tenant_id="tenant-a",
             idempotency_key="running",
-            operation=lambda: (started.set(), release.wait(1)),
+            operation=running_operation,
         )
         assert started.wait(1)
         queued = manager.submit(

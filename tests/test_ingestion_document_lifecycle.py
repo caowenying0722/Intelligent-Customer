@@ -121,6 +121,12 @@ def test_delete_during_operation_does_not_resurrect_document() -> None:
     service, jobs, registry = _service(root)
     started = threading.Event()
     release = threading.Event()
+
+    def operation(_path, _upload, _record):
+        started.set()
+        release.wait(1)
+        return "ok"
+
     try:
         submission = service.submit_document(
             tenant_id="tenant-a",
@@ -133,11 +139,7 @@ def test_delete_during_operation_does_not_resurrect_document() -> None:
             embedding_model="e1",
             embedding_dimension=3,
             index_version="idx-1",
-            operation=lambda path, upload, record: (
-                started.set(),
-                release.wait(1),
-                "ok",
-            )[-1],
+            operation=operation,
         )
         assert started.wait(1)
         assert (

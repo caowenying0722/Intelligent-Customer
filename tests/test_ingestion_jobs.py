@@ -71,11 +71,16 @@ def test_queued_ingestion_job_can_be_cancelled() -> None:
     manager = IngestionJobManager(max_workers=1)
     started = threading.Event()
     release = threading.Event()
+
+    def running_operation():
+        started.set()
+        release.wait(1)
+
     try:
         manager.submit(
             tenant_id="tenant-a",
             idempotency_key="running",
-            operation=lambda: (started.set(), release.wait(1)),
+            operation=running_operation,
         )
         assert started.wait(1)
         queued = manager.submit(
@@ -130,11 +135,16 @@ def test_running_job_cancel_is_request_and_progress_is_bounded() -> None:
     manager = IngestionJobManager(max_workers=1)
     started = threading.Event()
     release = threading.Event()
+
+    def running_operation():
+        started.set()
+        release.wait(1)
+
     try:
         job = manager.submit(
             tenant_id="tenant-a",
             idempotency_key="running-cancel",
-            operation=lambda: (started.set(), release.wait(1)),
+            operation=running_operation,
         )
         assert started.wait(1)
         manager.update_progress(tenant_id="tenant-a", job_id=job.job_id, progress=40)
@@ -156,11 +166,17 @@ def test_close_waits_for_running_job_before_returning() -> None:
     started = threading.Event()
     release = threading.Event()
     closed = threading.Event()
+
+    def shutdown_operation():
+        started.set()
+        release.wait(1)
+        return "ok"
+
     try:
         job = manager.submit(
             tenant_id="tenant-a",
             idempotency_key="shutdown",
-            operation=lambda: (started.set(), release.wait(1), "ok")[-1],
+            operation=shutdown_operation,
         )
         assert started.wait(1)
 

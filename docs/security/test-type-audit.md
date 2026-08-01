@@ -22,3 +22,5 @@ python -m mypy agent rag model evaluation utils scripts src/app app.py
 该命令实际通过 96 个生产源码文件；测试运行由 pytest、coverage 和行为回归负责。不能把“源码 Mypy 通过”扩大解释为“测试 Mypy 通过”。
 
 目标 67 已完成第一批低风险收窄：将模型 gateway/cache/quota/idempotency 测试中 `list.append(...) or result` 的 lambda 替换为有明确返回值的 fake provider。相关行为测试通过，`python -m mypy tests` 的诊断从 44 项降至 33 项、分布在 14 个文件；剩余主要是 ingestion Optional、Event/sleep callback、schema/Protocol 和 RRF key 类型。当前仍不把测试目录纳入 CI 类型门禁，后续继续分批收窄并单独评估维护成本。
+
+目标 68 完成第二批回调收窄：将 ingestion/worker/index 测试中的 `Event.set()`、`Event.wait()` 和 `time.sleep()` tuple/lambda 改为显式函数。相关 29 个行为测试通过，`python -m mypy tests` 诊断从 33 项降至 24 项、分布在 11 个文件；剩余主要是 Optional 收窄、schema/Protocol 和 RRF key 类型。
