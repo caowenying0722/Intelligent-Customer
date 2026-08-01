@@ -151,6 +151,38 @@ def test_running_job_cancel_is_request_and_progress_is_bounded() -> None:
         manager.close()
 
 
+def test_close_waits_for_running_job_before_returning() -> None:
+    manager = IngestionJobManager(max_workers=1)
+    started = threading.Event()
+    release = threading.Event()
+    closed = threading.Event()
+    try:
+        job = manager.submit(
+            tenant_id="tenant-a",
+            idempotency_key="shutdown",
+            operation=lambda: (started.set(), release.wait(1), "ok")[-1],
+        )
+        assert started.wait(1)
+
+        def close_manager() -> None:
+            manager.close()
+            closed.set()
+
+        closer = threading.Thread(target=close_manager)
+        closer.start()
+        assert not closed.wait(0.05)
+        release.set()
+        assert closed.wait(1)
+        closer.join(1)
+        assert manager.get(tenant_id="tenant-a", job_id=job.job_id).status == (
+            IngestionJobStatus.COMPLETED
+        )
+    finally:
+        release.set()
+        if not closed.is_set():
+            manager.close()
+
+
 def test_ingestion_does_not_retry_permanent_errors_and_exhaustion_fails() -> None:
     manager = IngestionJobManager(
         max_workers=1, max_attempts=2, retry_backoff_seconds=0

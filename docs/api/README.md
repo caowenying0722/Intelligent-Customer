@@ -16,6 +16,8 @@ python -m src.app.server
 
 应用生命周期支持注入可关闭资源；退出时按逆序调用 `close()` 或 `aclose()`，默认应用不创建外部资源。
 
+配置数据库的文档入库服务会先停止接收新任务、取消尚未开始的任务并等待运行中的 worker 写入终态，再释放 SQLAlchemy engine，避免后台线程与 SQLite/PostgreSQL 资源关闭竞争。入库 operation 仍必须对外部调用设置独立 timeout，避免优雅关闭被不可控的外部调用拖住。
+
 当 `create_app(chat_agent=...)` 且设置 `DATABASE_URL` 时，应用工厂会创建 SQLAlchemy repository、将数据库连接和 Alembic 当前 revision 作为 readiness 检查，并在 lifespan 结束时释放 engine；未设置时使用可测试的内存 repository。数据库表必须先由 Alembic migration 创建。
 
 数据库连接池默认 `pool_size=5`、`max_overflow=10`、池等待 30 秒、连接超时 10 秒、事务隔离 `READ COMMITTED`；这些值由 Settings 校验，SQLite 不套用 PostgreSQL 专用池参数。

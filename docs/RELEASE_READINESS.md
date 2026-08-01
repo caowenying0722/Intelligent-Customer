@@ -6,8 +6,8 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：315 passed，25 subtests | 默认不调用付费模型 |
-| `coverage run -m pytest -q && coverage report` | 通过：总覆盖率 59%，门槛 41% | 当前本地基线 |
+| `python -m pytest -q` | 通过：316 passed，25 subtests | 默认不调用付费模型 |
+| `coverage run -m pytest -q && coverage report` | 通过：316 passed，25 subtests；总覆盖率 59%，门槛 41% | 当前本地基线 |
 | `python -m ruff format --check .` | 通过 | 215 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：95 个源码文件 | 测试动态 mock 不纳入源码类型门禁 |

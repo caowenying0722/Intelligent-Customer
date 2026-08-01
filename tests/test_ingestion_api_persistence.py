@@ -84,34 +84,38 @@ def test_api_database_url_persists_index_rebuild_job() -> None:
 
 def test_lifespan_recovers_persisted_index_rebuild_job() -> None:
     database = Path("output") / "index-rebuild-recovery.db"
-    if database.exists():
-        database.unlink()
-    config = Config(str(Path("alembic.ini").resolve()))
-    config.set_main_option("sqlalchemy.url", f"sqlite:///{database.as_posix()}")
-    command.upgrade(config, "head")
-    url = f"sqlite:///{database.as_posix()}"
-    repository = SqlAlchemyIngestionRepository(url)
-    from datetime import datetime, timezone
+    try:
+        if database.exists():
+            database.unlink()
+        config = Config(str(Path("alembic.ini").resolve()))
+        config.set_main_option("sqlalchemy.url", f"sqlite:///{database.as_posix()}")
+        command.upgrade(config, "head")
+        url = f"sqlite:///{database.as_posix()}"
+        repository = SqlAlchemyIngestionRepository(url)
+        from datetime import datetime, timezone
 
-    job = IngestionJob(
-        job_id=uuid4(),
-        tenant_id="tenant-a",
-        idempotency_key="recover-1",
-        status=IngestionJobStatus.QUEUED,
-        created_at=datetime.now(timezone.utc),
-        task_type="index_rebuild",
-        task_payload="v3",
-    )
-    repository.create_job(job=job)
-    repository.close()
-    seen = []
-    done = threading.Event()
+        job = IngestionJob(
+            job_id=uuid4(),
+            tenant_id="tenant-a",
+            idempotency_key="recover-1",
+            status=IngestionJobStatus.QUEUED,
+            created_at=datetime.now(timezone.utc),
+            task_type="index_rebuild",
+            task_payload="v3",
+        )
+        repository.create_job(job=job)
+        repository.close()
+        seen = []
+        done = threading.Event()
 
-    def rebuild(version):
-        seen.append(version)
-        done.set()
+        def rebuild(version):
+            seen.append(version)
+            done.set()
 
-    app = create_app(database_url=url, index_rebuild_operation=rebuild)
-    with TestClient(app):
-        assert done.wait(1)
-    assert seen == ["v3"]
+        app = create_app(database_url=url, index_rebuild_operation=rebuild)
+        with TestClient(app):
+            assert done.wait(1)
+        assert seen == ["v3"]
+    finally:
+        if database.exists():
+            database.unlink()

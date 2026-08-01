@@ -171,7 +171,14 @@ class IngestionJobManager:
             return bool(job and job.tenant_id == tenant_id and job.cancel_requested)
 
     def close(self) -> None:
-        self._executor.shutdown(wait=False, cancel_futures=True)
+        """Stop accepting work and drain running jobs before resources close.
+
+        The job operation may still need its repository after the operation
+        callback returns (for example, to persist its terminal state). Waiting
+        here prevents the application lifespan from disposing that repository
+        while a worker thread is still using it.
+        """
+        self._executor.shutdown(wait=True, cancel_futures=True)
 
     def _run(self, job_id: UUID, operation: Callable[[], Any], parent_context) -> None:
         context_token = otel_context.attach(parent_context)
