@@ -26,6 +26,7 @@
 ## 已知未完成
 
 - Compose 目前只有 API；PostgreSQL、Redis、Qdrant、Worker、OpenTelemetry、Prometheus、Grafana 和 trace backend 尚未纳入。
+- CI 已在依赖漏洞审计前加入 Docker build 步骤；远端 runner 的镜像构建结果仍待实际 workflow 运行确认。
 - 尚未执行真实 Docker health、迁移、SSE 和后台 job 容器 smoke。
 - hidden evaluation、真实 provider 评测和生产网络压测未执行。
 
