@@ -107,14 +107,35 @@ class ModelGateway:
 
     def invoke_contract(self, request: ModelRequest) -> ModelResponse:
         started = time.monotonic()
-        output = self.invoke(provider=request.provider, request=request.prompt)
+        cache_hits_before = 0
+        if self.cache is not None and hasattr(self.cache, "stats"):
+            cache_hits_before = self.cache.stats().get("hits", 0)
+        if self.cache is not None:
+            output = self.invoke_cached(
+                provider=request.provider,
+                model=request.model,
+                tenant_id=request.tenant_id,
+                prompt=request.prompt,
+                prompt_version=request.prompt_version,
+                request=request.prompt,
+            )
+        else:
+            output = self.invoke(provider=request.provider, request=request.prompt)
+        cache_hits_after = (
+            self.cache.stats().get("hits", 0)
+            if self.cache is not None and hasattr(self.cache, "stats")
+            else cache_hits_before
+        )
         if not isinstance(output, str):
             output = str(output)
         return ModelResponse(
             provider=request.provider,
             model=request.model,
             output=output,
-            usage=ModelUsage(latency_ms=(time.monotonic() - started) * 1000),
+            usage=ModelUsage(
+                latency_ms=(time.monotonic() - started) * 1000,
+                cache_hit=cache_hits_after > cache_hits_before,
+            ),
             trace_metadata={"request_id": request.request_id} if request.request_id else {},
         )
 
