@@ -37,6 +37,8 @@ python -m evaluation.quality_gate \
 
 报告会保存 Git commit/dirty state、dataset version/path/SHA-256、样本完整性、Recall/MRR/NDCG 和 `model_calls=0`。阈值是当前 deterministic baseline 的工程门槛，不代表生产质量或真实模型效果。
 
+本地代理指标将引用拆成三层：`answer_citation_coverage` 统计回答句子是否带引用，`answer_citation_validity` 只检查编号是否落在候选文档范围内，`answer_citation_support` 用 query-independent 的词元重合估计引用句与对应文档是否有证据交集。最后一项是 deterministic lexical support proxy，不是 entailment、LLM-as-a-judge 或人工事实标签；错误引用样本由 `tests/test_citation_metrics.py` 覆盖。
+
 ## Red-team 安全回归
 
 Prompt Injection 数据集位于 `data/evaluation/red_team/`，由 manifest 固定版本和 SHA-256。执行：

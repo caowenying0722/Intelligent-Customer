@@ -139,6 +139,42 @@ def citation_validity(answer: str, docs: list[Document]) -> float:
     return safe_divide(valid_count, len(citations))
 
 
+def citation_support(answer: str, docs: list[Document]) -> float:
+    """Estimate whether cited sentence text overlaps its cited evidence.
+
+    This is a deterministic lexical proxy, not entailment or a human label.
+    Citation numbering validity is intentionally reported separately.
+    """
+
+    if contains_low_confidence_terms(answer):
+        return 1.0
+
+    # Answers commonly place a full stop before the citation marker. Move the
+    # marker before sentence splitting so it remains attached to its claim.
+    citation_attached_answer = re.sub(
+        r"([。！？!?；;])\s*(【资料\d+】)", r"\2\1", answer
+    )
+    supported_units = 0
+    cited_units = 0
+    for unit in sentence_like_units(citation_attached_answer):
+        citations = cited_reference_numbers(unit)
+        if not citations:
+            continue
+        cited_units += 1
+        claim = re.sub(r"【资料\d+】", "", unit).strip()
+        if not claim:
+            continue
+        cited_docs = [
+            docs[citation - 1] for citation in citations if 1 <= citation <= len(docs)
+        ]
+        if any(
+            token_overlap_score(claim, doc.page_content) >= 0.3 for doc in cited_docs
+        ):
+            supported_units += 1
+
+    return safe_divide(supported_units, cited_units)
+
+
 def low_confidence_matched(sample: EvaluationSample, answer: str) -> float:
     expects_low_confidence = bool(sample.metadata.get("expect_low_confidence"))
     has_low_confidence_response = contains_low_confidence_terms(answer)
@@ -167,7 +203,7 @@ def factual_correctness_proxy(
 
     return (
         0.45 * answer_context_overlap
-        + 0.35 * citation_validity(answer, docs)
+        + 0.35 * citation_support(answer, docs)
         + 0.2 * keyword_accuracy
     )
 
@@ -220,6 +256,7 @@ def calculate_local_metrics(
         "answer_context_overlap": answer_context_overlap,
         "answer_citation_coverage": citation_coverage(answer),
         "answer_citation_validity": citation_validity(answer, docs),
+        "answer_citation_support": citation_support(answer, docs),
         "low_confidence_accuracy": low_confidence_matched(sample, answer),
         "answer_relevancy_proxy": answer_relevancy_proxy(
             sample, answer, answer_keyword_accuracy

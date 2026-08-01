@@ -114,9 +114,9 @@ flowchart LR
 
 | 命令 | 实际结果 |
 |---|---|
-| `python -m pytest -q` | 通过：337 passed，26 subtests |
-| `coverage run -m pytest -q` / `coverage report` | 通过：337 passed，26 subtests；总覆盖率 59% |
-| `python -m ruff format --check .` | 通过：231 个 Python 文件已格式化 |
+| `python -m pytest -q` | 通过：339 passed，26 subtests |
+| `coverage run -m pytest -q` / `coverage report` | 通过：339 passed，26 subtests；总覆盖率 60% |
+| `python -m ruff format --check .` | 通过：232 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 |
 | `python scripts/scan_secrets.py` | 通过：Secret scan OK |
@@ -187,7 +187,7 @@ flowchart LR
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
 | MRR | 0.857143（历史值） | 旧产物的 top-3 BM25 + 启发式重排结果，不能作为当前无泄漏 baseline |
 | Source recall | 0.678571（历史值） | 旧产物的离线来源标签指标；当前仍可计算，但不参与重排 |
-| Citation validity | 尚未有效测量 | 此次答案为参考答案；现有实现只校验引用编号范围 |
+| Citation validity | 已拆分格式指标 | `answer_citation_validity` 只校验编号范围；`answer_citation_support` 是词元重合 proxy，不是 entailment |
 | 平均响应延迟 | 尚未测量 | runner 未记录耗时 |
 | p95 延迟 | 尚未测量 | runner 未记录逐样本耗时 |
 | 每请求 token | 尚未测量 | provider usage 未统一采集 |
@@ -209,7 +209,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：当前 pytest 为 337 passed、26 subtests，覆盖 API/SSE/断开、配置/路径、RAG/Agent、SQLAlchemy/Alembic、入库恢复/关闭/删除竞态、持久化 rebuild idempotency/claim-before-worker、Blue/Green 验证超时、JWT/租户、OTel/Prometheus/Worker metrics、Chat timeout/cancellation、REQUEST_TIMEOUT_SECONDS、提示词/模型错误脱敏、无泄漏重排、红队和评测辅助；源码分支覆盖率为 59%。真实 provider、PostgreSQL 容器和生产负载仍未验证。
+- 测试：当前 pytest 为 339 passed、26 subtests，覆盖 API/SSE/断开、配置/路径、RAG/Agent、SQLAlchemy/Alembic、入库恢复/关闭/删除竞态、持久化 rebuild idempotency/claim-before-worker、Blue/Green 验证超时、JWT/租户、OTel/Prometheus/Worker metrics、Chat timeout/cancellation、REQUEST_TIMEOUT_SECONDS、提示词/模型错误脱敏、无泄漏重排、引用支持代理、红队和评测辅助；源码分支覆盖率为 60%。真实 provider、PostgreSQL 容器和生产负载仍未验证。
 - 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；Collector/backend 端到端传输和业务日志全面脱敏仍有限制。
 - 部署：FastAPI 应用工厂、liveness/readiness、SSE、优雅关闭和 Compose observability profile 已有静态/隔离健康验证；API 镜像构建被 Docker daemon EOF/无法启动阻塞，完整生产栈未验收。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。

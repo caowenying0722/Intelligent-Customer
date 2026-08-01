@@ -869,5 +869,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第四十八个目标完成：收敛 Anthropic-compatible 适配器的供应商错误边界，新增安全错误类型，错误只保留状态码/白名单请求 ID；解析失败和成功响应均不保留原始正文/raw 字段。新增异常与响应元数据回归测试、安全文档，TD-008 标记完成。
 - 阶段 11 第四十九个目标完成：移除 `LightweightEvidenceReranker` 的来源文件名类别提示、来源多样性选择和来源参与的重复判定；评分只使用 query、正文和原始排名，新增无泄漏/重复身份回归与评测边界文档，TD-005 标记完成。离线 `source_recall` 保持为结果指标，不再进入排序。
 - 阶段 11 第五十个目标完成：在当前用户工作区保持 dirty 的前提下重跑 deterministic regression，确认 artifact 记录提交 `44a5fee`、`dirty=true`、model_calls=0；同步更新 `CURRENT_STATE.md`/`RELEASE_READINESS.md` 为 337 tests、59% coverage、231 formatted files，并补列提示词、模型错误和无泄漏重排门禁。未覆盖用户 README 或删除文件。
+- 阶段 11 第五十一个目标完成：将引用评测拆分为 coverage、编号 validity 和确定性 `answer_citation_support` lexical proxy；factual correctness proxy 改用支持度而非单纯编号范围，新增错误引用回归。文档明确该指标不是 entailment/人工标签，TD-017 保持部分完成；当前门禁同步为 339 tests、60% coverage、232 formatted files。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

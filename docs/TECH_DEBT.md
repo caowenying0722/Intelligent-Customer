@@ -20,7 +20,7 @@
 | TD-014 | middleware 模块未接线且未做脱敏 | Medium | 死代码产生虚假能力印象；若直接启用会泄露完整消息和工具参数 | `agent/tools/middleware.py`、`tests/test_security_redaction.py` | 已具备可导入的脱敏行为和 metadata 测试；是否接线留给 Agent runtime 目标 | 1/4/8 | 部分完成（已脱敏） |
 | TD-015 | 系统提示词要求输出“真实思考过程” | Medium | 泄露内部推理/策略，增加提示注入和数据暴露面 | `prompts/main_prompt.txt`、`tests/test_prompt_contract.py` | 已改成简短用户可见状态，不要求 chain-of-thought；工具审计使用结构化事件 | 4/9 | 已完成 |
 | TD-016 | 评测报告不记录 commit、dirty state、dataset version 或延迟 | Medium | 结果不可追溯、不可复现，无法做 CI 回归与性能比较 | `evaluation/runner.py`、`evaluation/regression_report.py` | 已记录 commit/dirty、dataset version/path/SHA-256；逐样本耗时和完整错误分类仍待补齐 | 10 | 部分完成 |
-| TD-017 | 引用有效性只验证编号范围，不验证证据支持 | Medium | 无依据回答也可得到 1.0 citation validity | `evaluation/local_metrics.py:100-133` | 区分格式有效、引用覆盖和 entailment/人工标签；加入错误引用样本 | 10 | 待处理 |
+| TD-017 | 引用有效性只验证编号范围，不验证证据支持 | Medium | 无依据回答也可得到 1.0 citation validity | `evaluation/local_metrics.py`、`tests/test_citation_metrics.py` | 已分离编号格式有效、引用覆盖和确定性 lexical support proxy；真实 entailment/人工标签仍需独立评测 | 10 | 部分完成 |
 | TD-018 | 核心主链缺少自动化测试 | Medium | 74 个测试通过但源码分支覆盖率仅 41%，仍不能证明完整 Agent、RAG 和入库交互可靠 | `tests/`、`pyproject.toml` | 分层新增 unit/integration/contract/evaluation 测试；默认 fake model；基于高风险模块逐步提高门禁 | 1/2/10 | 部分完成 |
 | TD-019 | 测试动态类型仍未纳入 Mypy 门禁 | Medium | 测试 mock 类型可能回退，但运行行为由 pytest 和覆盖率门禁覆盖 | `pyproject.toml`、`requirements-dev.txt`、`.github/workflows/quality.yml` | Ruff、源码 Mypy、coverage、测试、secret scan 和 deterministic gate 已接入；测试类型清理可单独推进 | 1/10 | 部分完成 |
 | TD-020 | 评测输出含问题、答案、参考答案、召回全文和绝对路径，过去未被忽略 | Medium | 可能误提交用户/知识库数据和本机信息 | `evaluation/runner.py:95-106,175-217`、`.gitignore` | 忽略 `output/`（本轮完成）；后续增加脱敏 artifact profile 与保留策略 | 1/9/10 | 部分完成 |
