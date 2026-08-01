@@ -5,6 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from langchain_core.documents import Document
 
@@ -60,7 +66,9 @@ def run(dataset_path: str, output_path: str, limit: int | None = None) -> Path:
     }
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    destination.write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return destination
 
 
