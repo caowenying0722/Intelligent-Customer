@@ -92,3 +92,23 @@ def test_chat_records_nested_llm_span_with_fake_gateway():
     assert "agent.run" in names
     assert "llm.generate" in names
     assert "private" not in str(spans)
+
+
+def test_stream_records_agent_stream_span_without_chunk_content():
+    class Agent:
+        def run(self, message: str) -> str:
+            return "unused"
+
+        def stream(self, message: str) -> list[str]:
+            return ["chunk-secret"]
+
+    app = create_app(chat_service=ChatApplicationService(Agent()))
+    response = TestClient(app).post(
+        "/api/v1/chat/stream", json={"message": "request-secret"}
+    )
+
+    assert response.status_code == 200
+    spans = app.state.trace_exporter.snapshot()
+    assert any(span["name"] == "agent.stream" for span in spans)
+    assert "chunk-secret" not in str(spans)
+    assert "request-secret" not in str(spans)

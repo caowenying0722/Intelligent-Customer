@@ -181,25 +181,23 @@ class ChatApplicationService:
         """Return bounded fake/provider chunks for the transport SSE adapter."""
         try:
             if self._async_stream_runner is not None:
-                chunks = await asyncio.wait_for(
-                    self._async_stream_runner(self.agent, message),
-                    timeout=self.timeout_seconds,
+                chunks = await self._await_with_span(
+                    self._async_stream_runner(self.agent, message), "agent.stream"
                 )
             elif self.stream_gateway is not None:
-                chunks = await asyncio.wait_for(
+                chunks = await self._await_with_span(
                     asyncio.to_thread(
                         self.stream_gateway.invoke,
                         provider=self.model_provider,
                         request=message,
                     ),
-                    timeout=self.timeout_seconds,
+                    "agent.stream",
                 )
                 if isinstance(chunks, str):
                     chunks = [chunks]
             else:
-                chunks = await asyncio.wait_for(
-                    asyncio.to_thread(self.agent.stream, message),
-                    timeout=self.timeout_seconds,
+                chunks = await self._await_with_span(
+                    asyncio.to_thread(self.agent.stream, message), "agent.stream"
                 )
         except asyncio.CancelledError:
             raise
@@ -213,3 +211,13 @@ class ChatApplicationService:
                 "chat execution failed", model_error=model_error
             ) from exc
         return chunks
+
+    async def _await_with_span(self, operation: Awaitable[Any], name: str) -> Any:
+        span_context = (
+            self.tracer.start_span(name) if self.tracer is not None else _null_span()
+        )
+        with span_context as span:
+            result = await asyncio.wait_for(operation, timeout=self.timeout_seconds)
+            if span is not None:
+                span.set_attribute("agent.status", "completed")
+            return result
