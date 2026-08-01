@@ -9,6 +9,8 @@ from model.cache import ModelCache
 from model.quota import TenantQuota
 from model.cost import BudgetExceededError, CostTracker, UsageRecord
 from model.structured import validate_structured
+from model.contracts import ModelRequest, ModelResponse, ModelUsage
+import time
 import threading
 import time
 from collections import deque
@@ -102,6 +104,19 @@ class ModelGateway:
             return validate_structured(result, schema)
         except (TypeError, ValueError) as exc:
             raise ModelGatewayError("model response schema validation failed") from exc
+
+    def invoke_contract(self, request: ModelRequest) -> ModelResponse:
+        started = time.monotonic()
+        output = self.invoke(provider=request.provider, request=request.prompt)
+        if not isinstance(output, str):
+            output = str(output)
+        return ModelResponse(
+            provider=request.provider,
+            model=request.model,
+            output=output,
+            usage=ModelUsage(latency_ms=(time.monotonic() - started) * 1000),
+            trace_metadata={"request_id": request.request_id} if request.request_id else {},
+        )
 
     def health_snapshot(self) -> dict[str, object]:
         """Describe configured provider availability without probing upstreams."""
