@@ -2,6 +2,7 @@ import re
 
 from fastapi.testclient import TestClient
 
+from model.gateway import ModelGateway
 from src.app.application.chat import ChatApplicationService
 from src.app.main import create_app
 from src.app.observability.tracing import TraceContext
@@ -67,3 +68,27 @@ def test_chat_records_agent_span_with_fake_agent():
     names = [span["name"] for span in app.state.trace_exporter.snapshot()]
     assert "agent.run" in names
     assert "secret" not in str(app.state.trace_exporter.snapshot())
+
+
+def test_chat_records_nested_llm_span_with_fake_gateway():
+    class Agent:
+        def run(self, message: str) -> str:
+            return "unused"
+
+        def stream(self, message: str) -> list[str]:
+            return ["unused"]
+
+    gateway = ModelGateway({"fake": lambda request: "answer"})
+    service = ChatApplicationService(
+        Agent(), model_gateway=gateway, model_provider="fake"
+    )
+    app = create_app(chat_service=service)
+    response = TestClient(app).post("/api/v1/chat", json={"message": "private"})
+
+    assert response.status_code == 200
+    spans = app.state.trace_exporter.snapshot()
+    names = [span["name"] for span in spans]
+    assert "http.request" in names
+    assert "agent.run" in names
+    assert "llm.generate" in names
+    assert "private" not in str(spans)

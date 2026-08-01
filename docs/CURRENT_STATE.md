@@ -95,7 +95,7 @@ flowchart LR
 | 用户/会话持久化 | 未实现 | 仅 Streamlit 进程内 session state |
 | JWT / RBAC | 未实现 | 无认证授权层 |
 | 多租户隔离 | 未实现 | 数据、向量、缓存和工具均无 tenant context |
-| OpenTelemetry | 部分实现 | API 有 W3C `traceparent`、`http.request` 和 `agent.run` SDK span/有界本地 exporter；尚无 OTLP Collector、RAG/模型/工具 span 或 backend |
+| OpenTelemetry | 部分实现 | API 有 W3C `traceparent`、`http.request`、`agent.run` 和 Gateway `llm.generate` SDK span/有界本地 exporter；尚无 OTLP Collector、RAG/工具 span 或 backend |
 | Prometheus / metrics endpoint | 部分实现 | `/metrics/prometheus` 暴露有界 HTTP/模型网关聚合指标，生产要求 `METRICS_TOKEN`；尚无 RAG/工具耗时与 OTel trace |
 | Docker Compose | 未实现 | 无 Docker/Compose 文件 |
 | CI | 未实现 | 无 `.github/workflows` |

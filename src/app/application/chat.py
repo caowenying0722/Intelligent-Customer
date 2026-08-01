@@ -135,7 +135,17 @@ class ChatApplicationService:
                 else _null_span()
             )
             with span_context as span:
-                answer = await asyncio.wait_for(result, timeout=self.timeout_seconds)
+                model_span_context = (
+                    self.tracer.start_span("llm.generate")
+                    if self.tracer is not None and self.model_gateway is not None
+                    else _null_span()
+                )
+                with model_span_context as model_span:
+                    answer = await asyncio.wait_for(
+                        result, timeout=self.timeout_seconds
+                    )
+                    if model_span is not None:
+                        model_span.set_attribute("llm.status", "completed")
                 if span is not None:
                     span.set_attribute("agent.status", "completed")
             self.conversation_repository.append(
