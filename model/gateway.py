@@ -49,11 +49,23 @@ class ModelGateway:
         self._opened_at: float | None = None
         self._calls = 0
         self._failures = 0
+        self._provider_calls: dict[str, int] = {}
+        self._provider_failures: dict[str, int] = {}
 
     @property
     def stats(self) -> dict[str, int]:
         with self._lock:
             return {"calls": self._calls, "failures": self._failures}
+
+    def audit_snapshot(self) -> dict[str, object]:
+        """Return aggregate counters only; never include request/response data."""
+        with self._lock:
+            return {
+                "calls": self._calls,
+                "failures": self._failures,
+                "provider_calls": dict(self._provider_calls),
+                "provider_failures": dict(self._provider_failures),
+            }
 
     def _check_breaker(self) -> None:
         with self._lock:
@@ -68,9 +80,11 @@ class ModelGateway:
         with self._lock:
             self._consecutive_failures = 0
 
-    def _record_failure(self) -> None:
+    def _record_failure(self, provider: str | None = None) -> None:
         with self._lock:
             self._failures += 1
+            if provider is not None:
+                self._provider_failures[provider] = self._provider_failures.get(provider, 0) + 1
             self._consecutive_failures += 1
             if self._consecutive_failures >= self.failure_threshold:
                 self._opened_at = time.monotonic()
@@ -85,6 +99,7 @@ class ModelGateway:
             raise ModelGatewayError("model gateway concurrency limit reached")
         with self._lock:
             self._calls += 1
+            self._provider_calls[provider] = self._provider_calls.get(provider, 0) + 1
         try:
             for attempt in range(1, self.max_retries + 2):
                 executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="model-call")
@@ -96,21 +111,21 @@ class ModelGateway:
                 except TimeoutError as exc:
                     future.cancel()
                     if attempt > self.max_retries:
-                        self._record_failure()
+                        self._record_failure(provider)
                         raise ModelGatewayError("model request exceeded configured timeout") from exc
                 except PermanentModelError as exc:
-                    self._record_failure()
+                    self._record_failure(provider)
                     raise ModelGatewayError("model provider rejected the request") from exc
                 except RetryableModelError as exc:
                     if attempt > self.max_retries:
-                        self._record_failure()
+                        self._record_failure(provider)
                         raise ModelGatewayError("model provider retries exhausted") from exc
                 except Exception as exc:
-                    self._record_failure()
+                    self._record_failure(provider)
                     raise ModelGatewayError("model provider call failed") from exc
                 finally:
                     executor.shutdown(wait=False, cancel_futures=True)
-            self._record_failure()
+            self._record_failure(provider)
             raise ModelGatewayError("model provider retries exhausted")
         finally:
             self._semaphore.release()

@@ -752,5 +752,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 5 第四个目标完成：`ChatApplicationService` 支持可选 Model Gateway 注入，调用失败统一映射为安全 `ChatApplicationError`；新增成功与供应商异常 API 集成测试，内部错误不会泄漏。
 - 阶段 5 第五个目标完成：流式 Chat 路径支持可选 Gateway，统一使用 timeout/取消边界并输出安全 SSE error；fake gateway 测试验证 token、completed 和异常不泄漏。
 - 阶段 5 第六个目标完成：Model Gateway 增加显式模型别名路由和去重 fallback provider 链；每个候选复用原有有界调用策略，全部失败才返回稳定错误。
+- 阶段 5 第七个目标完成：Gateway 增加总量与 provider 维度审计计数快照，明确不保存请求/响应正文、密钥或原始异常；脱敏快照测试通过。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

@@ -91,3 +91,12 @@ def test_gateway_routes_alias_to_fallback_provider():
 def test_gateway_rejects_unknown_model_route():
     with pytest.raises(ModelGatewayError, match="route is not configured"):
         ModelGateway({}).invoke_routed(route="missing", request={}, routes={})
+
+
+def test_gateway_audit_snapshot_contains_counts_only():
+    gateway = ModelGateway({"fake": lambda request: request})
+    gateway.invoke(provider="fake", request={"api_key": "secret"})
+    snapshot = gateway.audit_snapshot()
+    assert snapshot["provider_calls"] == {"fake": 1}
+    assert "secret" not in repr(snapshot)
+    assert "api_key" not in repr(snapshot)
