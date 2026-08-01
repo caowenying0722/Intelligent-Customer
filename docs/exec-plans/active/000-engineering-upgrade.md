@@ -882,5 +882,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第六十一个目标完成：新增真实 fake ToolNode sync/async 执行回归，确认已接线的 `monitor_tool` 只记录工具名和参数元数据，不记录 `do-not-log` 参数正文；未改变 ToolPolicy allowlist/approval 行为。
 - 阶段 11 第六十二个目标完成：修复真实 async ToolNode 运行时发现的 middleware 缺口；新增 `monitor_tool_async` 独立异步 wrapper，ReactAgent/测试不再把仅有 sync 实现误当成 async 实现，sync/async 日志均保持脱敏。当前门禁为 355 tests、63% coverage、238 formatted files。
 - 阶段 11 第六十三个目标完成：实际执行 `python -m mypy tests`，确认 44 个测试类型诊断；新增分类审计文档，保持 CI 的 96 个生产源码 Mypy 门禁和 pytest/coverage 行为门禁，不伪称测试类型通过。当前门禁为 355 tests、63% coverage、239 formatted files。
+- 阶段 11 第六十四个目标完成：Streamlit 增加独立的有界历史转换和 history-aware Agent 流调用 helper，按 20 条/8000 字符限制传递上下文；无历史或旧 Agent 仍走 `execute_stream`，新增纯函数回归测试，并明确刷新/重启持久化仍未实现。TD-010 继续保持部分完成。当前门禁为 357 tests、63% coverage、239 formatted files。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
