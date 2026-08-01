@@ -23,7 +23,14 @@ MODEL_MAX_RETRIES=2
 MODEL_CA_BUNDLE=config/company-ca.pem
 ```
 
-应用环境、日志、模型传输、Agent 最大步骤及未来 API/CORS 边界统一由 `utils.settings.Settings` 校验。可用变量和安全默认值见 `.env.example`；密钥不会在 Settings 的字符串表示中回显。
+应用环境、日志、模型传输、Agent 最大步骤/工具次数及未来 API/CORS 边界统一由 `utils.settings.Settings` 校验。可用变量和安全默认值见 `.env.example`；密钥不会在 Settings 的字符串表示中回显。
+
+```dotenv
+AGENT_MAX_STEPS=10
+AGENT_MAX_TOOL_CALLS=5
+```
+
+`AGENT_MAX_STEPS` 是 LangGraph 单次执行的图步骤上限，`AGENT_MAX_TOOL_CALLS` 是模型请求工具的累计上限。达到任一上限后返回固定终止消息，不继续无限循环。
 
 ### 已安装的关键组件
 - Python 3.10

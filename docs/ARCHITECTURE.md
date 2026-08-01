@@ -39,7 +39,7 @@ flowchart TD
 - 首次 RAG 工具调用仍同步构造 Chroma、扫描和入库，尚无 lifespan/readiness 或后台任务边界。
 - 会话只在 Streamlit 内存中，LangGraph 无 checkpoint。
 - 本地 Chroma/MD5/CSV 没有 tenant、事务或 migration。
-- 同步调用没有统一 deadline/cancellation，Agent 循环没有显式上限。
+- Agent 图步骤与工具调用已有 Settings 驱动的代码级上限；同步调用仍没有统一 deadline/cancellation。
 - 评测和运行日志无法关联 commit、trace、请求或成本。
 
 ## 目标架构

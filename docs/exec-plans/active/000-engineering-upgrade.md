@@ -658,5 +658,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 删除全局 TLS 验证绕过；模型调用默认验证证书，支持显式私有 CA，并统一校验请求超时和 OpenAI-compatible 重试上限；完整测试 41 项通过。
 - 新增集中、可注入的 Pydantic Settings，校验应用环境、日志、模型 provider/密钥/传输、Agent 最大步骤及未来 API 的 host/port/CORS；兼容 `LLM__PROVIDER`，生产环境拒绝通配 CORS；完整测试 48 项通过。
 - 删除聊天模型、RAG 和 Chroma 的 import-time 构造；增加缓存惰性工厂和构造器注入，普通 `import app` 不加载业务资源，首次 RAG 调用才显式初始化；完整测试 53 项通过。
+- 将 Settings 的 Agent 最大步骤接入 LangGraph `recursion_limit`，新增工具调用总数上限、超限批次拒绝和安全终止消息；fake model/graph 回归覆盖，完整测试 58 项通过。
 
-阶段 1 尚未完成：从空环境重建、transitive lock、依赖漏洞修复、YAML schema、首次 RAG 同步入库、Agent 上限、全仓静态检查/覆盖率门禁。这些是开始阶段 2 前的阻塞项。
+阶段 1 尚未完成：从空环境重建、transitive lock、依赖漏洞修复、YAML schema、首次 RAG 同步入库、全仓静态检查/覆盖率门禁。全流程 deadline/cancellation 将在阶段 2 application service 中实现。
