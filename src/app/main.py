@@ -30,6 +30,7 @@ def create_app(
     ingestion_service: DocumentIngestionService | None = None,
     ingestion_operation: Callable | None = None,
     index_rebuild_operation: Callable | None = None,
+    model_health_token: str | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -144,6 +145,16 @@ def create_app(
             "model_gateway": gateway.audit_snapshot(),
             "model_gateway_health": gateway.health_snapshot(),
         }
+
+    @app.get("/health/model", response_model=None)
+    async def model_health(request: Request) -> JSONResponse | dict[str, object]:
+        if model_health_token is not None and request.headers.get("x-model-health-token") != model_health_token:
+            return JSONResponse(status_code=401, content={"status": "unauthorized"})
+        gateway = getattr(chat_service, "model_gateway", None)
+        if gateway is None or not hasattr(gateway, "health_snapshot"):
+            return {"status": "unhealthy", "configured_providers": [], "circuit_open": False}
+        snapshot = gateway.health_snapshot()
+        return {"status": "ok" if snapshot["healthy"] else "unhealthy", **snapshot}
 
     if ingestion_service is not None and ingestion_service not in lifecycle_resources:
         lifecycle_resources = (*lifecycle_resources, ingestion_service)

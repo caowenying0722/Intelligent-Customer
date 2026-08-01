@@ -757,5 +757,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 5 第九个目标完成：Gateway 增加可选每秒调用限流，采用线程安全滑动时间窗，在 provider 执行前拒绝超额请求；参数和行为测试通过。
 - 阶段 5 第十个目标完成：Settings 增加 Gateway 并发、失败阈值、熔断窗口和每秒限流配置；`build_chat_gateway()` 从 Settings 统一构造运行参数，并通过配置校验测试。
 - 阶段 5 第十一个目标完成：Gateway 增加 provider 健康快照并接入 `/metrics`，只报告已配置 provider、熔断状态和健康布尔值，不主动探测上游或泄漏凭据。
+- 阶段 5 第十二个目标完成：新增独立 `/health/model` 健康路由，可选 `x-model-health-token` 管理保护；错误 token 返回 401，健康响应不触发 provider 调用。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
