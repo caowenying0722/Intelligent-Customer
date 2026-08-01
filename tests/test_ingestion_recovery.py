@@ -38,6 +38,15 @@ def test_persisted_jobs_support_cancel_and_orphan_recovery() -> None:
         assert [job.job_id for job in recoverable] == [running.job_id]
         assert repository.fail_orphaned_jobs() == 1
         assert repository.get_job(tenant_id="tenant-a", job_id=running.job_id).status == IngestionJobStatus.FAILED
+        repository.update_progress(tenant_id="tenant-a", job_id=running.job_id, progress=42)
+        repository.update_job_status(
+            tenant_id="tenant-a", job_id=running.job_id,
+            status=IngestionJobStatus.FAILED, error="final failure", attempt=3,
+        )
+        checked = repository.get_job(tenant_id="tenant-a", job_id=running.job_id)
+        assert checked.progress == 42
+        assert checked.attempt == 3
+        assert checked.error == "final failure"
     finally:
         repository.close()
         database.unlink()
