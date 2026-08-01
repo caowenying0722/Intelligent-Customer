@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     )
     api_host: str = Field(default="127.0.0.1", min_length=1)
     api_port: int = Field(default=8000, ge=1, le=65535)
+    streamlit_mode: Literal["local", "http"] = "local"
+    streamlit_api_url: str = "http://127.0.0.1:8000"
+    streamlit_api_timeout_seconds: float = Field(default=30.0, gt=0, le=600)
     trace_max_spans: int = Field(default=1024, ge=1, le=100_000)
     otel_exporter_endpoint: str | None = Field(
         default=None,
@@ -129,6 +132,15 @@ class Settings(BaseSettings):
             if origin != "*" and not origin.startswith(("http://", "https://")):
                 raise ValueError(f"Invalid allowed origin: {origin}")
         return list(dict.fromkeys(normalized))
+
+    @field_validator("streamlit_api_url", mode="before")
+    @classmethod
+    def validate_streamlit_api_url(cls, value: object) -> str:
+        url = str(value).strip().rstrip("/")
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("STREAMLIT_API_URL must be an http(s) URL")
+        return url
 
     @field_validator("database_url", mode="before")
     @classmethod

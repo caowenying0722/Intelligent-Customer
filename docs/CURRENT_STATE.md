@@ -52,7 +52,7 @@ flowchart LR
 4. `RagSummarizeService.__init__` 不扫描文档或写入 Chroma；首次检索通过有界单飞后台加载任务执行，等待显式超时并传播失败，仍是进程内本地索引。
 5. `ReactAgent` 创建 `agent -> tools -> agent` 的 LangGraph 循环；每次执行传入默认 10 的 `recursion_limit`，并累计限制默认最多 5 次工具调用。超限批次不会执行，递归上限异常转换为固定终止消息；全流程 deadline 和取消传播仍未实现。
 6. 模型按工具调用结果继续循环。普通模型调用是同步 `invoke`；两类 provider 共享 120 秒默认超时，OpenAI-compatible 还显式设置最多 2 次 SDK 重试。
-7. FastAPI SSE 通过 `ChatApplicationService` 发送稳定的 metadata/token/completed/error 事件，客户端断开和超时有测试；Streamlit 直接消费 Agent chunks，不代表上游 token streaming，也尚未切换为 HTTP/SSE 客户端。
+7. FastAPI SSE 通过 `ChatApplicationService` 发送稳定的 metadata/token/completed/error 事件，metadata 返回 conversation ID，客户端断开和超时有测试；Streamlit 可通过 `STREAMLIT_MODE=http` 消费该 SSE 并复用会话 ID，默认仍是进程内兼容模式，不代表上游 token streaming。
 8. FastAPI 可注入内存或 SQLAlchemy conversation repository；数据库配置时 lifespan 逆序释放 repository，Streamlit 默认仍只保留当前进程 session state。
 
 ### RAG 链路
@@ -87,7 +87,7 @@ flowchart LR
 
 | 能力 | 当前状态 | 证据或说明 |
 |---|---|---|
-| Streamlit UI | 已实现且普通导入无业务资源副作用 | `app.py`；实际启动后首次 RAG 调用仍同步初始化 Chroma |
+| Streamlit UI | 已实现且普通导入无业务资源副作用 | `app.py`；默认 local 兼容模式，也可通过 `STREAMLIT_MODE=http` 调用 FastAPI SSE；实际启动后首次 RAG 调用仍同步初始化 Chroma |
 | 基础 LangGraph Agent | 已实现 Demo | `agent/react_agent.py` |
 | 工具调用 | 已实现有界 Demo | 每次 Agent 执行默认最多请求 5 次工具；无权限/幂等边界 |
 | Chroma 向量检索 | 已实现且依赖已安装 | 首次 RAG 工具调用仍同步初始化并可能入库 |
@@ -114,8 +114,8 @@ flowchart LR
 
 | 命令 | 实际结果 |
 |---|---|
-| `python -m pytest -q` | 通过：357 passed，26 subtests |
-| `coverage run -m pytest -q` / `coverage report` | 通过：357 passed，26 subtests；总覆盖率 63% |
+| `python -m pytest -q` | 通过：361 passed，26 subtests |
+| `coverage run -m pytest -q` / `coverage report` | 通过：361 passed，26 subtests；总覆盖率 63% |
 | `python -m ruff format --check .` | 通过：239 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 |
@@ -209,7 +209,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：当前 pytest 为 357 passed、26 subtests，覆盖 API/SSE/断开、配置/路径、RAG/Agent、SQLAlchemy/Alembic、入库恢复/关闭/删除竞态、持久化 rebuild idempotency/claim-before-worker、Blue/Green 验证超时、JWT/租户、OTel/Prometheus/Worker metrics、Chat timeout/cancellation、REQUEST_TIMEOUT_SECONDS、提示词/模型错误脱敏、无泄漏重排、非流式/SSE Chat 历史、run 错误脱敏、Streamlit 有界历史与 chunk forwarding、Agent middleware sync/async runtime、VectorStore 状态、引用支持代理、评测逐样本耗时/错误门禁、redacted artifact、版本化 guardrail、红队和评测辅助；源码分支覆盖率为 63%。真实 provider、PostgreSQL 容器和生产负载仍未验证。
+- 测试：当前 pytest 为 361 passed、26 subtests，覆盖 API/SSE/断开、配置/路径、RAG/Agent、SQLAlchemy/Alembic、入库恢复/关闭/删除竞态、持久化 rebuild idempotency/claim-before-worker、Blue/Green 验证超时、JWT/租户、OTel/Prometheus/Worker metrics、Chat timeout/cancellation、REQUEST_TIMEOUT_SECONDS、提示词/模型错误脱敏、无泄漏重排、非流式/SSE Chat 历史、run 错误脱敏、Streamlit HTTP SSE/有界历史与 chunk forwarding、Agent middleware sync/async runtime、VectorStore 状态、引用支持代理、评测逐样本耗时/错误门禁、redacted artifact、版本化 guardrail、红队和评测辅助；源码分支覆盖率为 63%。真实 provider、PostgreSQL 容器和生产负载仍未验证。
 - 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；Collector/backend 端到端传输和业务日志全面脱敏仍有限制。
 - 部署：FastAPI 应用工厂、liveness/readiness、SSE、优雅关闭和 Compose observability profile 已有静态/隔离健康验证；API 镜像构建被 Docker daemon EOF/无法启动阻塞，完整生产栈未验收。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
@@ -217,7 +217,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 ## 最可能被面试官质疑的问题
 
 1. README 的历史提升数字如何排除文件名泄漏、开发集调参和参考答案复用？当前已通过移除来源名特征降低一项风险，但旧 artifact 仍不可追溯，需重跑冻结评测。
-2. 为什么叫“流式”但模型并未 token streaming？当前 FastAPI/Streamlit 只传递 Agent 完整 chunks，Streamlit 已不再逐字符 sleep，HTTP/SSE 客户端迁移仍未完成。
+2. 为什么叫“流式”但模型并未 token streaming？当前 FastAPI/Streamlit 只传递 Agent 完整 chunks，Streamlit 已不再逐字符 sleep；HTTP/SSE 模式已可选接入，但上游 token streaming、取消和背压仍未验证。
 3. Agent 如何防止无限工具循环、超时和重复副作用？步骤和工具次数已有确定性上限；全流程 deadline、取消与副作用幂等仍未实现。
 4. 随机 user ID 如何代表真实登录用户，如何防止读取其他人的报告？当前没有安全边界。
 5. 如何部署、扩容和恢复会话？当前首次 RAG 请求仍写本地 Chroma，session 只在单进程内存。

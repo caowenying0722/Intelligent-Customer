@@ -96,8 +96,8 @@ flowchart TB
 ### API 与客户端
 
 - FastAPI 使用应用工厂和 lifespan 管理依赖；`src/app/api/routes.py` 只做协议转换、请求断开检查和错误映射，业务编排位于 application service。
-- API v1 首批提供 chat、conversation、live、ready 和 metrics；`/metrics` 返回 JSON 诊断快照，`/metrics/prometheus` 返回有界 Prometheus 文本指标；SSE 事件为 `metadata`、`token`、`citation`、`tool_status`、`completed`、`error`。
-- Streamlit 默认作为 HTTP/SSE 客户端；迁移期允许显式配置进程内兼容模式，并记录删除条件。
+- API v1 首批提供 chat、conversation、live、ready 和 metrics；`/metrics` 返回 JSON 诊断快照，`/metrics/prometheus` 返回有界 Prometheus 文本指标；SSE 事件为 `metadata`（含 conversation ID）、`token`、`citation`、`tool_status`、`completed`、`error`。
+- Streamlit 支持显式配置 `STREAMLIT_MODE=http` 作为 FastAPI SSE 客户端；默认仍是 `local` 进程内兼容模式，待 HTTP/SSE、上游取消和背压在部署环境验证后再切换默认值。
 - request ID 在入口生成或接受可信上游值，贯穿错误、日志和响应。
 
 ### 应用与领域边界
@@ -199,7 +199,7 @@ deploy/
 
 ### 兼容层与移动策略
 
-- `app.py` 暂留为 Streamlit 入口，先改成调用 `src.app.application`，再切换 HTTP/SSE；不立即移动。
+- `app.py` 暂留为 Streamlit 入口；默认 local 模式保留兼容，显式 `STREAMLIT_MODE=http` 时通过 SSE 调用 FastAPI，后续再删除本地模式。
 - `agent/`、`rag/`、`model/` 先通过 adapter 暴露稳定协议；有测试后逐文件迁入 `src/app/`。
 - `evaluation/` 和现有脚本保留 CLI 兼容包装，核心 runner 迁入新 package 后旧入口只转发参数。
 - `config/*.yml` 在 Pydantic Settings 过渡期继续读取，但环境变量覆盖、类型和范围由统一 Settings 校验。

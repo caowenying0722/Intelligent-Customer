@@ -356,6 +356,7 @@ def test_chat_sse_emits_metadata_tokens_and_single_completed_event() -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert response.text.count('"type": "metadata"') == 1
+    assert '"conversation_id": "' in response.text
     assert response.text.count('"type": "token"') == 2
     assert response.text.count('"type": "completed"') == 1
 

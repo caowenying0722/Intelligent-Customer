@@ -482,14 +482,22 @@ def build_router(
             request_id = request.state.request_id
             if await request.is_disconnected():
                 return
-            yield f"data: {json.dumps({'type': 'metadata', 'request_id': request_id}, ensure_ascii=False)}\n\n"
             if chat_service is None:
+                yield f"data: {json.dumps({'type': 'metadata', 'request_id': request_id}, ensure_ascii=False)}\n\n"
                 yield f"data: {json.dumps({'type': 'error', 'code': 'chat_unavailable', 'request_id': request_id})}\n\n"
                 return
             try:
+                resolved_conversation_id = payload.conversation_id
+                if resolved_conversation_id is None:
+                    conversation = chat_service.conversation_repository.create(
+                        request_tenant_id(request),
+                        request.headers.get("x-user-id", "local"),
+                    )
+                    resolved_conversation_id = str(conversation.conversation_id)
+                yield f"data: {json.dumps({'type': 'metadata', 'request_id': request_id, 'conversation_id': resolved_conversation_id}, ensure_ascii=False)}\n\n"
                 chunks = await chat_service.stream(
                     payload.message,
-                    payload.conversation_id,
+                    resolved_conversation_id,
                     request_tenant_id(request),
                     request.headers.get("x-user-id", "local"),
                 )
