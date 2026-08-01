@@ -45,8 +45,9 @@ class EnvironmentCheckTest(unittest.TestCase):
             parse_pinned_requirements(PROJECT_ROOT / "requirements-dev.txt")
         )
 
-        self.assertEqual(len(pins), 31)
+        self.assertEqual(len(pins), 32)
         self.assertEqual(pins["fastapi"].version, "0.141.1")
+        self.assertEqual(pins["pyjwt"].version, "2.13.0")
         self.assertEqual(pins["opentelemetry-api"].version, "1.44.0")
         self.assertEqual(
             pins["opentelemetry-exporter-otlp-proto-grpc"].version, "1.44.0"

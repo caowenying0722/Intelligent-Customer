@@ -12,7 +12,7 @@
 | `python -m ruff check .` | 通过 | 全仓 lint |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：95 个源码文件 | 测试动态 mock 不纳入源码类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
-| `python -m pip check` | 通过 | 依赖元数据无破损 |
+| `python -m pip check` | 通过 | 依赖元数据无破损；PyJWT 2.13.0 已显式锁定 |
 | `docker compose config --quiet` | 通过 | API 单服务 Compose 配置有效，镜像使用 `requirements.lock` |
 | `docker compose --profile observability config --quiet` | 通过 | 仅验证静态 profile 配置；Collector/Prometheus 镜像拉取与健康尚未在当前网络完成 |
 | Grafana dashboard/profile config | 通过：静态测试 | 已验证 PromQL、datasource 挂载和本地只读端口；镜像拉取与健康尚未在当前网络完成 |

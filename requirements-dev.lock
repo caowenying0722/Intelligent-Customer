@@ -445,6 +445,8 @@ pygments==2.20.0
     # via
     #   pytest
     #   rich
+pyjwt==2.13.0
+    # via -r requirements.txt
 pyparsing==3.3.2
     # via pip-requirements-parser
 pypdf==6.14.2

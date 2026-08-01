@@ -27,3 +27,5 @@ python -m pip_audit -r requirements.txt --format json --output output/pip-audit.
 - DiskCache 最新可见版本仍为 `5.6.3`，`CVE-2025-69872` 没有可用升级版本。
 
 因此本轮没有修改锁文件或添加 pip-audit ignore。继续使用本地 embedded Chroma、关闭默认 RAGAS 外发评测、避免默认 DiskCache 路径，并把这三条漏洞保持为发布 Blocker；待上游修复或替换方案出现后再建立独立升级目标。
+
+另外，本轮审计发现认证代码直接依赖 PyJWT，但此前只存在于开发机间接环境；已将无当前已知漏洞的 `PyJWT==2.13.0` 显式加入 runtime/dev lock，避免 clean install 缺包。
