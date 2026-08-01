@@ -184,17 +184,22 @@ class DocumentIngestionService:
                 try:
                     result = operation(path, upload, record)
                 except Exception as exc:
-                    metadata.update_status(
-                        tenant_id=tenant_id,
-                        document_id=record.document_id,
-                        status=DocumentStatus.FAILED,
+                    current = metadata.get(
+                        tenant_id=tenant_id, document_id=record.document_id
                     )
-                    if self.job_store is not None:
-                        self.job_store.update_document_status(
+                    if current is None or current.status != DocumentStatus.DELETED:
+                        metadata.update_status(
                             tenant_id=tenant_id,
                             document_id=record.document_id,
                             status=DocumentStatus.FAILED,
                         )
+                    if self.job_store is not None:
+                        if current is None or current.status != DocumentStatus.DELETED:
+                            self.job_store.update_document_status(
+                                tenant_id=tenant_id,
+                                document_id=record.document_id,
+                                status=DocumentStatus.FAILED,
+                            )
                         if job_holder.get("id") is not None:
                             self.job_store.update_job_status(
                                 tenant_id=tenant_id,
@@ -203,6 +208,17 @@ class DocumentIngestionService:
                                 error=str(exc),
                             )
                     raise
+                current = metadata.get(
+                    tenant_id=tenant_id, document_id=record.document_id
+                )
+                if current is None or current.status == DocumentStatus.DELETED:
+                    if self.job_store is not None and job_holder.get("id") is not None:
+                        self.job_store.update_job_status(
+                            tenant_id=tenant_id,
+                            job_id=job_holder["id"],
+                            status=IngestionJobStatus.COMPLETED,
+                        )
+                    return result
                 metadata.update_status(
                     tenant_id=tenant_id,
                     document_id=record.document_id,

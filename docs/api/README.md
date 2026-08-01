@@ -43,7 +43,7 @@ API access logger 输出 JSON 事件，仅含 method、status_code、duration_ms
 - 同步 Agent 的 timeout 只终止请求等待，不强制杀死底层线程；外部调用必须自行设置 timeout。异步 Agent/SSE runner 收到客户端取消时传播 `CancelledError`，不会映射成 `chat_failed`。
 - Agent 异常只映射为稳定的 `chat_failed`/`chat_timeout` 错误，不返回堆栈或供应商原始响应。
 - 默认应用未注入 Agent 时返回 `503 chat_unavailable`。
-- 当前会话 repository 是线程安全的进程内实现；服务重启会丢失数据，阶段三替换为 PostgreSQL。
+- 当前会话 repository 默认是线程安全的进程内实现；设置 `DATABASE_URL` 后可切换 SQLAlchemy/Alembic repository，并由 readiness/lifespan 管理连接和重启恢复。
 - 可注入原生异步 Agent runner；任务取消会原样传播，不会被转换成 `chat_failed`。同步 Agent 仍通过受控线程兼容，底层调用本身可能无法强制中止。
 - `POST /api/v1/chat/stream` 返回 `text/event-stream`，事件顺序为 `metadata`、零个或多个 `token`、最多一个 `completed`；失败使用 `error` envelope。
 - SSE 生成器在 metadata 或 token 之间检查客户端断开；断开后直接结束，不补发 completed/error。该路径有真实 APIRoute body-iterator 回归测试；底层同步模型线程仍只能靠 provider 自身 timeout 停止。
@@ -59,6 +59,8 @@ API access logger 输出 JSON 事件，仅含 method、status_code、duration_ms
 - 非流式 Chat 响应返回 `run_id`；执行自动记录 queued/running/completed 或 failed/cancelled，失败原因保存在 run 记录中。
 - `Idempotency-Key`（或请求体 `idempotency_key`）按 tenant 去重；重复提交返回 `409 idempotency_reused` 和原 run ID。
 
+文档上传先校验并原子落盘，再创建有界入库 job；同 tenant 内容 hash 去重，job key 只保证 at-least-once 下的提交去重，不宣称 exactly-once。删除正在处理的文档后，worker 完成不会将其恢复为 `active`；真实 parser/embedding/index operation 仍必须自行设计可重入副作用。
+
 配置 authenticator 后，认证成功、无效 token、租户范围不匹配和角色拒绝会写入结构化安全审计事件；事件只保留固定原因、tenant 和 actor hash，不记录 token、subject 原文或请求正文。
 
-SSE、取消传播和持久化会话将在后续独立目标中加入。
+完整 PostgreSQL/Redis/Celery/Qdrant 生产部署、人工审批和 exactly-once 业务副作用控制仍是后续独立目标。

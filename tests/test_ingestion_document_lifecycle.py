@@ -1,4 +1,5 @@
 import shutil
+import threading
 import time
 from pathlib import Path
 from uuid import uuid4
@@ -111,6 +112,53 @@ def test_document_lifecycle_marks_failed_when_operation_raises() -> None:
             == DocumentStatus.FAILED
         )
     finally:
+        jobs.close()
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_delete_during_operation_does_not_resurrect_document() -> None:
+    root = Path("output") / f"document-lifecycle-{uuid4().hex}"
+    service, jobs, registry = _service(root)
+    started = threading.Event()
+    release = threading.Event()
+    try:
+        submission = service.submit_document(
+            tenant_id="tenant-a",
+            idempotency_key="job-delete-race",
+            filename="a.txt",
+            content=b"delete-race",
+            content_type="text/plain",
+            parser_version="p1",
+            chunker_version="c1",
+            embedding_model="e1",
+            embedding_dimension=3,
+            index_version="idx-1",
+            operation=lambda path, upload, record: (
+                started.set(),
+                release.wait(1),
+                "ok",
+            )[-1],
+        )
+        assert started.wait(1)
+        assert (
+            service.delete_document(
+                tenant_id="tenant-a", document_id=submission.document.document_id
+            ).status
+            == DocumentStatus.DELETED
+        )
+        release.set()
+        assert (
+            _finish(jobs, "tenant-a", submission.job.job_id).status
+            == IngestionJobStatus.COMPLETED
+        )
+        assert (
+            registry.get(
+                tenant_id="tenant-a", document_id=submission.document.document_id
+            ).status
+            == DocumentStatus.DELETED
+        )
+    finally:
+        release.set()
         jobs.close()
         shutil.rmtree(root, ignore_errors=True)
 
