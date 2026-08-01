@@ -28,6 +28,7 @@
 | Chat 历史上下文 | 通过：2 个测试 | 非流式/SSE history-aware Agent 收到同 tenant 最近消息；带 conversation_id 的 SSE 完成后写回消息 |
 | Chat run 错误脱敏 | 通过：1 个测试 | Agent 异常正文不进入 `agent_runs.error` 查询结果 |
 | Streamlit chunk forwarding | 通过：1 个测试 | 直接转发 Agent chunks，不再逐字符 sleep；仍是进程内演示模式 |
+| Agent tool middleware wiring | 通过：1 个测试 | ToolNode sync/async monitor wrapper 已接线，日志参数/消息脱敏 |
 | Chat timeout/cancellation regression | 通过：2 个测试 | fake Agent 验证同步线程超时边界和异步 SSE runner 取消传播 |
 | SSE disconnect regression | 通过：1 个测试 | 真实 APIRoute body-iterator 在 metadata 后断开，不发送 token/completed/error |
 | REQUEST_TIMEOUT_SECONDS wiring | 通过：1 个测试 | auto-built Chat service 读取配置并保持 504/chat_timeout contract |

@@ -73,7 +73,7 @@ flowchart LR
 - YAML 中的 Chroma 持久化目录、数据、MD5、Prompt 和 CSV 路径统一相对项目根目录解析为绝对路径，不再依赖启动 cwd；配置仍在首次相关模块加载时读取，完整 composition-root 加载留到 FastAPI 阶段。
 - 模型请求默认验证 TLS；企业私有 CA 只能通过 `MODEL_CA_BUNDLE` 指向已有 PEM 文件，非法路径启动即失败，不提供关闭验证的开关。
 - 工具包括本地 RAG、静态天气、随机位置、随机用户 ID、当前月份和本地 CSV 报告数据；API 可注入 JWT authenticator/audit sink，开发模式仍允许显式 `x-tenant-id`，高风险工具审批和副作用幂等仍未完成。
-- `agent/tools/middleware.py` 在当前 LangChain 版本下可以导入，但没有接入当前 Agent；已有脱敏 metadata 测试，正式接线仍需单独验证白名单和运行时边界。
+- `agent/tools/middleware.py` 已按锁定 LangGraph 版本接入 ReactAgent 的 ToolNode sync/async wrapper；日志只写工具名、参数键/类型和异常类型，仍不写原始参数或正文。
 
 ### 评测链路
 
