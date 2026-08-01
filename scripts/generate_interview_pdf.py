@@ -1,5 +1,5 @@
-from pathlib import Path
 import re
+from pathlib import Path
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
@@ -11,14 +11,13 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     BaseDocTemplate,
     Frame,
-    PageTemplate,
-    Paragraph,
-    Spacer,
     ListFlowable,
     ListItem,
     PageBreak,
+    PageTemplate,
+    Paragraph,
+    Spacer,
 )
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "面试问答整理.md"
@@ -168,7 +167,9 @@ def parse_markdown(md: str):
         if line.startswith("# "):
             if first_title:
                 story.append(Paragraph(clean_inline(line[2:]), styles["title"]))
-                story.append(Paragraph("面试官提问视角 - 应聘者回答口径", styles["subtitle"]))
+                story.append(
+                    Paragraph("面试官提问视角 - 应聘者回答口径", styles["subtitle"])
+                )
                 first_title = False
             else:
                 story.append(PageBreak())
@@ -198,9 +199,15 @@ def parse_markdown(md: str):
                 if not re.match(r"^\d+\.\s+", item_line):
                     break
                 item_text = re.sub(r"^\d+\.\s+", "", item_line)
-                items.append(ListItem(Paragraph(clean_inline(item_text), styles["list"])))
+                items.append(
+                    ListItem(Paragraph(clean_inline(item_text), styles["list"]))
+                )
                 i += 1
-            story.append(ListFlowable(items, bulletType="1", leftIndent=8 * mm, bulletFontName=FONT))
+            story.append(
+                ListFlowable(
+                    items, bulletType="1", leftIndent=8 * mm, bulletFontName=FONT
+                )
+            )
             story.append(Spacer(1, 1.5 * mm))
             continue
 
@@ -211,9 +218,7 @@ def parse_markdown(md: str):
             if (
                 not nxt
                 or nxt == "---"
-                or nxt.startswith("#")
-                or nxt.startswith("**")
-                or nxt.startswith(">")
+                or nxt.startswith(("#", "**", ">"))
                 or re.match(r"^\d+\.\s+", nxt)
             ):
                 break
@@ -240,7 +245,9 @@ def build_pdf():
         author="Codex",
     )
     frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="normal")
-    doc.addPageTemplates([PageTemplate(id="main", frames=[frame], onPage=header_footer)])
+    doc.addPageTemplates(
+        [PageTemplate(id="main", frames=[frame], onPage=header_footer)]
+    )
     doc.build(story)
 
 

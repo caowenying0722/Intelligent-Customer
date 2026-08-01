@@ -15,7 +15,11 @@ class SecretScanTest(unittest.TestCase):
         self.assertEqual(findings[0].secret, token)
 
     def test_ignores_placeholder_assignment(self) -> None:
-        findings = line_findings(Path(".env.example"), 1, "ANTHROPIC_AUTH_TOKEN=your_anthropic_compatible_key_here")
+        findings = line_findings(
+            Path(".env.example"),
+            1,
+            "ANTHROPIC_AUTH_TOKEN=your_anthropic_compatible_key_here",
+        )
 
         self.assertEqual(findings, [])
 

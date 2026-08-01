@@ -6,14 +6,20 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SUBPROCESS_TIMEOUT_SECONDS = 1800
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Preflight and run the official RAGAS ablation report.")
+    parser = argparse.ArgumentParser(
+        description="Preflight and run the official RAGAS ablation report."
+    )
     parser.add_argument("--retriever", choices=["bm25", "hybrid"], default="bm25")
-    parser.add_argument("--answer-mode", choices=["llm", "reference", "extractive"], default="extractive")
+    parser.add_argument(
+        "--answer-mode",
+        choices=["llm", "reference", "extractive"],
+        default="extractive",
+    )
     parser.add_argument("--output", default="output/evaluation_ablation_ragas")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument(
@@ -53,10 +59,17 @@ def main() -> None:
         args.ragas_metrics,
         "--strict",
     ]
-    preflight_result = subprocess.run(preflight, cwd=PROJECT_ROOT)
+    preflight_result = subprocess.run(
+        preflight,
+        cwd=PROJECT_ROOT,
+        check=False,
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
     if preflight_result.returncode != 0:
         print("RAGAS ablation stopped because preflight is not ready.")
-        print("Run `python scripts/setup_private_env.py` or create a local .env, then retry.")
+        print(
+            "Run `python scripts/setup_private_env.py` or create a local .env, then retry."
+        )
         raise SystemExit(preflight_result.returncode)
 
     command = [
@@ -80,7 +93,12 @@ def main() -> None:
         command.append("--ack-external-judge")
     if args.limit:
         command.extend(["--limit", str(args.limit)])
-    result = subprocess.run(command, cwd=PROJECT_ROOT)
+    result = subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        check=False,
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
     if result.returncode != 0:
         raise SystemExit(result.returncode)
 
@@ -92,7 +110,13 @@ def main() -> None:
             "--comparison",
             str(comparison_path),
         ]
-        raise SystemExit(subprocess.run(summary_command, cwd=PROJECT_ROOT).returncode)
+        summary_result = subprocess.run(
+            summary_command,
+            cwd=PROJECT_ROOT,
+            check=False,
+            timeout=SUBPROCESS_TIMEOUT_SECONDS,
+        )
+        raise SystemExit(summary_result.returncode)
 
     raise SystemExit(0)
 

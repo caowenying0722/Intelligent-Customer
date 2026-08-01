@@ -3,12 +3,19 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from scripts.summarize_quality_report import DEFAULT_FOCUS_METRICS, build_markdown, metric_rows
+from scripts.summarize_quality_report import (
+    DEFAULT_FOCUS_METRICS,
+    build_markdown,
+    metric_rows,
+)
 
 
 class QualitySummaryTest(unittest.TestCase):
     def test_default_focus_prioritizes_official_ragas_metrics(self) -> None:
-        self.assertEqual(DEFAULT_FOCUS_METRICS[:2], ["answer_relevancy", "factual_correctness(mode=f1)"])
+        self.assertEqual(
+            DEFAULT_FOCUS_METRICS[:2],
+            ["answer_relevancy", "factual_correctness(mode=f1)"],
+        )
 
     def test_metric_rows_includes_official_metrics_first(self) -> None:
         comparison = {
@@ -36,7 +43,10 @@ class QualitySummaryTest(unittest.TestCase):
 
         rows = metric_rows(comparison, DEFAULT_FOCUS_METRICS)
 
-        self.assertEqual([row[0] for row in rows[:2]], ["answer_relevancy", "factual_correctness(mode=f1)"])
+        self.assertEqual(
+            [row[0] for row in rows[:2]],
+            ["answer_relevancy", "factual_correctness(mode=f1)"],
+        )
 
     def test_markdown_marks_missing_official_metrics(self) -> None:
         comparison = {
@@ -58,13 +68,19 @@ class QualitySummaryTest(unittest.TestCase):
             },
         }
 
-        markdown = build_markdown(Path("comparison.json"), comparison, metric_rows(comparison, DEFAULT_FOCUS_METRICS))
+        markdown = build_markdown(
+            Path("comparison.json"),
+            comparison,
+            metric_rows(comparison, DEFAULT_FOCUS_METRICS),
+        )
 
         self.assertIn("Official RAGAS metrics: not available", markdown)
         self.assertIn("Judge LLM: anthropic-compatible / deepseek-v4-flash", markdown)
         self.assertIn("Judge key present: ANTHROPIC_AUTH_TOKEN", markdown)
         self.assertIn("RAGAS was enabled", markdown)
-        self.assertIn("Latest RAGAS error: RAGAS returned no finite metric values.", markdown)
+        self.assertIn(
+            "Latest RAGAS error: RAGAS returned no finite metric values.", markdown
+        )
 
     def test_markdown_handles_no_positive_deltas(self) -> None:
         comparison = {
@@ -80,7 +96,11 @@ class QualitySummaryTest(unittest.TestCase):
             },
         }
 
-        markdown = build_markdown(Path("comparison.json"), comparison, metric_rows(comparison, DEFAULT_FOCUS_METRICS))
+        markdown = build_markdown(
+            Path("comparison.json"),
+            comparison,
+            metric_rows(comparison, DEFAULT_FOCUS_METRICS),
+        )
 
         self.assertIn("No positive metric deltas", markdown)
 

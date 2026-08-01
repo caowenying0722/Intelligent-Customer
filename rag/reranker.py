@@ -48,7 +48,12 @@ class LightweightEvidenceReranker:
 
     @staticmethod
     def _source_text(doc: Document) -> str:
-        source = doc.metadata.get("source") or doc.metadata.get("file_path") or doc.metadata.get("path") or ""
+        source = (
+            doc.metadata.get("source")
+            or doc.metadata.get("file_path")
+            or doc.metadata.get("path")
+            or ""
+        )
         return _normalize_text(str(source))
 
     @staticmethod
@@ -56,9 +61,40 @@ class LightweightEvidenceReranker:
         normalized_query = _normalize_text(query)
         hints: list[str] = []
 
-        purchase_terms = ["选购", "选择", "买", "购买", "配置", "参数", "户型", "家庭", "适合"]
-        maintenance_terms = ["维护", "保养", "清理", "清洁", "更换", "寿命", "多久", "长期", "存放", "耗材"]
-        mopping_terms = ["拖地", "水箱", "拖布", "清洁液", "污水", "出水", "地毯", "湿拖", "干拖"]
+        purchase_terms = [
+            "选购",
+            "选择",
+            "买",
+            "购买",
+            "配置",
+            "参数",
+            "户型",
+            "家庭",
+            "适合",
+        ]
+        maintenance_terms = [
+            "维护",
+            "保养",
+            "清理",
+            "清洁",
+            "更换",
+            "寿命",
+            "多久",
+            "长期",
+            "存放",
+            "耗材",
+        ]
+        mopping_terms = [
+            "拖地",
+            "水箱",
+            "拖布",
+            "清洁液",
+            "污水",
+            "出水",
+            "地毯",
+            "湿拖",
+            "干拖",
+        ]
         fault_terms = [
             "无法",
             "不能",
@@ -139,7 +175,9 @@ class LightweightEvidenceReranker:
         selected_sources: set[str] = set()
         for result in ranked:
             source = self._source_text(result.document)
-            if source in selected_sources and len(selected) < min(top_k, len(set(self._source_text(item.document) for item in ranked))):
+            if source in selected_sources and len(selected) < min(
+                top_k, len({self._source_text(item.document) for item in ranked})
+            ):
                 continue
             selected.append(result)
             selected_sources.add(source)

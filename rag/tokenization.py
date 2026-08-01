@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 
 
 def cjk_bm25_tokenizer(text: str) -> list[str]:
@@ -12,6 +13,6 @@ def cjk_bm25_tokenizer(text: str) -> list[str]:
 
     cjk_chars = re.findall(r"[\u4e00-\u9fff]", normalized)
     tokens.extend(cjk_chars)
-    tokens.extend("".join(pair) for pair in zip(cjk_chars, cjk_chars[1:]))
+    tokens.extend("".join(pair) for pair in pairwise(cjk_chars))
 
     return tokens

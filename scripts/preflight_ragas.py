@@ -29,7 +29,7 @@ def load_yaml_config(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     with path.open("r", encoding="utf-8") as f:
-        return yaml.load(f, Loader=yaml.FullLoader) or {}
+        return yaml.safe_load(f) or {}
 
 
 def import_status(module_name: str) -> dict[str, Any]:
@@ -80,7 +80,7 @@ def build_report(metric_names: list[str]) -> dict[str, Any]:
         module_name: import_status(module_name)
         for module_name in ("ragas", "datasets", "langchain_core", "langchain_openai")
     }
-    report = {
+    report: dict[str, Any] = {
         "project_root": str(PROJECT_ROOT),
         "local_deps": {
             "path": str(LOCAL_DEPS),

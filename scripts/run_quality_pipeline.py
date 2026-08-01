@@ -6,25 +6,42 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SUBPROCESS_TIMEOUT_SECONDS = 1800
 
 
 def run(command: list[str], allow_failure: bool = False) -> int:
-    result = subprocess.run(command, cwd=PROJECT_ROOT)
+    result = subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        check=False,
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
     if result.returncode != 0 and not allow_failure:
         raise SystemExit(result.returncode)
     return result.returncode
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the RAG quality-engineering pipeline.")
-    parser.add_argument("--proxy-output", default="output/evaluation_ablation_bm25_proxy_pipeline")
+    parser = argparse.ArgumentParser(
+        description="Run the RAG quality-engineering pipeline."
+    )
+    parser.add_argument(
+        "--proxy-output", default="output/evaluation_ablation_bm25_proxy_pipeline"
+    )
     parser.add_argument("--ragas-output", default="output/evaluation_ablation_ragas")
     parser.add_argument("--retriever", choices=["bm25", "hybrid"], default="bm25")
-    parser.add_argument("--answer-mode", choices=["llm", "reference", "extractive"], default="extractive")
+    parser.add_argument(
+        "--answer-mode",
+        choices=["llm", "reference", "extractive"],
+        default="extractive",
+    )
     parser.add_argument("--limit", type=int, default=None)
-    parser.add_argument("--skip-ragas", action="store_true", help="Only run the dependency-light proxy report.")
+    parser.add_argument(
+        "--skip-ragas",
+        action="store_true",
+        help="Only run the dependency-light proxy report.",
+    )
     parser.add_argument(
         "--ragas-data-mode",
         choices=["minimal", "full"],
@@ -63,7 +80,9 @@ def main() -> None:
     print("[quality-pipeline] Running proxy/local ablation report...")
     run(proxy_command)
 
-    proxy_comparison = PROJECT_ROOT / args.proxy_output / "comparison" / "comparison.json"
+    proxy_comparison = (
+        PROJECT_ROOT / args.proxy_output / "comparison" / "comparison.json"
+    )
     print("[quality-pipeline] Proxy summary:")
     run(
         [
@@ -99,8 +118,12 @@ def main() -> None:
         allow_failure=True,
     )
     if preflight_code != 0:
-        print("[quality-pipeline] Official RAGAS run skipped because preflight is not ready.")
-        print("[quality-pipeline] Configure .env, then run: python scripts/run_ragas_ablation.py")
+        print(
+            "[quality-pipeline] Official RAGAS run skipped because preflight is not ready."
+        )
+        print(
+            "[quality-pipeline] Configure .env, then run: python scripts/run_ragas_ablation.py"
+        )
         return
 
     print("[quality-pipeline] Running official RAGAS ablation report...")
@@ -124,7 +147,9 @@ def main() -> None:
         ragas_command.extend(["--limit", str(args.limit)])
     run(ragas_command)
 
-    ragas_comparison = PROJECT_ROOT / args.ragas_output / "comparison" / "comparison.json"
+    ragas_comparison = (
+        PROJECT_ROOT / args.ragas_output / "comparison" / "comparison.json"
+    )
     print("[quality-pipeline] Strict goal validation against official RAGAS report:")
     run(
         [

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from typing import Any
 
 from scripts.validate_quality_goal import (
     OFFICIAL_RAGAS_METRICS,
@@ -24,11 +25,16 @@ class QualityGoalValidatorTest(unittest.TestCase):
         self.assertEqual(metric_delta(comparison, "answer_keyword_accuracy"), 1.73)
 
     def test_official_metrics_are_required_separately_from_proxy_metrics(self) -> None:
-        self.assertEqual(OFFICIAL_RAGAS_METRICS, ["answer_relevancy", "factual_correctness(mode=f1)"])
-        self.assertEqual(PROXY_FALLBACK_METRICS, ["answer_relevancy_proxy", "factual_correctness_proxy"])
+        self.assertEqual(
+            OFFICIAL_RAGAS_METRICS, ["answer_relevancy", "factual_correctness(mode=f1)"]
+        )
+        self.assertEqual(
+            PROXY_FALLBACK_METRICS,
+            ["answer_relevancy_proxy", "factual_correctness_proxy"],
+        )
 
     def test_metric_present_distinguishes_missing_official_metric(self) -> None:
-        comparison = {"metrics": {"answer_relevancy_proxy": {}}}
+        comparison: dict[str, Any] = {"metrics": {"answer_relevancy_proxy": {}}}
 
         self.assertFalse(metric_present(comparison, "answer_relevancy"))
         self.assertTrue(metric_present(comparison, "answer_relevancy_proxy"))
@@ -42,7 +48,9 @@ class QualityGoalValidatorTest(unittest.TestCase):
         }
 
         self.assertFalse(metric_has_positive_delta(comparison, "answer_relevancy"))
-        self.assertTrue(metric_has_positive_delta(comparison, "factual_correctness(mode=f1)"))
+        self.assertTrue(
+            metric_has_positive_delta(comparison, "factual_correctness(mode=f1)")
+        )
 
 
 if __name__ == "__main__":

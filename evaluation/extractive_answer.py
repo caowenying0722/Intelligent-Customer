@@ -29,7 +29,12 @@ def _score_sentence(query_tokens: set[str], sentence: str) -> float:
     if not query_tokens:
         return 0.0
     score = len(query_tokens & sentence_tokens) / len(query_tokens)
-    if "检测：" in sentence or "修复：" in sentence or "建议" in sentence or "应" in sentence:
+    if (
+        "检测：" in sentence
+        or "修复：" in sentence
+        or "建议" in sentence
+        or "应" in sentence
+    ):
         score += 0.12
     if re.search(r"[？?]\*{0,2}$", sentence) or sentence.startswith("##"):
         score -= 0.2
@@ -52,7 +57,9 @@ def build_extractive_answer(
     candidates: list[tuple[float, int, str]] = []
     for doc_index, doc in enumerate(docs, start=1):
         for sentence in _split_sentences(doc.page_content):
-            candidates.append((_score_sentence(query_tokens, sentence), doc_index, sentence))
+            candidates.append(
+                (_score_sentence(query_tokens, sentence), doc_index, sentence)
+            )
 
     candidates.sort(key=lambda item: item[0], reverse=True)
     if not candidates or candidates[0][0] < min_sentence_score:

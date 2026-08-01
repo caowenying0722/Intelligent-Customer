@@ -6,7 +6,6 @@ import os
 import sys
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -61,10 +60,22 @@ def write_env(path: Path, values: dict[str, str]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Create or update the private .env used by RAGAS evaluation.")
-    parser.add_argument("--base-url", default=DEFAULTS["ANTHROPIC_BASE_URL"], help="Anthropic-compatible API base URL.")
-    parser.add_argument("--model", default=DEFAULTS["ANTHROPIC_MODEL"], help="Judge model name.")
-    parser.add_argument("--force", action="store_true", help="Overwrite an existing ANTHROPIC_AUTH_TOKEN in .env.")
+    parser = argparse.ArgumentParser(
+        description="Create or update the private .env used by RAGAS evaluation."
+    )
+    parser.add_argument(
+        "--base-url",
+        default=DEFAULTS["ANTHROPIC_BASE_URL"],
+        help="Anthropic-compatible API base URL.",
+    )
+    parser.add_argument(
+        "--model", default=DEFAULTS["ANTHROPIC_MODEL"], help="Judge model name."
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing ANTHROPIC_AUTH_TOKEN in .env.",
+    )
     parser.add_argument(
         "--from-current-env",
         action="store_true",
@@ -81,7 +92,9 @@ def main() -> None:
     values["ANTHROPIC_DEFAULT_SONNET_MODEL"] = args.model
 
     if args.from_current_env:
-        env_token = os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get("ANTHROPIC_API_KEY")
+        env_token = os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get(
+            "ANTHROPIC_API_KEY"
+        )
         if env_token and (args.force or not values.get("ANTHROPIC_AUTH_TOKEN")):
             values["ANTHROPIC_AUTH_TOKEN"] = env_token
     elif args.force or not values.get("ANTHROPIC_AUTH_TOKEN"):

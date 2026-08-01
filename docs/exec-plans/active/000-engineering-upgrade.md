@@ -660,5 +660,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 删除聊天模型、RAG 和 Chroma 的 import-time 构造；增加缓存惰性工厂和构造器注入，普通 `import app` 不加载业务资源，首次 RAG 调用才显式初始化；完整测试 53 项通过。
 - 将 Settings 的 Agent 最大步骤接入 LangGraph `recursion_limit`，新增工具调用总数上限、超限批次拒绝和安全终止消息；fake model/graph 回归覆盖，完整测试 58 项通过。
 - 四份业务 YAML 改为 `safe_load` + 严格 Pydantic schema，校验未知字段、范围、URL、路径和跨字段关系；Chroma/data/MD5/Prompt/CSV 路径统一锚定项目根并保留 dict 兼容接口；完整测试 64 项通过。
+- 新增仓库级 `pyproject.toml`，全仓 64 个 Python 文件格式化、Ruff 零诊断、Mypy 55 个源码文件零错误；收窄宽泛异常、明确时区与本地子进程 1800 秒上限；65 个测试通过，源码 branch coverage 真实基线为 39%。
 
-阶段 1 尚未完成：从空环境重建、transitive lock、依赖漏洞修复、首次 RAG 同步入库、全仓静态检查/覆盖率门禁。全流程 deadline/cancellation 将在阶段 2 application service 中实现。
+阶段 1 尚未完成：从空环境重建、transitive lock、依赖漏洞修复、首次 RAG 同步入库，以及在核心测试补齐后设置覆盖率回归阈值。全流程 deadline/cancellation 将在阶段 2 application service 中实现，CI 在阶段 10 固化。

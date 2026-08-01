@@ -21,10 +21,7 @@ def is_out_of_scope_query(query: str) -> bool:
         "咳嗽",
         "拆机更换",
     ]
-    if any(term in normalized for term in unsupported_terms):
-        return True
-
-    return False
+    return any(term in normalized for term in unsupported_terms)
 
 
 def low_confidence_response() -> str:

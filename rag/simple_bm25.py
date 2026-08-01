@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Callable
+from collections.abc import Callable
 
 from langchain_core.documents import Document
 
@@ -14,7 +14,12 @@ def _safe_divide(numerator: float, denominator: float) -> float:
 
 
 def _doc_key(doc: Document) -> str:
-    source = doc.metadata.get("source") or doc.metadata.get("file_path") or doc.metadata.get("path") or ""
+    source = (
+        doc.metadata.get("source")
+        or doc.metadata.get("file_path")
+        or doc.metadata.get("path")
+        or ""
+    )
     return f"{source}|{doc.page_content}"
 
 
@@ -34,7 +39,9 @@ class SimpleBM25Retriever:
         self.b = b
         self._doc_tokens = [self.preprocess_func(doc.page_content) for doc in documents]
         self._doc_freq = self._build_doc_freq()
-        self._avg_doc_len = _safe_divide(sum(len(tokens) for tokens in self._doc_tokens), len(self._doc_tokens))
+        self._avg_doc_len = _safe_divide(
+            sum(len(tokens) for tokens in self._doc_tokens), len(self._doc_tokens)
+        )
 
     def _build_doc_freq(self) -> dict[str, int]:
         doc_freq: dict[str, int] = {}
@@ -59,7 +66,9 @@ class SimpleBM25Retriever:
             freq = term_freq.get(token, 0)
             if freq == 0:
                 continue
-            denominator = freq + self.k1 * (1 - self.b + self.b * _safe_divide(doc_len, self._avg_doc_len))
+            denominator = freq + self.k1 * (
+                1 - self.b + self.b * _safe_divide(doc_len, self._avg_doc_len)
+            )
             score += self._idf(token) * _safe_divide(freq * (self.k1 + 1), denominator)
         return score
 
@@ -67,7 +76,9 @@ class SimpleBM25Retriever:
         query_tokens = self.preprocess_func(query)
         scored = [
             (self._score_tokens(query_tokens, doc_tokens), index, doc)
-            for index, (doc, doc_tokens) in enumerate(zip(self.documents, self._doc_tokens))
+            for index, (doc, doc_tokens) in enumerate(
+                zip(self.documents, self._doc_tokens)
+            )
         ]
         scored.sort(key=lambda item: (item[0], -item[1]), reverse=True)
         return [doc for score, _, doc in scored[: self.k] if score > 0]

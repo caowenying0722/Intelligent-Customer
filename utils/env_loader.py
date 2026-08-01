@@ -4,7 +4,6 @@ import os
 import re
 from pathlib import Path
 
-
 MARKDOWN_LINK_RE = re.compile(r"^\[(?P<label>[^\]]+)\]\((?P<url>[^)]+)\)$")
 
 

@@ -3,15 +3,24 @@ from __future__ import annotations
 import csv
 import json
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import yaml
+from langchain_core.documents import Document
 
-from evaluation.dataset import EvaluationSample, load_jsonl_dataset, resolve_project_path
+from evaluation.dataset import (
+    EvaluationSample,
+    load_jsonl_dataset,
+    resolve_project_path,
+)
 from evaluation.extractive_answer import build_extractive_answer
-from evaluation.local_metrics import calculate_local_metrics, source_name, summarize_metric_rows
+from evaluation.local_metrics import (
+    calculate_local_metrics,
+    source_name,
+    summarize_metric_rows,
+)
 from evaluation.ragas_runner import (
     RAGAS_DEFAULT_METRICS,
     RagasEvaluationError,
@@ -21,8 +30,7 @@ from evaluation.ragas_runner import (
 from utils.config_handler import chroma_conf, rag_conf
 from utils.judge_llm import judge_llm_status
 
-
-DEFAULT_CONFIG = {
+DEFAULT_CONFIG: dict[str, Any] = {
     "dataset_path": "data/evaluation/rag_eval_dataset.jsonl",
     "output_dir": "output/evaluation",
     "generate_answers": True,
@@ -35,6 +43,12 @@ DEFAULT_CONFIG = {
 }
 
 
+class EvaluationRagService(Protocol):
+    def retriever_docs(self, query: str) -> list[Document]: ...
+
+    def summarize_with_docs(self, query: str, context_docs: list[Document]) -> str: ...
+
+
 def load_evaluation_config(config_path: str | Path | None = None) -> dict[str, Any]:
     if not config_path:
         config_path = "config/evaluation.yml"
@@ -44,11 +58,13 @@ def load_evaluation_config(config_path: str | Path | None = None) -> dict[str, A
         return DEFAULT_CONFIG.copy()
 
     with path.open("r", encoding="utf-8") as f:
-        loaded_config = yaml.load(f, Loader=yaml.FullLoader) or {}
+        loaded_config = yaml.safe_load(f) or {}
 
     config = DEFAULT_CONFIG.copy()
     config.update(loaded_config)
-    config["ragas"] = DEFAULT_CONFIG["ragas"].copy() | dict(loaded_config.get("ragas", {}))
+    config["ragas"] = DEFAULT_CONFIG["ragas"].copy() | dict(
+        loaded_config.get("ragas", {})
+    )
     return config
 
 
@@ -71,6 +87,7 @@ def evaluate_samples(
     ragas_eval_mode: str | None = None,
     retriever_mode: str = "hybrid",
 ) -> tuple[list[dict[str, Any]], str | None]:
+    rag_service: EvaluationRagService
     if retriever_mode == "bm25":
         from evaluation.bm25_rag_service import BM25RagEvaluationService
 
@@ -100,7 +117,10 @@ def evaluate_samples(
                 "reference_answer": sample.reference_answer,
                 "contexts": contexts,
                 "retrieved_sources": [source_name(doc) for doc in docs],
-                "retrieved_documents": [document_payload(doc, rank) for rank, doc in enumerate(docs, start=1)],
+                "retrieved_documents": [
+                    document_payload(doc, rank)
+                    for rank, doc in enumerate(docs, start=1)
+                ],
                 "metrics": calculate_local_metrics(sample, answer, docs),
                 "metadata": sample.metadata,
             }
@@ -167,13 +187,14 @@ def save_evaluation_report(
     ragas_eval_mode: str | None = None,
     judge_llm_snapshot: dict[str, Any] | None = None,
 ) -> Path:
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    generated_at = datetime.now(tz=timezone.utc).astimezone()
+    timestamp = generated_at.strftime("%Y%m%d_%H%M%S")
     report_dir = resolve_project_path(output_dir) / timestamp
     report_dir.mkdir(parents=True, exist_ok=True)
 
     metric_summary = summarize_metric_rows(rows)
     summary = {
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "generated_at": generated_at.isoformat(timespec="seconds"),
         "dataset_path": str(resolve_project_path(dataset_path)),
         "sample_count": len(rows),
         "generate_answers": generate_answers,
@@ -197,7 +218,14 @@ def save_evaluation_report(
             f.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
 
     metric_names = _flatten_metric_names(rows)
-    csv_columns = ["id", "question", "answer", "reference_answer", "retrieved_sources", *metric_names]
+    csv_columns = [
+        "id",
+        "question",
+        "answer",
+        "reference_answer",
+        "retrieved_sources",
+        *metric_names,
+    ]
     with (report_dir / "metrics.csv").open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=csv_columns)
         writer.writeheader()
@@ -245,12 +273,20 @@ def run_evaluation(
         samples = samples[:limit]
 
     ragas_config = config.get("ragas", {})
-    ragas_enabled = bool(ragas_config.get("enabled", False) if run_ragas is None else run_ragas)
-    effective_ragas_data_mode = ragas_data_mode or str(ragas_config.get("data_mode", "minimal"))
+    ragas_enabled = bool(
+        ragas_config.get("enabled", False) if run_ragas is None else run_ragas
+    )
+    effective_ragas_data_mode = ragas_data_mode or str(
+        ragas_config.get("data_mode", "minimal")
+    )
     effective_ragas_eval_mode = resolve_ragas_eval_mode(
         ragas_eval_mode or str(ragas_config.get("eval_mode", "per_sample"))
     )
-    generate_answers_enabled = bool(config.get("generate_answers", True) if generate_answers is None else generate_answers)
+    generate_answers_enabled = bool(
+        config.get("generate_answers", True)
+        if generate_answers is None
+        else generate_answers
+    )
     answer_mode = answer_mode or str(config.get("answer_mode", "llm"))
     if not generate_answers_enabled and answer_mode == "llm":
         answer_mode = "reference"
@@ -260,7 +296,8 @@ def run_evaluation(
         generate_answers=generate_answers_enabled,
         answer_mode=answer_mode,
         run_ragas=ragas_enabled,
-        ragas_metrics=ragas_metrics or list(ragas_config.get("metrics", RAGAS_DEFAULT_METRICS)),
+        ragas_metrics=ragas_metrics
+        or list(ragas_config.get("metrics", RAGAS_DEFAULT_METRICS)),
         ragas_data_mode=effective_ragas_data_mode,
         ragas_eval_mode=effective_ragas_eval_mode,
         retriever_mode=retriever_mode,
@@ -275,7 +312,8 @@ def run_evaluation(
         retriever_mode=retriever_mode,
         ragas_enabled=ragas_enabled,
         ragas_error=ragas_error,
-        ragas_metric_names=ragas_metrics or list(ragas_config.get("metrics", RAGAS_DEFAULT_METRICS)),
+        ragas_metric_names=ragas_metrics
+        or list(ragas_config.get("metrics", RAGAS_DEFAULT_METRICS)),
         ragas_data_mode=effective_ragas_data_mode,
         ragas_eval_mode=effective_ragas_eval_mode,
         judge_llm_snapshot=judge_llm_status(rag_conf),

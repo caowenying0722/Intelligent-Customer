@@ -18,7 +18,7 @@ class EvaluationSample:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "EvaluationSample":
+    def from_dict(cls, raw: dict[str, Any]) -> EvaluationSample:
         keyword_groups = raw.get("expected_keywords", [])
         normalized_keywords = []
         for item in keyword_groups:
@@ -32,7 +32,9 @@ class EvaluationSample:
             question=str(raw["question"]),
             reference_answer=str(raw.get("reference_answer", "")),
             expected_keywords=normalized_keywords,
-            expected_sources=[str(source) for source in raw.get("expected_sources", [])],
+            expected_sources=[
+                str(source) for source in raw.get("expected_sources", [])
+            ],
             metadata=dict(raw.get("metadata", {})),
         )
 
@@ -57,7 +59,9 @@ def load_jsonl_dataset(path: str | Path) -> list[EvaluationSample]:
             try:
                 samples.append(EvaluationSample.from_dict(json.loads(line)))
             except Exception as exc:
-                raise ValueError(f"Invalid evaluation sample at {dataset_path}:{line_no}: {exc}") from exc
+                raise ValueError(
+                    f"Invalid evaluation sample at {dataset_path}:{line_no}: {exc}"
+                ) from exc
 
     if not samples:
         raise ValueError(f"No evaluation samples found in {dataset_path}")

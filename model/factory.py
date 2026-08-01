@@ -74,15 +74,15 @@ class ChatModelFactory(BaseModelFactory):
         if self.rag_config is None:
             from utils.config_handler import rag_conf
 
-            rag_config = rag_conf
+            config: Mapping[str, Any] = rag_conf
         else:
-            rag_config = self.rag_config
+            config = self.rag_config
         runtime_config = ModelRuntimeConfig.from_settings(settings)
         if settings.resolved_model_provider == "anthropic":
             return AnthropicCompatibleChatModel(
                 model_name=settings.anthropic_model
                 or settings.anthropic_default_sonnet_model
-                or rag_config["chat_model_name"],
+                or config["chat_model_name"],
                 base_url=settings.anthropic_base_url,
                 api_key=settings.anthropic_api_key_value or "EMPTY",
                 timeout=runtime_config.request_timeout_seconds,
@@ -90,8 +90,8 @@ class ChatModelFactory(BaseModelFactory):
             )
 
         model_kwargs: dict[str, Any] = {
-            "model": rag_config["chat_model_name"],
-            "base_url": rag_config["chat_base_url"],
+            "model": config["chat_model_name"],
+            "base_url": config["chat_base_url"],
             "api_key": settings.openai_compatible_api_key_value or "EMPTY",
             "request_timeout": runtime_config.request_timeout_seconds,
             "max_retries": runtime_config.max_retries,
@@ -126,10 +126,10 @@ class EmbeddingsFactory(BaseModelFactory):
         if self.rag_config is None:
             from utils.config_handler import rag_conf
 
-            rag_config = rag_conf
+            config: Mapping[str, Any] = rag_conf
         else:
-            rag_config = self.rag_config
-        model_name = rag_config["embedding_model_path"]
+            config = self.rag_config
+        model_name = config["embedding_model_path"]
         local_model_name = resolve_huggingface_local_path(model_name)
         return HuggingFaceEmbeddings(
             model_name=local_model_name,

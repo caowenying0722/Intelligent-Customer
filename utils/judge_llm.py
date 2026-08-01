@@ -12,11 +12,15 @@ def load_project_env(project_root: str | Path | None = None) -> None:
     load_env_file(root / ".env")
 
 
-def judge_llm_status(rag_config: dict[str, Any], project_root: str | Path | None = None) -> dict[str, Any]:
+def judge_llm_status(
+    rag_config: dict[str, Any], project_root: str | Path | None = None
+) -> dict[str, Any]:
     load_project_env(project_root)
 
     provider_env = os.environ.get("LLM__PROVIDER", "").lower()
-    anthropic_key = os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get("ANTHROPIC_API_KEY")
+    anthropic_key = os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get(
+        "ANTHROPIC_API_KEY"
+    )
     anthropic_base_url = clean_env_value(os.environ.get("ANTHROPIC_BASE_URL", ""))
     anthropic_model = (
         os.environ.get("ANTHROPIC_MODEL")

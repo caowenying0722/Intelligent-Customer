@@ -15,6 +15,18 @@ python scripts/check_environment.py --requirements requirements-dev.txt
 
 `requirements.txt` 是运行依赖，`requirements-dev.txt` 在其基础上增加固定版本的测试、静态检查、覆盖率和依赖审计工具。
 
+仓库级静态规则记录在 `pyproject.toml`。提交前运行：
+
+```bash
+python -m ruff format --check .
+python -m ruff check .
+python -m mypy agent rag model evaluation utils scripts tests app.py
+python -m coverage run -m pytest -q
+python -m coverage report
+```
+
+Coverage 当前只作为真实基线报告，不设置会诱导补写低价值测试或排除核心模块的虚假阈值。
+
 模型请求默认启用 TLS 证书验证，超时为 120 秒，OpenAI-compatible 最大重试次数为 2。企业私有 CA 应配置 PEM 文件，禁止通过关闭证书验证解决连接问题：
 
 ```dotenv

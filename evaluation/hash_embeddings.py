@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+from itertools import pairwise
 
 from langchain_core.embeddings import Embeddings
 
@@ -16,7 +17,7 @@ class HashNgramEmbeddings(Embeddings):
         normalized = re.sub(r"\s+", "", text.lower())
         ascii_words = re.findall(r"[a-z0-9]+", normalized)
         cjk_chars = re.findall(r"[\u4e00-\u9fff]", normalized)
-        cjk_bigrams = ["".join(pair) for pair in zip(cjk_chars, cjk_chars[1:])]
+        cjk_bigrams = ["".join(pair) for pair in pairwise(cjk_chars)]
         return ascii_words + cjk_chars + cjk_bigrams
 
     def _embed(self, text: str) -> list[float]:

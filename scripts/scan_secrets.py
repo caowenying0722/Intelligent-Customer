@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import argparse
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -38,10 +36,18 @@ SECRET_PATTERNS = [
     re.compile(r"\bsk-[A-Za-z0-9][A-Za-z0-9_-]{20,}\b"),
     re.compile(r"\bsk-lf-[A-Za-z0-9-]{20,}\b"),
     re.compile(r"\bpk-lf-[A-Za-z0-9-]{20,}\b"),
-    re.compile(r"\bANTHROPIC_AUTH_TOKEN\s*=\s*['\"]?(?!your_|dummy\b)([A-Za-z0-9][A-Za-z0-9_-]{8,})['\"]?"),
-    re.compile(r"\bANTHROPIC_API_KEY\s*=\s*['\"]?(?!your_|dummy\b)([A-Za-z0-9][A-Za-z0-9_-]{8,})['\"]?"),
-    re.compile(r"\bOPENAI_API_KEY\s*=\s*['\"]?(?!your_|dummy\b)([A-Za-z0-9][A-Za-z0-9_-]{8,})['\"]?"),
-    re.compile(r"\bDEEPSEEK_API_KEY\s*=\s*['\"]?(?!your_|dummy\b)([A-Za-z0-9][A-Za-z0-9_-]{8,})['\"]?"),
+    re.compile(
+        r"\bANTHROPIC_AUTH_TOKEN\s*=\s*['\"]?(?!your_|dummy\b)([A-Za-z0-9][A-Za-z0-9_-]{8,})['\"]?"
+    ),
+    re.compile(
+        r"\bANTHROPIC_API_KEY\s*=\s*['\"]?(?!your_|dummy\b)([A-Za-z0-9][A-Za-z0-9_-]{8,})['\"]?"
+    ),
+    re.compile(
+        r"\bOPENAI_API_KEY\s*=\s*['\"]?(?!your_|dummy\b)([A-Za-z0-9][A-Za-z0-9_-]{8,})['\"]?"
+    ),
+    re.compile(
+        r"\bDEEPSEEK_API_KEY\s*=\s*['\"]?(?!your_|dummy\b)([A-Za-z0-9][A-Za-z0-9_-]{8,})['\"]?"
+    ),
 ]
 
 
@@ -110,8 +116,12 @@ def scan(include_private_env: bool = False) -> list[Finding]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Scan project files for accidentally committed API keys.")
-    parser.add_argument("--include-private-env", action="store_true", help="Also scan local .env files.")
+    parser = argparse.ArgumentParser(
+        description="Scan project files for accidentally committed API keys."
+    )
+    parser.add_argument(
+        "--include-private-env", action="store_true", help="Also scan local .env files."
+    )
     args = parser.parse_args()
 
     findings = scan(include_private_env=args.include_private_env)

@@ -26,7 +26,7 @@ def main() -> None:
         st.chat_message("user").write(prompt)
         st.session_state["message"].append({"role": "user", "content": prompt})
 
-        response_messages = []
+        response_messages: list[str] = []
         with st.spinner("智能客服思考中..."):
             res_stream = st.session_state["agent"].execute_stream(prompt)
 

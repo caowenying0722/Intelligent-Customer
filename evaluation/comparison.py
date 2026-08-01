@@ -83,8 +83,12 @@ def _paired_metric_deltas(
     baseline_rows: list[dict[str, Any]],
     improved_rows: list[dict[str, Any]],
 ) -> dict[str, dict[str, float | int | str]]:
-    baseline_by_id = {str(row.get("id")): row for row in baseline_rows if row.get("id") is not None}
-    improved_by_id = {str(row.get("id")): row for row in improved_rows if row.get("id") is not None}
+    baseline_by_id = {
+        str(row.get("id")): row for row in baseline_rows if row.get("id") is not None
+    }
+    improved_by_id = {
+        str(row.get("id")): row for row in improved_rows if row.get("id") is not None
+    }
     paired_ids = sorted(set(baseline_by_id) & set(improved_by_id))
 
     metric_names: set[str] = set()
@@ -149,7 +153,10 @@ def compare_summaries(
         metrics = _ordered_metrics(paired_metrics, focus_metrics)
     else:
         metric_names = sorted(set(baseline_metrics) & set(improved_metrics))
-        metrics = _ordered_metrics(_summary_metric_deltas(baseline_metrics, improved_metrics, metric_names), focus_metrics)
+        metrics = _ordered_metrics(
+            _summary_metric_deltas(baseline_metrics, improved_metrics, metric_names),
+            focus_metrics,
+        )
 
     comparison = {
         "baseline_report_dir": str(resolve_project_path(baseline_report_dir)),

@@ -17,7 +17,9 @@ def normalize_text(text: str) -> str:
 
 def keyword_group_matched(text: str, keyword_group: list[str]) -> bool:
     normalized = normalize_text(text)
-    return any(normalize_text(keyword) in normalized for keyword in keyword_group if keyword)
+    return any(
+        normalize_text(keyword) in normalized for keyword in keyword_group if keyword
+    )
 
 
 def matched_keyword_groups(text: str, keyword_groups: list[list[str]]) -> int:
@@ -66,12 +68,11 @@ def char_f1(prediction: str, reference: str) -> float:
 
 
 def sequence_similarity(prediction: str, reference: str) -> float:
-    try:
-        from difflib import SequenceMatcher
+    from difflib import SequenceMatcher
 
-        return SequenceMatcher(None, normalize_text(prediction), normalize_text(reference)).ratio()
-    except Exception:
-        return 0.0
+    return SequenceMatcher(
+        None, normalize_text(prediction), normalize_text(reference)
+    ).ratio()
 
 
 def context_overlap(answer: str, contexts: list[str]) -> float:
@@ -85,14 +86,10 @@ def context_overlap(answer: str, contexts: list[str]) -> float:
 
 
 def token_overlap_score(left: str, right: str) -> float:
-    try:
-        from rag.tokenization import cjk_bm25_tokenizer
+    from rag.tokenization import cjk_bm25_tokenizer
 
-        left_tokens = set(cjk_bm25_tokenizer(left))
-        right_tokens = set(cjk_bm25_tokenizer(right))
-    except Exception:
-        left_tokens = set(normalize_text(left))
-        right_tokens = set(normalize_text(right))
+    left_tokens = set(cjk_bm25_tokenizer(left))
+    right_tokens = set(cjk_bm25_tokenizer(right))
 
     return safe_divide(len(left_tokens & right_tokens), len(left_tokens))
 
@@ -103,12 +100,21 @@ def cited_reference_numbers(answer: str) -> list[int]:
 
 def contains_low_confidence_terms(answer: str) -> bool:
     normalized_answer = normalize_text(answer)
-    low_confidence_terms = ["知识库未提供足够依据", "没有找到足够可靠的依据", "低置信度", "转人工"]
-    return any(normalize_text(term) in normalized_answer for term in low_confidence_terms)
+    low_confidence_terms = [
+        "知识库未提供足够依据",
+        "没有找到足够可靠的依据",
+        "低置信度",
+        "转人工",
+    ]
+    return any(
+        normalize_text(term) in normalized_answer for term in low_confidence_terms
+    )
 
 
 def sentence_like_units(answer: str) -> list[str]:
-    units = [unit.strip() for unit in re.split(r"[。！？!?；;\n]+", answer) if unit.strip()]
+    units = [
+        unit.strip() for unit in re.split(r"[。！？!?；;\n]+", answer) if unit.strip()
+    ]
     return units if units else ([answer.strip()] if answer.strip() else [])
 
 
@@ -139,7 +145,9 @@ def low_confidence_matched(sample: EvaluationSample, answer: str) -> float:
     return 1.0 if expects_low_confidence == has_low_confidence_response else 0.0
 
 
-def answer_relevancy_proxy(sample: EvaluationSample, answer: str, keyword_accuracy: float) -> float:
+def answer_relevancy_proxy(
+    sample: EvaluationSample, answer: str, keyword_accuracy: float
+) -> float:
     if sample.metadata.get("expect_low_confidence"):
         return low_confidence_matched(sample, answer)
 
@@ -164,12 +172,16 @@ def factual_correctness_proxy(
     )
 
 
-def calculate_local_metrics(sample: EvaluationSample, answer: str, docs: list[Document]) -> dict[str, float]:
+def calculate_local_metrics(
+    sample: EvaluationSample, answer: str, docs: list[Document]
+) -> dict[str, float]:
     contexts = [doc.page_content for doc in docs]
     joined_context = "\n".join(contexts)
     relevant_docs = [doc for doc in docs if document_is_relevant(doc, sample)]
 
-    matched_retrieval_groups = matched_keyword_groups(joined_context, sample.expected_keywords)
+    matched_retrieval_groups = matched_keyword_groups(
+        joined_context, sample.expected_keywords
+    )
     matched_answer_groups = matched_keyword_groups(answer, sample.expected_keywords)
 
     first_relevant_rank = 0
@@ -181,16 +193,26 @@ def calculate_local_metrics(sample: EvaluationSample, answer: str, docs: list[Do
     source_hits = 0
     if sample.expected_sources:
         retrieved_sources = normalize_text(" ".join(source_name(doc) for doc in docs))
-        source_hits = sum(1 for source in sample.expected_sources if normalize_text(source) in retrieved_sources)
+        source_hits = sum(
+            1
+            for source in sample.expected_sources
+            if normalize_text(source) in retrieved_sources
+        )
 
-    answer_keyword_accuracy = safe_divide(matched_answer_groups, len(sample.expected_keywords))
+    answer_keyword_accuracy = safe_divide(
+        matched_answer_groups, len(sample.expected_keywords)
+    )
     answer_context_overlap = context_overlap(answer, contexts)
 
     metrics = {
         "retrieval_hit_rate": 1.0 if relevant_docs else 0.0,
         "retrieval_precision": safe_divide(len(relevant_docs), len(docs)),
-        "retrieval_recall": safe_divide(matched_retrieval_groups, len(sample.expected_keywords)),
-        "retrieval_mrr": safe_divide(1.0, first_relevant_rank) if first_relevant_rank else 0.0,
+        "retrieval_recall": safe_divide(
+            matched_retrieval_groups, len(sample.expected_keywords)
+        ),
+        "retrieval_mrr": safe_divide(1.0, first_relevant_rank)
+        if first_relevant_rank
+        else 0.0,
         "source_recall": safe_divide(source_hits, len(sample.expected_sources)),
         "answer_keyword_accuracy": answer_keyword_accuracy,
         "answer_char_f1": char_f1(answer, sample.reference_answer),
@@ -199,7 +221,9 @@ def calculate_local_metrics(sample: EvaluationSample, answer: str, docs: list[Do
         "answer_citation_coverage": citation_coverage(answer),
         "answer_citation_validity": citation_validity(answer, docs),
         "low_confidence_accuracy": low_confidence_matched(sample, answer),
-        "answer_relevancy_proxy": answer_relevancy_proxy(sample, answer, answer_keyword_accuracy),
+        "answer_relevancy_proxy": answer_relevancy_proxy(
+            sample, answer, answer_keyword_accuracy
+        ),
         "factual_correctness_proxy": factual_correctness_proxy(
             sample,
             answer,
@@ -209,7 +233,10 @@ def calculate_local_metrics(sample: EvaluationSample, answer: str, docs: list[Do
         ),
     }
 
-    return {name: round(value, 6) if math.isfinite(value) else 0.0 for name, value in metrics.items()}
+    return {
+        name: round(value, 6) if math.isfinite(value) else 0.0
+        for name, value in metrics.items()
+    }
 
 
 def summarize_metric_rows(rows: list[dict[str, Any]]) -> dict[str, float]:
