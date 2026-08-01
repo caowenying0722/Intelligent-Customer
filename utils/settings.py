@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     )
     model_request_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
     model_max_retries: int = Field(default=2, ge=0, le=5)
+    model_max_concurrency: int = Field(default=8, ge=1, le=100)
+    model_failure_threshold: int = Field(default=5, ge=1, le=100)
+    model_cooldown_seconds: float = Field(default=30.0, gt=0, le=3600)
+    model_rate_limit_per_second: int | None = Field(default=None, ge=1, le=10000)
     model_ca_bundle: Path | None = None
     agent_max_steps: int = Field(default=10, ge=1, le=50)
     agent_max_tool_calls: int = Field(default=5, ge=1, le=20)

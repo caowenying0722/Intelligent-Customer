@@ -171,16 +171,26 @@ def build_chat_gateway(
     *,
     provider: str = "default",
     runtime: ModelRuntimeConfig | None = None,
+    settings: Settings | None = None,
     max_concurrency: int = 8,
 ) -> ModelGateway:
     """Adapt an explicitly selected chat model behind the bounded gateway."""
     selected = model if model is not None else get_chat_model()
-    config = runtime or ModelRuntimeConfig.from_env()
+    selected_settings = settings or get_settings()
+    config = runtime or ModelRuntimeConfig.from_settings(selected_settings)
+    concurrency = (
+        selected_settings.model_max_concurrency
+        if settings is not None
+        else max_concurrency
+    )
     return ModelGateway(
         {provider: selected.invoke},
         timeout_seconds=config.request_timeout_seconds,
         max_retries=config.max_retries,
-        max_concurrency=max_concurrency,
+        max_concurrency=concurrency,
+        failure_threshold=selected_settings.model_failure_threshold,
+        cooldown_seconds=selected_settings.model_cooldown_seconds,
+        rate_limit_per_second=selected_settings.model_rate_limit_per_second,
     )
 
 
