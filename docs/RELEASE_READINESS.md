@@ -6,16 +6,16 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：308 passed，25 subtests | 默认不调用付费模型 |
+| `python -m pytest -q` | 通过：309 passed，25 subtests | 默认不调用付费模型 |
 | `coverage run -m pytest -q && coverage report` | 通过：总覆盖率 58%，门槛 41% | 当前本地基线 |
-| `python -m ruff format --check .` | 通过 | 212 个 Python 文件已格式化 |
+| `python -m ruff format --check .` | 通过 | 213 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：95 个源码文件 | 测试动态 mock 不纳入源码类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
 | `python -m pip check` | 通过 | 依赖元数据无破损 |
 | `docker compose config --quiet` | 通过 | API 单服务 Compose 配置有效，镜像使用 `requirements.lock` |
 | `/metrics/prometheus` 集成测试 | 通过：8 个测试 | 有界 HTTP/模型网关聚合指标，生产 token 保护，无 tenant/user/request/prompt 内容 |
-| W3C/HTTP/Agent/LLM/SSE/RAG/Tool span smoke | 通过：9 个测试 | 严格校验/生成上下文并回传嵌套 span；仅有界本地 exporter，未接入 OTLP |
+| W3C/HTTP/Agent/LLM/SSE/RAG/Tool/Worker span smoke | 通过：10 个测试 | 当前进程线程池捕获 parent context；仅有界本地 exporter，未接入 OTLP |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 
@@ -27,7 +27,7 @@
 
 ## 已知未完成
 
-- Compose 目前只有 API；PostgreSQL、Redis、Qdrant、Worker、OpenTelemetry Collector、Prometheus server、Grafana 和 trace backend 尚未纳入。API 已提供可抓取的 HTTP/模型网关 Prometheus 文本端点、W3C traceparent 传播和 HTTP/Agent/LLM/RAG/工具 SDK span，但尚无 OTLP backend。
+- Compose 目前只有 API；PostgreSQL、Redis、Qdrant、Worker、OpenTelemetry Collector、Prometheus server、Grafana 和 trace backend 尚未纳入。API 已提供可抓取的 HTTP/模型网关 Prometheus 文本端点、W3C traceparent 传播和 HTTP/Agent/LLM/RAG/工具/当前进程 Worker SDK span，但尚无 OTLP backend，重启任务不保留 parent context。
 - CI 已在依赖漏洞审计前加入 Docker build 步骤；远端 runner 的镜像构建结果仍待实际 workflow 运行确认。
 - 尚未执行真实 Docker health、迁移、SSE 和后台 job 容器 smoke。
 - hidden evaluation、真实 provider 评测和生产网络压测未执行。

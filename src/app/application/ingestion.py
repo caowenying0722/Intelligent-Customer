@@ -6,11 +6,14 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
+
+from opentelemetry import context as otel_context
 
 
 class IngestionJobStatus(str, Enum):
@@ -62,6 +65,7 @@ class IngestionJobManager:
         timeout_seconds: float = 300.0,
         max_attempts: int = 3,
         retry_backoff_seconds: float = 0.1,
+        tracer: Any | None = None,
     ):
         if max_workers < 1:
             raise ValueError("max_workers must be positive")
@@ -77,6 +81,7 @@ class IngestionJobManager:
         self._timeout_seconds = timeout_seconds
         self._max_attempts = max_attempts
         self._retry_backoff_seconds = retry_backoff_seconds
+        self.tracer = tracer
         self._lock = threading.Lock()
         self._jobs: dict[UUID, IngestionJob] = {}
         self._futures: dict[UUID, Future[Any]] = {}
@@ -113,7 +118,7 @@ class IngestionJobManager:
             self._jobs[job.job_id] = job
             self._idempotency[key] = job.job_id
             self._futures[job.job_id] = self._executor.submit(
-                self._run, job.job_id, operation
+                self._run, job.job_id, operation, otel_context.get_current()
             )
             return job
 
@@ -168,7 +173,20 @@ class IngestionJobManager:
     def close(self) -> None:
         self._executor.shutdown(wait=False, cancel_futures=True)
 
-    def _run(self, job_id: UUID, operation: Callable[[], Any]) -> None:
+    def _run(self, job_id: UUID, operation: Callable[[], Any], parent_context) -> None:
+        context_token = otel_context.attach(parent_context)
+        span_context = (
+            self.tracer.start_span("worker.ingestion")
+            if self.tracer is not None
+            else nullcontext(None)
+        )
+        try:
+            with span_context:
+                self._run_job(job_id, operation)
+        finally:
+            otel_context.detach(context_token)
+
+    def _run_job(self, job_id: UUID, operation: Callable[[], Any]) -> None:
         with self._lock:
             job = self._jobs[job_id]
             started = datetime.now(timezone.utc)
