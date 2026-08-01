@@ -7,7 +7,7 @@ import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 
 from src.app.application.ingestion import (
@@ -31,12 +31,42 @@ class DocumentSubmission:
     created: bool
 
 
+class DocumentMetadataStore(Protocol):
+    def get(self, *, tenant_id: str, document_id: UUID) -> DocumentRecord | None: ...
+
+    def get_by_hash(
+        self, *, tenant_id: str, content_hash: str
+    ) -> DocumentRecord | None: ...
+
+    def register(
+        self,
+        *,
+        tenant_id: str,
+        upload: ValidatedUpload,
+        parser_version: str,
+        chunker_version: str,
+        embedding_model: str,
+        embedding_dimension: int,
+        index_version: str,
+    ) -> tuple[DocumentRecord, bool]: ...
+
+    def update_status(
+        self,
+        *,
+        tenant_id: str,
+        document_id: UUID,
+        status: DocumentStatus | str,
+    ) -> DocumentRecord: ...
+
+    def delete(self, *, tenant_id: str, document_id: UUID) -> DocumentRecord: ...
+
+
 class DocumentIngestionService:
     def __init__(
         self,
         storage: SecureUploadStorage,
         jobs: IngestionJobManager,
-        metadata: Any | None = None,
+        metadata: DocumentMetadataStore | None = None,
         job_store: Any | None = None,
     ) -> None:
         self.storage = storage
@@ -82,13 +112,14 @@ class DocumentIngestionService:
     def delete_document(self, *, tenant_id: str, document_id: UUID) -> DocumentRecord:
         if self.metadata is None:
             raise RuntimeError("document metadata registry is not configured")
+        metadata = self.metadata
         with self._lock:
-            document = self.metadata.get(tenant_id=tenant_id, document_id=document_id)
+            document = metadata.get(tenant_id=tenant_id, document_id=document_id)
             if document is None:
                 raise KeyError("document not found")
             if document.status != DocumentStatus.DELETED:
                 self.storage.remove(document.storage_name)
-                document = self.metadata.delete(
+                document = metadata.delete(
                     tenant_id=tenant_id, document_id=document_id
                 )
                 if self.job_store is not None:
@@ -117,15 +148,16 @@ class DocumentIngestionService:
         """Register metadata and link job lifecycle to document status."""
         if self.metadata is None:
             raise RuntimeError("document metadata registry is not configured")
+        metadata = self.metadata
         with self._lock:
-            existing = self.metadata.get_by_hash(
+            existing = metadata.get_by_hash(
                 tenant_id=tenant_id,
                 content_hash=hashlib.sha256(content).hexdigest(),
             )
             if existing is not None:
                 return DocumentSubmission(document=existing, job=None, created=False)
             upload = validate_upload(filename, content, content_type)
-            record, created = self.metadata.register(
+            record, created = metadata.register(
                 tenant_id=tenant_id,
                 upload=upload,
                 parser_version=parser_version,
@@ -137,7 +169,7 @@ class DocumentIngestionService:
             if not created:
                 return DocumentSubmission(document=record, job=None, created=False)
             path = self.storage.persist(upload)
-            self.metadata.update_status(
+            metadata.update_status(
                 tenant_id=tenant_id,
                 document_id=record.document_id,
                 status=DocumentStatus.INDEXING,
@@ -155,7 +187,7 @@ class DocumentIngestionService:
                 try:
                     result = operation(path, upload, record)
                 except Exception as exc:
-                    self.metadata.update_status(
+                    metadata.update_status(
                         tenant_id=tenant_id,
                         document_id=record.document_id,
                         status=DocumentStatus.FAILED,
@@ -174,7 +206,7 @@ class DocumentIngestionService:
                                 error=str(exc),
                             )
                     raise
-                self.metadata.update_status(
+                metadata.update_status(
                     tenant_id=tenant_id,
                     document_id=record.document_id,
                     status=DocumentStatus.ACTIVE,
@@ -215,7 +247,7 @@ class DocumentIngestionService:
                         )
             except Exception:
                 self.storage.remove(upload.storage_name)
-                self.metadata.update_status(
+                metadata.update_status(
                     tenant_id=tenant_id,
                     document_id=record.document_id,
                     status=DocumentStatus.FAILED,

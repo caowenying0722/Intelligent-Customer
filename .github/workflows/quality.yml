@@ -37,7 +37,7 @@ jobs:
       - name: Lint
         run: python -m ruff check .
       - name: Type check
-        run: python -m mypy agent rag model evaluation utils scripts tests app.py
+        run: python -m mypy agent rag model evaluation utils scripts tests src/app app.py
       - name: Unit and integration tests
         run: python -m pytest -q
       - name: Validate evaluation dataset manifest

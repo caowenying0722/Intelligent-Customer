@@ -811,5 +811,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 10 第五个目标完成：质量门禁阈值移入 `config/evaluation_quality_gate.yml`，CLI 支持配置加载与显式 `--min` 覆盖，CI 不再散落硬编码数字；配置解析、有限值和 workflow 接入有自动化测试。
 - 阶段 10 第六个目标完成：质量门禁支持 `require_model_free`，CI 配置拒绝 deterministic artifact 中任何模型调用；新增失败回归，避免付费 provider 或不可复现 judge 悄悄进入默认门禁。
 - 阶段 10 第七个目标完成：新增评测运行手册，记录 manifest 校验、无模型回归、配置化 quality gate、artifact 元数据和 RAGAS 外发风险；文档命令均已在本地真实执行。
+- 阶段 10 第八个目标完成：修复 API ingestion 的两处真实 Mypy 错误，明确 metadata store Protocol 并收窄取消分支 UUID；定向 `src/app` Mypy 通过，避免 CI 未覆盖的类型回归继续积累。
+- 阶段 10 第九个目标完成：CI Mypy 目标纳入 `src/app`，并将文档/入口验证范围扩展到应用边界；本机完整 Mypy 受 `.local_deps` 的 Python 3.12-only NumPy stub 与 Python 3.10 配置冲突阻塞，已明确记录而未伪称通过。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

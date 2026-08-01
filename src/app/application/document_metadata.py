@@ -5,13 +5,13 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from enum import StrEnum
+from enum import Enum
 from uuid import UUID, uuid4
 
 from src.app.application.uploads import ValidatedUpload
 
 
-class DocumentStatus(StrEnum):
+class DocumentStatus(str, Enum):
     REGISTERED = "registered"
     INDEXING = "indexing"
     ACTIVE = "active"
@@ -99,13 +99,17 @@ class DocumentMetadataRegistry:
             return self._records.get(document_id) if document_id is not None else None
 
     def update_status(
-        self, *, tenant_id: str, document_id: UUID, status: DocumentStatus
+        self,
+        *,
+        tenant_id: str,
+        document_id: UUID,
+        status: DocumentStatus | str,
     ) -> DocumentRecord:
         with self._lock:
             record = self._records.get(document_id)
             if record is None or record.tenant_id != tenant_id:
                 raise KeyError("document not found")
-            updated = replace(record, status=status)
+            updated = replace(record, status=DocumentStatus(status))
             self._records[document_id] = updated
             return updated
 

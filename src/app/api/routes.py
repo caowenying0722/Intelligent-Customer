@@ -139,6 +139,8 @@ def build_router(
     async def get_document(request: Request, document_id: str):
         if ingestion_service is None:
             return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "document ingestion is not configured", "request_id": request.state.request_id})
+        if ingestion_service.metadata is None:
+            return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "document metadata is not configured", "request_id": request.state.request_id})
         try:
             document = ingestion_service.metadata.get(
                 tenant_id=request_tenant_id(request),
@@ -218,10 +220,18 @@ def build_router(
             if cancelled and job is not None and job.status.value == "running" and parsed_id is not None:
                 ingestion_service.jobs.cancel(tenant_id=tenant_id, job_id=parsed_id)
         else:
-            cancelled = parsed_id is not None and ingestion_service.jobs.cancel(
-                tenant_id=tenant_id, job_id=parsed_id
-            )
-            job = ingestion_service.jobs.get(tenant_id=tenant_id, job_id=parsed_id) if cancelled else None
+            if parsed_id is None:
+                cancelled = False
+                job = None
+            else:
+                cancelled = ingestion_service.jobs.cancel(
+                    tenant_id=tenant_id, job_id=parsed_id
+                )
+                job = (
+                    ingestion_service.jobs.get(tenant_id=tenant_id, job_id=parsed_id)
+                    if cancelled
+                    else None
+                )
         if not cancelled or job is None:
             return JSONResponse(status_code=409, content={"code": "job_not_cancellable", "message": "job not found or already running", "request_id": request.state.request_id})
         return IngestionJobResponse(
