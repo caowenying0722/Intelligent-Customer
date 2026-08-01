@@ -12,6 +12,8 @@ from model.structured import validate_structured
 from model.contracts import ModelRequest, ModelResponse, ModelUsage
 from model.errors import ModelError, ModelErrorCode
 from model.audit import start_trace
+from model.audit import request_fingerprint
+from model.idempotency import IdempotencyConflictError, IdempotencyStore
 import time
 import threading
 import time
@@ -66,6 +68,7 @@ class ModelGateway:
         cache: ModelCache | None = None,
         quota: TenantQuota | None = None,
         cost_tracker: CostTracker | None = None,
+        idempotency_store: IdempotencyStore | None = None,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -85,6 +88,7 @@ class ModelGateway:
         self.cache = cache
         self.quota = quota
         self.cost_tracker = cost_tracker
+        self.idempotency_store = idempotency_store
         self._lock = threading.Lock()
         self._consecutive_failures = 0
         self._opened_at: float | None = None
@@ -178,6 +182,26 @@ class ModelGateway:
                 "request_fingerprint": trace.request_fingerprint,
             },
         )
+
+    def invoke_idempotent(self, request: ModelRequest, *, idempotency_key: str) -> ModelResponse:
+        if self.idempotency_store is None:
+            return self.invoke_contract(request)
+        if not idempotency_key.strip():
+            raise ValueError("idempotency_key must not be empty")
+        fingerprint = request_fingerprint(request)
+        try:
+            cached = self.idempotency_store.get(
+                tenant_id=request.tenant_id, key=idempotency_key, fingerprint=fingerprint
+            )
+            if cached is not None:
+                return cached  # type: ignore[return-value]
+            result = self.idempotency_store.set(
+                tenant_id=request.tenant_id, key=idempotency_key,
+                fingerprint=fingerprint, result=self.invoke_contract(request),
+            )
+        except IdempotencyConflictError as exc:
+            raise ModelGatewayError("idempotency key conflict") from exc
+        return result  # type: ignore[return-value]
 
     def health_snapshot(self) -> dict[str, object]:
         """Describe configured provider availability without probing upstreams."""
