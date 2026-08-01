@@ -16,6 +16,7 @@ from agent.tools.agent_tools import (
     get_weather,
     rag_summarize,
 )
+from agent.tools.policy import ToolPolicy
 from model.factory import get_chat_model
 from utils.logger_handler import logger
 from utils.prompt_loader import load_report_prompts, load_system_prompts
@@ -31,6 +32,7 @@ class ReactAgent:
         model: BaseChatModel | None = None,
         tools: Sequence[BaseTool] | None = None,
         settings: Settings | None = None,
+        tool_policy: ToolPolicy | None = None,
     ):
         runtime_settings = settings if settings is not None else get_settings()
         self.max_steps = runtime_settings.agent_max_steps
@@ -48,8 +50,10 @@ class ReactAgent:
                 fill_context_for_report,
             ]
         )
+        self.tool_policy = tool_policy or ToolPolicy.for_tools(self.tools)
+        self.guarded_tools = self.tool_policy.guard(self.tools)
         chat_model = model if model is not None else get_chat_model()
-        self.model_with_tools = chat_model.bind_tools(self.tools)
+        self.model_with_tools = chat_model.bind_tools(self.guarded_tools)
         self.system_prompt = load_system_prompts()
         self.graph = self._build_graph()
 
@@ -98,7 +102,7 @@ class ReactAgent:
         return {"messages": [response]}
 
     def _build_graph(self):
-        tool_node = ToolNode(self.tools)
+        tool_node = ToolNode(getattr(self, "guarded_tools", self.tools))
 
         graph = StateGraph(MessagesState)
         graph.add_node("agent", self._call_model)

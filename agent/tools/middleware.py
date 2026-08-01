@@ -13,6 +13,7 @@ from langchain_core.messages import ToolMessage
 from langgraph.runtime import Runtime
 from langgraph.types import Command
 
+from agent.tools.policy import safe_argument_summary
 from utils.logger_handler import logger
 from utils.prompt_loader import load_report_prompts, load_system_prompts
 
@@ -25,7 +26,10 @@ def monitor_tool(
     handler: Callable[[ToolCallRequest], ToolMessage | Command],
 ) -> ToolMessage | Command:  # 工具执行的监控
     logger.info(f"[tool monitor]执行工具：{request.tool_call['name']}")
-    logger.info(f"[tool monitor]传入参数：{request.tool_call['args']}")
+    logger.info(
+        "[tool monitor]参数摘要：%s",
+        safe_argument_summary(request.tool_call.get("args")),
+    )
 
     try:
         result = handler(request)

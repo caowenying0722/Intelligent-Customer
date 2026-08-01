@@ -799,5 +799,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 9 第三个目标完成：应用工厂支持可选 JWT authenticator；配置后 `/api/v1` router 统一要求 Bearer token，未配置时保持开发兼容，真实 Chat API 集成测试通过。
 - 阶段 9 第四个目标完成：认证 dependency 将 JWT tenant 与 `x-tenant-id` 强制绑定，并把 claims 写入 request state；核心文档/会话路由使用认证 tenant，跨租户 header 返回 403。
 - 阶段 9 第五个目标完成：新增隐私保护的结构化安全审计事件与有界内存 sink；认证成功/失败、租户范围和角色拒绝只记录固定原因、租户与 actor hash，不记录 token、subject 原文或请求正文，并接入 API 认证 dependency。
+- 阶段 9 第六个目标完成：Agent 工具接入确定性 `ToolPolicy`；模型绑定和执行节点只接受 allowlist 工具，参数由原 schema 加大小上限校验，高风险工具必须经过显式 approval checker；工具监控日志只记录参数键和类型摘要，不记录原始参数。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
