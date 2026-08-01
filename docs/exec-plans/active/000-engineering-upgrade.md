@@ -749,5 +749,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 5 首个目标完成：新增 provider-neutral `ModelGateway`，支持显式 provider 路由、超时、有限重试、retryable/permanent 错误分类和未知 provider 安全失败；使用 fake provider 完成 4 项单测，不调用真实付费模型。
 - 阶段 5 第二个目标完成：Model Gateway 增加并发信号量、连续失败熔断窗口和调用/失败计数；熔断前后行为由 fake provider 测试验证，避免无界供应商压力。
 - 阶段 5 第三个目标完成：`model.factory.build_chat_gateway()` 将现有惰性 ChatModel 适配到统一 Gateway，沿用 `ModelRuntimeConfig` 的 timeout/retry 配置；显式 fake model 测试证明不会在导入时加载真实供应商。
+- 阶段 5 第四个目标完成：`ChatApplicationService` 支持可选 Model Gateway 注入，调用失败统一映射为安全 `ChatApplicationError`；新增成功与供应商异常 API 集成测试，内部错误不会泄漏。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

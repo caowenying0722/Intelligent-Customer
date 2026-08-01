@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Protocol
 from uuid import UUID
+from model.gateway import ModelGateway
 
 from src.app.domain.conversations import (
     ConcurrencyConflict,
@@ -33,6 +34,8 @@ class ChatApplicationService:
         async_stream_runner: Callable[[ChatAgent, str], Awaitable[list[str]]]
         | None = None,
         conversation_repository: ConversationRepositoryProtocol | None = None,
+        model_gateway: ModelGateway | None = None,
+        model_provider: str = "default",
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -44,6 +47,8 @@ class ChatApplicationService:
         self.conversation_repository = (
             conversation_repository or ConversationRepository()
         )
+        self.model_gateway = model_gateway
+        self.model_provider = model_provider
 
     def _conversation_id(
         self, tenant_id: str, conversation_id: str | None, user_id: str
@@ -87,7 +92,15 @@ class ChatApplicationService:
             elif self._run_in_thread is not None:
                 result = self._run_in_thread(self.agent, message)
             else:
-                result = asyncio.to_thread(self.agent.run, message)
+                result = (
+                    asyncio.to_thread(
+                        self.model_gateway.invoke,
+                        provider=self.model_provider,
+                        request=message,
+                    )
+                    if self.model_gateway is not None
+                    else asyncio.to_thread(self.agent.run, message)
+                )
             answer = await asyncio.wait_for(result, timeout=self.timeout_seconds)
             self.conversation_repository.append(
                 tenant_id, resolved_id, "assistant", answer
