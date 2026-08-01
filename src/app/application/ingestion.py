@@ -84,6 +84,13 @@ class IngestionJobManager:
                 return None
             return job
 
+    def get_by_idempotency(
+        self, *, tenant_id: str, idempotency_key: str
+    ) -> IngestionJob | None:
+        with self._lock:
+            job_id = self._idempotency.get((tenant_id, idempotency_key))
+            return self._jobs.get(job_id) if job_id is not None else None
+
     def cancel(self, *, tenant_id: str, job_id: UUID) -> bool:
         with self._lock:
             job = self._jobs.get(job_id)
