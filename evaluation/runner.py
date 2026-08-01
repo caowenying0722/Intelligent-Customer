@@ -27,6 +27,10 @@ from evaluation.ragas_runner import (
     evaluate_with_ragas,
     resolve_ragas_eval_mode,
 )
+from evaluation.regression_report import (
+    build_retrieval_regression_summary,
+    repository_snapshot,
+)
 from utils.config_handler import chroma_conf, rag_conf
 from utils.judge_llm import judge_llm_status
 
@@ -36,6 +40,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "generate_answers": True,
     "answer_mode": "llm",
     "retriever_mode": "hybrid",
+    "retrieval_regression_path": "data/evaluation/retrieval_regression_v1.json",
     "ragas": {
         "enabled": False,
         "metrics": RAGAS_DEFAULT_METRICS,
@@ -186,6 +191,7 @@ def save_evaluation_report(
     ragas_data_mode: str | None = None,
     ragas_eval_mode: str | None = None,
     judge_llm_snapshot: dict[str, Any] | None = None,
+    retrieval_regression_summary: dict[str, Any] | None = None,
 ) -> Path:
     generated_at = datetime.now(tz=timezone.utc).astimezone()
     timestamp = generated_at.strftime("%Y%m%d_%H%M%S")
@@ -195,6 +201,7 @@ def save_evaluation_report(
     metric_summary = summarize_metric_rows(rows)
     summary = {
         "generated_at": generated_at.isoformat(timespec="seconds"),
+        "repository": repository_snapshot(),
         "dataset_path": str(resolve_project_path(dataset_path)),
         "sample_count": len(rows),
         "generate_answers": generate_answers,
@@ -208,6 +215,7 @@ def save_evaluation_report(
         "judge_llm": judge_llm_snapshot or {},
         "rag_config": rag_config_snapshot or {},
         "metrics": metric_summary,
+        "retrieval_regression": retrieval_regression_summary or {},
     }
 
     with (report_dir / "summary.json").open("w", encoding="utf-8") as f:
@@ -325,6 +333,13 @@ def run_evaluation(
             "rerank_top_k": chroma_conf.get("rerank_top_k"),
             "low_confidence_threshold": chroma_conf.get("low_confidence_threshold"),
         },
+        retrieval_regression_summary=build_retrieval_regression_summary(
+            rows,
+            config.get(
+                "retrieval_regression_path",
+                "data/evaluation/retrieval_regression_v1.json",
+            ),
+        ),
     )
     print(f"[RAG评测] 报告已生成: {report_dir}")
     return report_dir
