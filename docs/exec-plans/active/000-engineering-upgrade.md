@@ -707,5 +707,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 3 第三十个目标完成：新增版本化冻结 retrieval regression v1（3 条无模型样本）和确定性 Recall@K、MRR、NDCG@K 指标工具；样本 ID、问题和 expected sources 由 loader 严格校验，尚未将 smoke 数字冒充全量 baseline。
 - 阶段 3 第三十一个目标完成：评测 runner 将 frozen regression 指标写入 `summary.json`，同时记录 dataset version、评测样本完整性、Git commit/dirty state 和配置；缺样本时明确标记 `complete=false`，不伪造完整结果。
 - 阶段 3 第三十二个目标完成：新增 `python -m evaluation.quality_gate` deterministic 门禁，仅消费报告并要求显式 `--min NAME=VALUE` 阈值；不完整数据集、缺失指标或低于阈值均返回非零退出码。
+- 阶段 3 第三十三个目标完成：新增无模型/无网络的 `scripts/run_deterministic_regression.py`，从真实本地 txt 知识文件运行 frozen regression v1 并生成 summary；CI 可将该 artifact 交给 quality gate，报告明确记录 `model_calls=0`。
+- 阶段 3 第三十四个目标完成：新增 GitHub Actions deterministic-quality workflow，执行环境检查、format/lint/type/test、无模型 retrieval regression 和显式 baseline quality gate，并始终上传 summary artifact；不接入付费模型或外部 Qdrant。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

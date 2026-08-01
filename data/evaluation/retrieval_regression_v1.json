@@ -14,7 +14,7 @@
     {
       "sample_id": "purchase_small_home",
       "question": "小户型选择扫地机器人要关注什么？",
-      "expected_sources": ["选购指南.txt", "扫地机器人100问.txt"]
+      "expected_sources": ["选购指南.txt", "扫地机器人100问2.txt"]
     }
   ]
 }
