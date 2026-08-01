@@ -116,7 +116,7 @@ flowchart LR
 |---|---|
 | `python -m pytest -q` | 通过：355 passed，26 subtests |
 | `coverage run -m pytest -q` / `coverage report` | 通过：355 passed，26 subtests；总覆盖率 63% |
-| `python -m ruff format --check .` | 通过：238 个 Python 文件已格式化 |
+| `python -m ruff format --check .` | 通过：239 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 |
 | `python scripts/scan_secrets.py` | 通过：Secret scan OK |
