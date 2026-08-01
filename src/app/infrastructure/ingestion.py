@@ -144,6 +144,8 @@ class SqlAlchemyIngestionRepository:
                     document_id=str(document_id),
                     idempotency_key=job.idempotency_key,
                     status=job.status.value,
+                    attempt=job.attempt,
+                    max_attempts=job.max_attempts,
                     created_at=job.created_at,
                 )
             )
@@ -245,4 +247,5 @@ class SqlAlchemyIngestionRepository:
             idempotency_key=row.idempotency_key, status=IngestionJobStatus(row.status),
             created_at=row.created_at, started_at=row.started_at,
             completed_at=row.completed_at, error=row.error, result=row.result_ref,
+            attempt=row.attempt, max_attempts=row.max_attempts,
         )

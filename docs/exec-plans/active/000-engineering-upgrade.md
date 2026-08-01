@@ -726,5 +726,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 4 第十个目标完成：新增 `/api/v1/documents`、`/api/v1/documents/{id}`、`/api/v1/jobs/{id}` 和 cancel 路由；协议层只做 base64/headers/schema 映射，处理 callable 必须由 factory 注入，未配置时返回 503。
 - 阶段 4 第十一个目标完成：`create_app(database_url=...)` 自动构造 SQL-backed ingestion service；文档/job 查询路由从持久化 store 读取，处理器未注入仍返回 503，SQLite migration + API smoke 验证跨实例恢复。
 - 阶段 4 第十二个目标完成：持久化 job 支持 queued/running 恢复查询、queued 取消、running `cancel_requested` 和 worker 重启后的 orphan 安全失败；持久化 API cancel 不再只修改进程内状态。
+- 阶段 4 第十三个目标完成：ingestion job 增加显式 retryable/permanent 错误分类、最大尝试次数、指数退避上限和 attempt 记录；永久错误不重试，临时错误耗尽后失败，不允许无限循环。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

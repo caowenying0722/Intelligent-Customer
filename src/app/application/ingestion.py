@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,6 +20,14 @@ class IngestionJobStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class RetryableIngestionError(RuntimeError):
+    """An ingestion failure that may be retried within the job limit."""
+
+
+class PermanentIngestionError(RuntimeError):
+    """An ingestion failure that must not be retried."""
+
+
 @dataclass(frozen=True)
 class IngestionJob:
     job_id: UUID
@@ -30,20 +39,35 @@ class IngestionJob:
     completed_at: datetime | None = None
     error: str | None = None
     result: Any = None
+    attempt: int = 0
+    max_attempts: int = 3
 
 
 class IngestionJobManager:
     """Run ingestion callables off the request path with bounded resources."""
 
-    def __init__(self, *, max_workers: int = 2, timeout_seconds: float = 300.0):
+    def __init__(
+        self,
+        *,
+        max_workers: int = 2,
+        timeout_seconds: float = 300.0,
+        max_attempts: int = 3,
+        retry_backoff_seconds: float = 0.1,
+    ):
         if max_workers < 1:
             raise ValueError("max_workers must be positive")
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be positive")
+        if retry_backoff_seconds < 0:
+            raise ValueError("retry_backoff_seconds must not be negative")
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix="ingestion"
         )
         self._timeout_seconds = timeout_seconds
+        self._max_attempts = max_attempts
+        self._retry_backoff_seconds = retry_backoff_seconds
         self._lock = threading.Lock()
         self._jobs: dict[UUID, IngestionJob] = {}
         self._futures: dict[UUID, Future[Any]] = {}
@@ -69,6 +93,7 @@ class IngestionJobManager:
                 idempotency_key=idempotency_key,
                 status=IngestionJobStatus.QUEUED,
                 created_at=datetime.now(timezone.utc),
+                max_attempts=self._max_attempts,
             )
             self._jobs[job.job_id] = job
             self._idempotency[key] = job.job_id
@@ -113,7 +138,27 @@ class IngestionJobManager:
                 job, status=IngestionJobStatus.RUNNING, started_at=started
             )
         try:
-            result = operation()
+            result = None
+            started_monotonic = time.monotonic()
+            for attempt in range(1, self._max_attempts + 1):
+                with self._lock:
+                    current = self._jobs[job_id]
+                    self._jobs[job_id] = self._replace(current, attempt=attempt)
+                try:
+                    result = operation()
+                    break
+                except RetryableIngestionError as exc:
+                    if attempt >= self._max_attempts:
+                        raise
+                    delay = min(
+                        self._retry_backoff_seconds * (2 ** (attempt - 1)),
+                        self._timeout_seconds / 4,
+                    )
+                    time.sleep(delay)
+                except PermanentIngestionError:
+                    raise
+                if time.monotonic() - started_monotonic > self._timeout_seconds:
+                    raise TimeoutError("ingestion job exceeded its configured timeout")
             with self._lock:
                 current = self._jobs[job_id]
                 elapsed = (datetime.now(timezone.utc) - started).total_seconds()

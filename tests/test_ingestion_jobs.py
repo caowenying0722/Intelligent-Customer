@@ -4,7 +4,12 @@ from uuid import UUID
 
 import pytest
 
-from src.app.application.ingestion import IngestionJobManager, IngestionJobStatus
+from src.app.application.ingestion import (
+    IngestionJobManager,
+    IngestionJobStatus,
+    PermanentIngestionError,
+    RetryableIngestionError,
+)
 
 
 def _wait_for(manager, tenant_id: str, job_id: UUID, status: IngestionJobStatus):
@@ -76,3 +81,47 @@ def test_ingestion_manager_validates_limits() -> None:
         IngestionJobManager(max_workers=0)
     with pytest.raises(ValueError):
         IngestionJobManager(timeout_seconds=0)
+    with pytest.raises(ValueError):
+        IngestionJobManager(max_attempts=0)
+
+
+def test_ingestion_retries_retryable_errors_with_bounded_attempts() -> None:
+    manager = IngestionJobManager(max_workers=1, max_attempts=3, retry_backoff_seconds=0)
+    attempts = 0
+    try:
+        def operation():
+            nonlocal attempts
+            attempts += 1
+            if attempts < 3:
+                raise RetryableIngestionError("temporary")
+            return "ok"
+
+        job = manager.submit(tenant_id="tenant-a", idempotency_key="retry", operation=operation)
+        completed = _wait_for(manager, "tenant-a", job.job_id, IngestionJobStatus.COMPLETED)
+        assert attempts == 3
+        assert completed.attempt == 3
+    finally:
+        manager.close()
+
+
+def test_ingestion_does_not_retry_permanent_errors_and_exhaustion_fails() -> None:
+    manager = IngestionJobManager(max_workers=1, max_attempts=2, retry_backoff_seconds=0)
+    attempts = 0
+    try:
+        def permanent():
+            nonlocal attempts
+            attempts += 1
+            raise PermanentIngestionError("bad format")
+
+        first = manager.submit(tenant_id="tenant-a", idempotency_key="permanent", operation=permanent)
+        assert _wait_for(manager, "tenant-a", first.job_id, IngestionJobStatus.FAILED).error
+        assert attempts == 1
+
+        def transient():
+            raise RetryableIngestionError("still unavailable")
+
+        second = manager.submit(tenant_id="tenant-a", idempotency_key="exhaust", operation=transient)
+        failed = _wait_for(manager, "tenant-a", second.job_id, IngestionJobStatus.FAILED)
+        assert failed.attempt == 2
+    finally:
+        manager.close()
