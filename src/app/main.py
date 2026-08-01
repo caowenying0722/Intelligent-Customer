@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -16,6 +17,7 @@ from src.app.infrastructure.factory import (
     build_conversation_repository,
     build_document_ingestion_service,
 )
+from src.app.observability.access_log import log_http_request
 from src.app.observability.metrics import (
     HttpMetrics,
     empty_gateway_snapshot,
@@ -184,11 +186,23 @@ def create_app(
 
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):
+        started = perf_counter()
         request_id = request.headers.get("x-request-id") or str(uuid4())
         request.state.request_id = request_id
-        response = await call_next(request)
-        response.headers["x-request-id"] = request_id
-        return response
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            response.headers["x-request-id"] = request_id
+            return response
+        finally:
+            log_http_request(
+                method=request.method,
+                status_code=status_code,
+                duration_ms=(perf_counter() - started) * 1000,
+                request_id=request_id,
+                trace_id=getattr(request.state, "trace_id", None),
+            )
 
     @app.middleware("http")
     async def trace_context_middleware(request: Request, call_next):

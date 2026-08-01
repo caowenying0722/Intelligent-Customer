@@ -31,6 +31,8 @@ API 集成测试会先执行 Alembic upgrade，再用两个独立 app 实例验�
 
 所有响应写入 `x-request-id`。客户端可传入该请求头，否则由服务生成 UUID。模型、向量库和会话依赖不会在模块导入或默认应用工厂中构造。
 
+API access logger 输出 JSON 事件，仅含 method、status_code、duration_ms、request_id 和 trace_id；请求头、query、prompt、正文和供应商原始响应不会写入访问日志，超长或非法 request ID 只记录为 `invalid`。
+
 错误响应统一为 `{"code": "...", "message": "...", "request_id": "..."}`；422、HTTP 异常和未处理异常都不会返回堆栈或供应商原始内容。
 
 当前聊天边界：

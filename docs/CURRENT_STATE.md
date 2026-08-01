@@ -207,7 +207,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 ## 测试、可观测性、部署和数据状态
 
 - 测试：当前 pytest 为 320 passed、25 subtests，覆盖 API/SSE、配置/路径、RAG/Agent、SQLAlchemy/Alembic、入库恢复/关闭、JWT/租户、OTel/Prometheus/Worker metrics、红队和评测辅助；源码分支覆盖率为 59%。真实 provider、PostgreSQL 容器和生产负载仍未验证。
-- 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN 和 OTLP HTTPS 配置已实现；Collector/backend 端到端传输和结构化日志脱敏仍有限制。
+- 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；Collector/backend 端到端传输和业务日志全面脱敏仍有限制。
 - 部署：FastAPI 应用工厂、liveness/readiness、SSE、优雅关闭和 Compose observability profile 已有静态/隔离健康验证；API 镜像构建被 Docker daemon EOF/无法启动阻塞，完整生产栈未验收。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
 
