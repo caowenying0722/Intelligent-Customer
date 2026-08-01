@@ -774,5 +774,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 6 第十二个目标完成：Settings 增加租户 quota calls/window；`TenantQuota.from_settings()` 与 `build_chat_gateway(settings=...)` 自动注入可选配额，未配置时保持禁用。
 - 阶段 6 第十三个目标完成：缓存、Redis、quota、Gateway、工厂、Chat 和 metrics 组合 smoke 通过，共 36 passed；编译和 diff 门禁通过，用户未提交文件未变更。
 - 阶段 5/6 成本控制目标完成：新增显式 `CostTracker`/`UsageRecord`，按 tenant/provider/model 记录 token 与 Decimal 估算成本；Gateway 仅在显式 `record_usage()` 时记账，不猜测供应商 token。
+- 阶段 6 第十四个目标完成：CostTracker 增加可选 tenant 累计成本预算，超限抛出 `BudgetExceededError` 且不追加伪造记录；快照保留总成本与租户数量。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

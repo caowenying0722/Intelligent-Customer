@@ -17,9 +17,17 @@ class UsageRecord:
     estimated_cost: Decimal
 
 
+class BudgetExceededError(RuntimeError):
+    """A tenant's configured estimated cost budget was exceeded."""
+
+
 class CostTracker:
-    def __init__(self) -> None:
+    def __init__(self, *, max_cost_per_tenant: Decimal | None = None) -> None:
+        if max_cost_per_tenant is not None and max_cost_per_tenant < 0:
+            raise ValueError("max_cost_per_tenant must not be negative")
+        self.max_cost_per_tenant = max_cost_per_tenant
         self._records: list[UsageRecord] = []
+        self._tenant_totals: dict[str, Decimal] = {}
         self._lock = threading.Lock()
 
     def record(
@@ -46,7 +54,14 @@ class CostTracker:
             tenant_id, provider, model, input_tokens, output_tokens, cost
         )
         with self._lock:
+            current = self._tenant_totals.get(tenant_id, Decimal("0"))
+            if (
+                self.max_cost_per_tenant is not None
+                and current + cost > self.max_cost_per_tenant
+            ):
+                raise BudgetExceededError("tenant model cost budget exceeded")
             self._records.append(record)
+            self._tenant_totals[tenant_id] = current + cost
         return record
 
     def snapshot(self) -> dict[str, object]:
@@ -56,4 +71,5 @@ class CostTracker:
                 "input_tokens": sum(item.input_tokens for item in self._records),
                 "output_tokens": sum(item.output_tokens for item in self._records),
                 "estimated_cost": str(sum((item.estimated_cost for item in self._records), Decimal("0"))),
+                "tenants": len(self._tenant_totals),
             }

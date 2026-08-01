@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from model.cost import CostTracker
+from model.cost import BudgetExceededError, CostTracker
 
 
 def test_cost_tracker_requires_explicit_usage_and_computes_cost():
@@ -23,4 +23,17 @@ def test_cost_tracker_rejects_negative_tokens(kwargs):
             tenant_id="a", provider="fake", model="m",
             input_tokens=kwargs.get("input_tokens", 0),
             output_tokens=kwargs.get("output_tokens", 0),
+        )
+
+
+def test_cost_tracker_enforces_tenant_budget():
+    tracker = CostTracker(max_cost_per_tenant=Decimal("1"))
+    tracker.record(
+        tenant_id="a", provider="fake", model="m", input_tokens=1000,
+        output_tokens=0, input_cost_per_1k=Decimal("1"),
+    )
+    with pytest.raises(BudgetExceededError):
+        tracker.record(
+            tenant_id="a", provider="fake", model="m", input_tokens=1,
+            output_tokens=0, input_cost_per_1k=Decimal("1"),
         )
