@@ -49,8 +49,13 @@ def test_redis_cache_validates_configuration(kwargs):
 def test_gateway_uses_redis_cache_and_falls_back_when_redis_is_down():
     client = FakeRedis()
     calls = []
+
+    def provider(request):
+        calls.append(request)
+        return "ok"
+
     gateway = ModelGateway(
-        {"fake": lambda request: calls.append(request) or "ok"},
+        {"fake": provider},
         cache=RedisCacheAdapter(client, namespace="gateway"),
     )
     kwargs = dict(
@@ -71,8 +76,12 @@ def test_gateway_uses_redis_cache_and_falls_back_when_redis_is_down():
         def setex(self, *_):
             raise RuntimeError("redis unavailable")
 
+    def degraded_provider(request):
+        calls.append(request)
+        return "degraded"
+
     degraded = ModelGateway(
-        {"fake": lambda request: calls.append(request) or "degraded"},
+        {"fake": degraded_provider},
         cache=RedisCacheAdapter(Down()),
     )
     assert degraded.invoke_cached(**kwargs) == "degraded"

@@ -32,9 +32,12 @@ def test_request_contract_rejects_extra_fields():
 
 def test_contract_reports_cache_hit_without_provider_call():
     calls = []
-    gateway = ModelGateway(
-        {"fake": lambda prompt: calls.append(prompt) or "answer"}, cache=ModelCache()
-    )
+
+    def provider(prompt):
+        calls.append(prompt)
+        return "answer"
+
+    gateway = ModelGateway({"fake": provider}, cache=ModelCache())
     request = ModelRequest(tenant_id="t", provider="fake", model="m", prompt="hello")
     first = gateway.invoke_contract(request)
     second = gateway.invoke_contract(request)

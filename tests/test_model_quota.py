@@ -16,8 +16,13 @@ def test_tenant_quota_isolated_and_bounded():
 
 def test_gateway_rejects_quota_before_provider():
     calls = []
+
+    def provider(request):
+        calls.append(request)
+        return "ok"
+
     gateway = ModelGateway(
-        {"fake": lambda request: calls.append(request) or "ok"},
+        {"fake": provider},
         quota=TenantQuota(max_calls=1),
     )
     kwargs = dict(provider="fake", model="m", tenant_id="a", prompt="p", request="p")

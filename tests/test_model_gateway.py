@@ -116,8 +116,13 @@ def test_gateway_audit_snapshot_contains_counts_only():
 
 def test_gateway_rate_limit_rejects_excess_calls_before_provider():
     calls = []
+
+    def provider(request):
+        calls.append(request)
+        return "ok"
+
     gateway = ModelGateway(
-        {"fake": lambda request: calls.append(request) or "ok"},
+        {"fake": provider},
         rate_limit_per_second=1,
     )
     assert gateway.invoke(provider="fake", request="first") == "ok"
@@ -128,8 +133,13 @@ def test_gateway_rate_limit_rejects_excess_calls_before_provider():
 
 def test_gateway_cache_hit_skips_provider_and_scopes_tenant():
     calls = []
+
+    def provider(request):
+        calls.append(request)
+        return "answer"
+
     gateway = ModelGateway(
-        {"fake": lambda request: calls.append(request) or "answer"},
+        {"fake": provider},
         cache=ModelCache(),
     )
     kwargs = dict(

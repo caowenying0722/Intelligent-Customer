@@ -16,8 +16,13 @@ class Agent:
 
 def test_chat_cache_is_tenant_scoped():
     calls = []
+
+    def provider(request):
+        calls.append(request)
+        return "cached-answer"
+
     gateway = ModelGateway(
-        {"fake": lambda request: calls.append(request) or "cached-answer"},
+        {"fake": provider},
         cache=ModelCache(),
     )
     service = ChatApplicationService(

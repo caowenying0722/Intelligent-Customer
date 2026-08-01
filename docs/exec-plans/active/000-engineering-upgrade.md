@@ -885,5 +885,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第六十四个目标完成：Streamlit 增加独立的有界历史转换和 history-aware Agent 流调用 helper，按 20 条/8000 字符限制传递上下文；无历史或旧 Agent 仍走 `execute_stream`，新增纯函数回归测试，并明确刷新/重启持久化仍未实现。TD-010 继续保持部分完成。当前门禁为 357 tests、63% coverage、239 formatted files。
 - 阶段 11 第六十五个目标完成：为 Streamlit 增加统一 Settings 驱动的 `local/http` 模式；HTTP 模式用有界 timeout 调用 FastAPI SSE，解析 token/metadata/error 并复用 conversation ID，API SSE metadata 现在显式返回新会话 ID。新增 fake HTTP/事件解析/配置回归，默认仍保持本地兼容模式，未宣称上游 token streaming 或背压已验证。TD-024 继续保持部分完成。当前门禁为 361 tests、63% coverage、239 formatted files。
 - 阶段 11 第六十六个目标完成：RagSummarizeService 增加非阻塞 `check_ready()`，FastAPI 应用工厂可注入 RAG 服务并在 lifespan 启动单飞文档加载；readiness 对加载中、加载失败和存储异常失败关闭，资源逆序释放。新增 RAG 状态及 API 生命周期回归，TD-004 更新为应用边界已接入但默认进程索引仍有限制。当前门禁为 364 tests、63% coverage、239 formatted files。
+- 阶段 11 第六十七个目标完成：将模型 gateway/cache/quota/idempotency 测试中的 11 个 `func-returns-value` lambda mock 诊断改为明确返回值的 fake provider；相关 33 个行为测试通过，实际 `python -m mypy tests` 从 44 项降至 33 项，剩余诊断不伪称已通过。TD-019 记录当前边界。当前门禁为 364 tests、63% coverage、239 formatted files。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

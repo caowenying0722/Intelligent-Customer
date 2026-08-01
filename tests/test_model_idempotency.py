@@ -10,8 +10,13 @@ from model.idempotency import IdempotencyStore
 
 def test_gateway_idempotency_reuses_same_result():
     calls = []
+
+    def provider(prompt):
+        calls.append(prompt)
+        return "ok"
+
     gateway = ModelGateway(
-        {"fake": lambda prompt: calls.append(prompt) or "ok"},
+        {"fake": provider},
         idempotency_store=IdempotencyStore(),
     )
     request = ModelRequest(tenant_id="a", provider="fake", model="m", prompt="hi")
@@ -37,8 +42,13 @@ def test_gateway_idempotency_conflict_is_stable_error():
 
 def test_idempotency_ttl_allows_new_execution_after_expiry():
     calls = []
+
+    def provider(prompt):
+        calls.append(prompt)
+        return len(calls)
+
     gateway = ModelGateway(
-        {"fake": lambda prompt: calls.append(prompt) or len(calls)},
+        {"fake": provider},
         idempotency_store=IdempotencyStore(ttl_seconds=0.01),
     )
     request = ModelRequest(tenant_id="a", provider="fake", model="m", prompt="one")
@@ -49,8 +59,13 @@ def test_idempotency_ttl_allows_new_execution_after_expiry():
 
 def test_idempotency_serializes_concurrent_same_key():
     calls = []
+
+    def provider(prompt):
+        calls.append(prompt)
+        return "ok"
+
     gateway = ModelGateway(
-        {"fake": lambda prompt: calls.append(prompt) or "ok"},
+        {"fake": provider},
         idempotency_store=IdempotencyStore(),
     )
     request = ModelRequest(tenant_id="a", provider="fake", model="m", prompt="one")
