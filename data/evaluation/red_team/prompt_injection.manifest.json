@@ -1,0 +1,7 @@
+{
+  "dataset_version": "red-team-prompt-injection-v1",
+  "split": "red_team",
+  "dataset_path": "data/evaluation/red_team/prompt_injection.jsonl",
+  "sample_count": 4,
+  "sha256": "1a132ca6ed646b39df069b2da2b8d7cbe2f92ec1d767137bb6b29fe034f3fcf3"
+}

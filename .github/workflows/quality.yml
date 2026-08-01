@@ -47,6 +47,8 @@ jobs:
         run: python -m evaluation.dataset_manifest
       - name: Deterministic retrieval regression
         run: python scripts/run_deterministic_regression.py --output output/ci/deterministic-summary.json
+      - name: Deterministic red-team regression
+        run: python scripts/run_red_team_regression.py --output output/ci/red-team-summary.json
       - name: Retrieval quality gate
         run: >-
           python -m evaluation.quality_gate
@@ -59,5 +61,6 @@ jobs:
           name: deterministic-retrieval-report
           path: |
             output/ci/deterministic-summary.json
+            output/ci/red-team-summary.json
             output/ci/pip-audit.json
           if-no-files-found: warn

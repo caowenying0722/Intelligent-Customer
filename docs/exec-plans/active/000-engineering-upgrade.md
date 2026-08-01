@@ -818,5 +818,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 10 第十二个目标完成：CI 类型门禁改为覆盖 90 个生产源码/入口模块，源码 Mypy 实测通过；测试中的动态 mock 类型仍由 pytest 行为回归覆盖，并在 workflow 中显式说明范围。
 - 阶段 10 第十三个目标完成：安装锁定版 pip-audit/coverage 后完成依赖门禁复核，真实报告仍为 ChromaDB/RAGAS/DiskCache 三个 Blocker；新增安全审计记录和技术债状态同步，不使用 ignore 或虚假通过。
 - 阶段 10 第十四个目标完成：覆盖率实测 `283 passed`、总覆盖率 58%（门槛 41%）；CI 测试步骤改用 `coverage run -m pytest -q` 并增加 `coverage report` 门禁，技术债同步保留测试动态类型限制。
+- 阶段 10 第十五个目标完成：新增版本化 red-team Prompt Injection 数据集与 SHA-256 manifest；无模型 runner 对每条高风险样本执行 `PromptSafetyPolicy`，漏检/无效样本非零退出并接入 CI artifact，4/4 本地 smoke 拒绝。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
