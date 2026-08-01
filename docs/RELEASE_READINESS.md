@@ -6,9 +6,9 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：349 passed，26 subtests | 默认不调用付费模型 |
-| `coverage run -m pytest -q && coverage report` | 通过：349 passed，26 subtests；总覆盖率 62%，门槛 41% | 当前本地基线 |
-| `python -m ruff format --check .` | 通过 | 235 个 Python 文件已格式化 |
+| `python -m pytest -q` | 通过：353 passed，26 subtests | 默认不调用付费模型 |
+| `coverage run -m pytest -q && coverage report` | 通过：353 passed，26 subtests；总覆盖率 62%，门槛 41% | 当前本地基线 |
+| `python -m ruff format --check .` | 通过 | 237 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 | 测试动态 mock 不纳入源码类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
@@ -31,6 +31,7 @@
 | Agent tool middleware wiring | 通过：1 个测试 | ToolNode sync/async monitor wrapper 已接线，日志参数/消息脱敏 |
 | VectorStore ingestion state | 通过：2 个测试 | MD5 marker append/fsync 和有界 `DocumentLoadSummary`；跨存储原子性仍未完成 |
 | Evaluation artifact privacy | 通过：1 个测试 | 默认 redacted profile 不输出问题/答案/上下文/来源路径；full 仅显式受控调试 |
+| Versioned RAG guardrail | 通过：3 个测试 | `out-of-scope-v1` deterministic baseline，可注入但不宣称通用安全 |
 | Chat timeout/cancellation regression | 通过：2 个测试 | fake Agent 验证同步线程超时边界和异步 SSE runner 取消传播 |
 | SSE disconnect regression | 通过：1 个测试 | 真实 APIRoute body-iterator 在 metadata 后断开，不发送 token/completed/error |
 | REQUEST_TIMEOUT_SECONDS wiring | 通过：1 个测试 | auto-built Chat service 读取配置并保持 504/chat_timeout contract |
