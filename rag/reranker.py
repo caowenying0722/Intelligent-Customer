@@ -82,7 +82,13 @@ def _normalize_text(text: str) -> str:
 
 
 def _content_key(doc: Document) -> str:
-    raw = f"{doc.page_content}|{doc.metadata}"
+    # Source/file paths are evaluation labels and must not affect ranking or
+    # duplicate handling. Keep only stable document identity fields.
+    identity = tuple(
+        (key, doc.metadata.get(key))
+        for key in ("tenant_id", "document_id", "chunk_id", "index_version")
+    )
+    raw = f"{doc.page_content}|{identity}"
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
@@ -97,101 +103,13 @@ class LightweightEvidenceReranker:
 
     def __init__(
         self,
-        source_weight: float = 0.45,
-        rank_weight: float = 0.35,
-        token_weight: float = 0.15,
-        char_weight: float = 0.05,
+        rank_weight: float = 0.55,
+        token_weight: float = 0.30,
+        char_weight: float = 0.15,
     ):
-        self.source_weight = source_weight
         self.rank_weight = rank_weight
         self.token_weight = token_weight
         self.char_weight = char_weight
-
-    @staticmethod
-    def _source_text(doc: Document) -> str:
-        source = (
-            doc.metadata.get("source")
-            or doc.metadata.get("file_path")
-            or doc.metadata.get("path")
-            or ""
-        )
-        return _normalize_text(str(source))
-
-    @staticmethod
-    def _route_hints(query: str) -> list[str]:
-        normalized_query = _normalize_text(query)
-        hints: list[str] = []
-
-        purchase_terms = [
-            "选购",
-            "选择",
-            "买",
-            "购买",
-            "配置",
-            "参数",
-            "户型",
-            "家庭",
-            "适合",
-        ]
-        maintenance_terms = [
-            "维护",
-            "保养",
-            "清理",
-            "清洁",
-            "更换",
-            "寿命",
-            "多久",
-            "长期",
-            "存放",
-            "耗材",
-        ]
-        mopping_terms = [
-            "拖地",
-            "水箱",
-            "拖布",
-            "清洁液",
-            "污水",
-            "出水",
-            "地毯",
-            "湿拖",
-            "干拖",
-        ]
-        fault_terms = [
-            "无法",
-            "不能",
-            "不出",
-            "不转",
-            "失效",
-            "报警",
-            "故障",
-            "异响",
-            "下降",
-            "错乱",
-            "漏水",
-            "水痕",
-            "处理",
-            "排查",
-        ]
-
-        if any(term in normalized_query for term in purchase_terms):
-            hints.append("选购指南")
-        if any(term in normalized_query for term in maintenance_terms):
-            hints.append("维护保养")
-        if any(term in normalized_query for term in mopping_terms):
-            hints.append("扫拖一体")
-        if any(term in normalized_query for term in fault_terms):
-            hints.append("故障排除")
-
-        return hints
-
-    def _source_score(self, query: str, doc: Document) -> float:
-        hints = self._route_hints(query)
-        if not hints:
-            return 0.0
-
-        source = self._source_text(doc)
-        matched_hints = sum(1 for hint in hints if _normalize_text(hint) in source)
-        return _safe_divide(matched_hints, len(hints))
 
     def score(self, query: str, doc: Document, original_rank: int) -> RerankResult:
         query_tokens = set(cjk_bm25_tokenizer(query))
@@ -201,17 +119,15 @@ class LightweightEvidenceReranker:
         query_chars = set(_normalize_text(query))
         doc_chars = set(_normalize_text(doc.page_content))
         char_overlap = _safe_divide(len(query_chars & doc_chars), len(query_chars))
-        source_score = self._source_score(query, doc)
         rank_score = _safe_divide(1.0, original_rank)
 
         score = (
-            self.source_weight * source_score
-            + self.rank_weight * rank_score
+            self.rank_weight * rank_score
             + self.token_weight * token_overlap
             + self.char_weight * char_overlap
         )
         reason = (
-            f"source_score={source_score:.3f}, rank_score={rank_score:.3f}, "
+            f"rank_score={rank_score:.3f}, "
             f"token_overlap={token_overlap:.3f}, char_overlap={char_overlap:.3f}, rank={original_rank}"
         )
         return RerankResult(document=doc, score=round(score, 6), reason=reason)
@@ -232,28 +148,7 @@ class LightweightEvidenceReranker:
             reverse=True,
         )
 
-        selected: list[RerankResult] = []
-        selected_sources: set[str] = set()
-        for result in ranked:
-            source = self._source_text(result.document)
-            if source in selected_sources and len(selected) < min(
-                top_k, len({self._source_text(item.document) for item in ranked})
-            ):
-                continue
-            selected.append(result)
-            selected_sources.add(source)
-            if len(selected) == top_k:
-                break
-
-        if len(selected) < top_k:
-            selected_keys = {_content_key(result.document) for result in selected}
-            for result in ranked:
-                if _content_key(result.document) in selected_keys:
-                    continue
-                selected.append(result)
-                selected_keys.add(_content_key(result.document))
-                if len(selected) == top_k:
-                    break
+        selected = ranked[:top_k]
 
         for result in selected:
             result.document.metadata["rerank_score"] = result.score

@@ -61,7 +61,7 @@ flowchart LR
 2. Dense 路径使用 Chroma + 延迟加载的本地 Hugging Face embedding。
 3. Sparse 路径使用仓库自实现的 BM25 公式和中英文 tokenization。
 4. 当前“混合检索”按 `weight / rank` 合并两路结果，不是标准分数归一化，也不是带 `rrf_k` 的正式 RRF 实现。
-5. `LightweightEvidenceReranker` 依据原排名、内容 token/字符重合以及来源文件名中的类别提示排序。来源文件名同时用于评测标签，导致评测泄漏。
+5. `LightweightEvidenceReranker` 依据原排名、内容 token/字符重合排序，不读取来源文件名或评测标签；离线 `source_recall` 仍只在评测阶段计算，不能反向影响排序。
 6. 生成链将问题和全文片段拼入 Prompt，要求模型返回 `【资料N】`。引用验证目前只检查编号是否落在文档数组范围内，不验证结论是否被被引片段支持。
 
 ### 模型和工具链路
@@ -92,7 +92,7 @@ flowchart LR
 | 工具调用 | 已实现有界 Demo | 每次 Agent 执行默认最多请求 5 次工具；无权限/幂等边界 |
 | Chroma 向量检索 | 已实现且依赖已安装 | 首次 RAG 工具调用仍同步初始化并可能入库 |
 | BM25 检索 | 已实现并可离线运行 | `rag/simple_bm25.py` |
-| 启发式重排 | 已实现但存在标签泄漏 | `rag/reranker.py` |
+| 启发式重排 | 已实现无来源名特征的确定性 baseline | `rag/reranker.py`、`docs/evaluation/retrieval-leakage.md` |
 | RAG 回归样本 | 有 28 条主集和 6 条 focus 集，但未版本化/冻结 | `data/evaluation/*.jsonl` |
 | FastAPI / API v1 / SSE | 已实现聊天、基础 SSE、内存会话和启动生命周期边界 | `src/app/main.py` 提供应用工厂、request ID、liveness/readiness、`POST /api/v1/chat`、SSE、可注入的进程内 conversation repository 和资源关闭；`python -m src.app.server` 可启动 |
 | PostgreSQL / Alembic | 部分实现 | SQLAlchemy conversation/document/job repository、Alembic migration、readiness 和重启恢复测试已存在；当前 Docker/PostgreSQL 端到端未验收 |
@@ -185,15 +185,15 @@ flowchart LR
 | 主评测集样本 | 28 | 非冻结、无 dataset version |
 | Focus 评测集样本 | 6 | 非隐藏集 |
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
-| MRR | 0.857143 | top-3 BM25 + 启发式重排；相关性标签受来源文件名捷径影响 |
-| Source recall | 0.678571 | 24 个带来源标签的样本；重排直接使用来源名称，结果有泄漏风险 |
+| MRR | 0.857143（历史值） | 旧产物的 top-3 BM25 + 启发式重排结果，不能作为当前无泄漏 baseline |
+| Source recall | 0.678571（历史值） | 旧产物的离线来源标签指标；当前仍可计算，但不参与重排 |
 | Citation validity | 尚未有效测量 | 此次答案为参考答案；现有实现只校验引用编号范围 |
 | 平均响应延迟 | 尚未测量 | runner 未记录耗时 |
 | p95 延迟 | 尚未测量 | runner 未记录逐样本耗时 |
 | 每请求 token | 尚未测量 | provider usage 未统一采集 |
 | 每请求成本 | 尚未测量 | 无价格快照和 usage 记录 |
 
-README 中的评测表能在本地未跟踪的旧产物找到同值，但产物包含绝对路径、未记录 Git commit/dirty state、未版本化数据集，且改进方案使用来源文件名做重排特征。因此这些数值不能作为独立、无泄漏的质量提升证据。
+README 中的评测表能在本地未跟踪的旧产物找到同值，但产物包含绝对路径、未记录 Git commit/dirty state、未版本化数据集，且生成时的旧重排实现使用来源文件名做特征。因此这些历史数值不能作为独立、无泄漏的质量提升证据；当前代码已删除该特征，需用冻结数据集重新生成可采信报告。
 
 ## 主要技术债与安全风险
 
@@ -203,7 +203,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 2. Python 3.13 不在支持矩阵；当前环境检查因此失败，Python 3.10 clean install 仍需 CI/受支持解释器复核。
 3. Agent 步骤和工具调用已有代码级上限，但请求没有全流程 deadline/cancellation，工具副作用也没有幂等控制。
 4. 随机用户身份与本地报告数据没有认证、授权和租户隔离。
-5. 重排使用评测来源文件名，README 质量提升不能视为独立证据。
+5. 历史评测曾使用来源文件名，当前重排已移除该特征；README 中旧质量提升数字仍不能视为独立证据，需等待新 artifact。
 6. RAG 服务构造已不再扫描/入库；首次 RAG 检索由单飞后台任务执行并受超时约束，API readiness、取消传播和入库 worker 关闭已有基线，但真实外部向量服务仍未纳入部署验收。
 7. 日志中可能记录工具参数、消息正文或供应商原始错误，缺少脱敏。
 
@@ -216,7 +216,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 最可能被面试官质疑的问题
 
-1. README 的提升数字如何排除文件名泄漏、开发集调参和参考答案复用？当前无法排除。
+1. README 的历史提升数字如何排除文件名泄漏、开发集调参和参考答案复用？当前已通过移除来源名特征降低一项风险，但旧 artifact 仍不可追溯，需重跑冻结评测。
 2. 为什么叫“流式”但模型并未 token streaming，而是完整块再逐字符 sleep？
 3. Agent 如何防止无限工具循环、超时和重复副作用？步骤和工具次数已有确定性上限；全流程 deadline、取消与副作用幂等仍未实现。
 4. 随机 user ID 如何代表真实登录用户，如何防止读取其他人的报告？当前没有安全边界。

@@ -49,7 +49,7 @@ Streamlit 保留为演示客户端，核心业务迁到 application service，Fa
 
 理由：
 
-- 当前重排存在来源文件名泄漏，没有可信 regression set 就无法证明后续 Qdrant/Cross-Encoder 改进。
+- 历史重排曾存在来源文件名泄漏；当前 baseline 已移除该特征，但仍需要冻结 regression set 才能证明后续 Qdrant/Cross-Encoder 改进。
 - 没有持久化/checkpoint，Agent 中断、审批和服务重启恢复无法成立。
 - 没有可观测性，超时、重试、fallback、检索和工具故障无法定位，也不能产生可信延迟/成本数据。
 
