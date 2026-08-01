@@ -94,7 +94,7 @@ flowchart LR
 | BM25 检索 | 已实现并可离线运行 | `rag/simple_bm25.py` |
 | 启发式重排 | 已实现无来源名特征的确定性 baseline | `rag/reranker.py`、`docs/evaluation/retrieval-leakage.md` |
 | RAG 回归样本 | 有 28 条主集和 6 条 focus 集，但未版本化/冻结 | `data/evaluation/*.jsonl` |
-| FastAPI / API v1 / SSE | 已实现聊天、基础 SSE、内存会话和启动生命周期边界 | `src/app/main.py` 提供应用工厂、request ID、liveness/readiness、可注入 RAG 的 lifespan 单飞加载、`POST /api/v1/chat`、SSE、可注入的进程内 conversation repository 和资源关闭；`python -m src.app.server` 可启动 |
+| FastAPI / API v1 / SSE | 已实现聊天、基础 SSE、内存会话和启动生命周期边界 | `src/app/main.py` 提供应用工厂，`src/app/server.py:build_server_app()` 在显式 server 启动时延迟构造 Agent，并提供 request ID、liveness/readiness、可注入 RAG 的 lifespan 单飞加载、`POST /api/v1/chat`、SSE、可注入的进程内 conversation repository 和资源关闭；`python -m src.app.server` 可启动真实组合根 |
 | PostgreSQL / Alembic | 部分实现 | SQLAlchemy conversation/document/job repository、Alembic migration、readiness 和重启恢复测试已存在；当前 Docker/PostgreSQL 端到端未验收 |
 | Redis / Celery | 未实现 | 无依赖、worker 或任务状态机 |
 | Qdrant / hybrid filter | 未实现 | 当前仅本地 Chroma |
@@ -114,9 +114,9 @@ flowchart LR
 
 | 命令 | 实际结果 |
 |---|---|
-| `python -m pytest -q` | 通过：364 passed，26 subtests |
-| `coverage run -m pytest -q` / `coverage report` | 通过：364 passed，26 subtests；总覆盖率 63% |
-| `python -m ruff format --check .` | 通过：239 个 Python 文件已格式化 |
+| `python -m pytest -q` | 通过：365 passed，26 subtests |
+| `coverage run -m pytest -q` / `coverage report` | 通过：365 passed，26 subtests；总覆盖率 63% |
+| `python -m ruff format --check .` | 通过：240 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 |
 | `python -m mypy tests` | 通过：102 个测试源码文件 |
@@ -210,7 +210,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：当前 pytest 为 364 passed、26 subtests，覆盖 API/SSE/断开、配置/路径、RAG/Agent、SQLAlchemy/Alembic、入库恢复/关闭/删除竞态、持久化 rebuild idempotency/claim-before-worker、Blue/Green 验证超时、JWT/租户、OTel/Prometheus/Worker metrics、Chat timeout/cancellation、REQUEST_TIMEOUT_SECONDS、提示词/模型错误脱敏、无泄漏重排、非流式/SSE Chat 历史、run 错误脱敏、Streamlit HTTP SSE/有界历史与 chunk forwarding、RAG readiness、Agent middleware sync/async runtime、VectorStore 状态、引用支持代理、评测逐样本耗时/错误门禁、redacted artifact、版本化 guardrail、红队和评测辅助；源码分支覆盖率为 63%。真实 provider、PostgreSQL 容器和生产负载仍未验证。
+- 测试：当前 pytest 为 365 passed、26 subtests，覆盖 API/SSE/断开、配置/路径、RAG/Agent、SQLAlchemy/Alembic、入库恢复/关闭/删除竞态、持久化 rebuild idempotency/claim-before-worker、Blue/Green 验证超时、JWT/租户、OTel/Prometheus/Worker metrics、Chat timeout/cancellation、REQUEST_TIMEOUT_SECONDS、提示词/模型错误脱敏、无泄漏重排、非流式/SSE Chat 历史、run 错误脱敏、Streamlit HTTP SSE/有界历史与 chunk forwarding、RAG readiness、server composition root、Agent middleware sync/async runtime、VectorStore 状态、引用支持代理、评测逐样本耗时/错误门禁、redacted artifact、版本化 guardrail、红队和评测辅助；源码分支覆盖率为 63%。真实 provider、PostgreSQL 容器和生产负载仍未验证。
 - 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；Collector/backend 端到端传输和业务日志全面脱敏仍有限制。
 - 部署：FastAPI 应用工厂、liveness/readiness、SSE、优雅关闭和 Compose observability profile 已有静态/隔离健康验证；API 镜像构建被 Docker daemon EOF/无法启动阻塞，完整生产栈未验收。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。

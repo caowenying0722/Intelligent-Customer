@@ -103,6 +103,7 @@ flowchart TB
 ### 应用与领域边界
 
 - `ChatApplicationService` 负责 deadline、取消、会话、Agent adapter 和事件序列，不依赖 FastAPI/Streamlit。
+- `src/app/server.py:build_server_app()` 是可执行 API 的 composition root：只在显式 server 启动时构造 `ReactAgent`，测试和嵌入场景可注入 fake Agent，避免 import-time 加载真实模型。
 - `ConversationRepository`、`AgentRunner`、`ModelGateway`、`Retriever`、`JobRepository` 都先定义协议，再提供内存/本地兼容实现和生产实现。
 - 权限、tenant filter、工具 allowlist、审批和幂等由确定性代码强制，模型只提出意图。
 
