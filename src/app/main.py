@@ -132,6 +132,13 @@ def create_app(
             return JSONResponse(status_code=503, content={"status": "not_ready"})
         return {"status": "ready"}
 
+    @app.get("/metrics")
+    async def metrics() -> dict[str, object]:
+        gateway = getattr(chat_service, "model_gateway", None)
+        if gateway is None or not hasattr(gateway, "audit_snapshot"):
+            return {"model_gateway": {"calls": 0, "failures": 0, "provider_calls": {}, "provider_failures": {}}}
+        return {"model_gateway": gateway.audit_snapshot()}
+
     if ingestion_service is not None and ingestion_service not in lifecycle_resources:
         lifecycle_resources = (*lifecycle_resources, ingestion_service)
     app.include_router(build_router(chat_service, ingestion_service, ingestion_operation, index_rebuild_operation))
