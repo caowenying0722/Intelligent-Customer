@@ -830,5 +830,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第九个目标完成：为 `/metrics` 与 `/metrics/prometheus` 增加独立 `METRICS_TOKEN` 生产访问控制，使用 `X-Metrics-Token` 和常量时间比较；开发/测试保持匿名兼容，生产缺 token 拒绝启动。全量 `299 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
 - 阶段 11 第十个目标完成：增加不依赖 SDK 的 W3C `traceparent` 校验、服务端子 span 生成、响应传播和 request state 注入；文档明确尚未接入 OTel span/exporter。全量 `302 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
 - 阶段 11 第十一个目标完成：显式锁定 OpenTelemetry API/SDK，API middleware 创建 `http.request` span，并用不保存属性的有界本地 exporter 做可验证 smoke；不连接 OTLP 网络 exporter。全量 `303 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke、Compose config 和 pip-audit（仍报告 3 条既有上游漏洞）均已实际执行。
+- 阶段 11 第十二个目标完成：将 `agent.run` span 接入 ChatApplicationService 的 Agent/模型等待边界，复用 HTTP parent context，并确保 exporter 只保存固定 span 名和 ID。全量 `304 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

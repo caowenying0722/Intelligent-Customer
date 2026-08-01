@@ -124,3 +124,9 @@ class ApiTracer:
         return self.tracer.start_as_current_span(
             "http.request", context=set_span_in_context(parent_span)
         )
+
+    def start_span(self, name: str):
+        return self.tracer.start_as_current_span(name)
+
+    def close(self) -> None:
+        self.provider.shutdown()

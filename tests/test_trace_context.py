@@ -2,6 +2,7 @@ import re
 
 from fastapi.testclient import TestClient
 
+from src.app.application.chat import ChatApplicationService
 from src.app.main import create_app
 from src.app.observability.tracing import TraceContext
 
@@ -49,3 +50,20 @@ def test_api_records_bounded_http_span_summary_without_attributes():
     assert len(spans[-1]["trace_id"]) == 32
     assert "http.method" not in spans[-1]
     assert "health/live" not in str(spans[-1])
+
+
+def test_chat_records_agent_span_with_fake_agent():
+    class Agent:
+        def run(self, message: str) -> str:
+            return "ok"
+
+        def stream(self, message: str) -> list[str]:
+            return ["ok"]
+
+    app = create_app(chat_service=ChatApplicationService(Agent()))
+    response = TestClient(app).post("/api/v1/chat", json={"message": "secret"})
+
+    assert response.status_code == 200
+    names = [span["name"] for span in app.state.trace_exporter.snapshot()]
+    assert "agent.run" in names
+    assert "secret" not in str(app.state.trace_exporter.snapshot())

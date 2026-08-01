@@ -2,7 +2,8 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import Protocol
+from contextlib import nullcontext
+from typing import Any, Protocol
 from uuid import UUID
 
 from model.errors import ModelError
@@ -12,6 +13,10 @@ from src.app.domain.conversations import (
     ConversationRepository,
     ConversationRepositoryProtocol,
 )
+
+
+def _null_span():
+    return nullcontext(None)
 
 
 class ChatAgent(Protocol):
@@ -44,6 +49,7 @@ class ChatApplicationService:
         stream_gateway: ModelGateway | None = None,
         model_name: str = "default",
         prompt_version: str = "v1",
+        tracer: Any | None = None,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -60,6 +66,7 @@ class ChatApplicationService:
         self.stream_gateway = stream_gateway
         self.model_name = model_name
         self.prompt_version = prompt_version
+        self.tracer = tracer
 
     def _conversation_id(
         self, tenant_id: str, conversation_id: str | None, user_id: str
@@ -122,7 +129,15 @@ class ChatApplicationService:
                         )
                 else:
                     result = asyncio.to_thread(self.agent.run, message)
-            answer = await asyncio.wait_for(result, timeout=self.timeout_seconds)
+            span_context = (
+                self.tracer.start_span("agent.run")
+                if self.tracer is not None
+                else _null_span()
+            )
+            with span_context as span:
+                answer = await asyncio.wait_for(result, timeout=self.timeout_seconds)
+                if span is not None:
+                    span.set_attribute("agent.status", "completed")
             self.conversation_repository.append(
                 tenant_id, resolved_id, "assistant", answer
             )

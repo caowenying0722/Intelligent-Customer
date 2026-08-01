@@ -88,12 +88,14 @@ def create_app(
         chat_service = ChatApplicationService(
             chat_agent,
             conversation_repository=repository,
+            tracer=api_tracer,
         )
         lifecycle_resources = (*lifecycle_resources, repository)
 
     if ingestion_service is None and database_url:
         ingestion_service = build_document_ingestion_service(database_url=database_url)
         lifecycle_resources = (*lifecycle_resources, ingestion_service)
+    lifecycle_resources = (*lifecycle_resources, api_tracer)
 
     if readiness_check is None and chat_service is not None:
         candidate = getattr(chat_service.conversation_repository, "check_ready", None)
@@ -105,6 +107,8 @@ def create_app(
     )
     app.state.http_metrics = http_metrics
     app.state.trace_exporter = api_tracer.exporter
+    if chat_service is not None:
+        chat_service.tracer = api_tracer
 
     @app.middleware("http")
     async def http_metrics_middleware(request: Request, call_next):
