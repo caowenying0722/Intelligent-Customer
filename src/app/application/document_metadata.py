@@ -24,6 +24,7 @@ class DocumentRecord:
     document_id: UUID
     tenant_id: str
     original_name: str
+    storage_name: str
     content_hash: str
     document_version: int
     parser_version: str
@@ -72,6 +73,7 @@ class DocumentMetadataRegistry:
                 document_id=uuid4(),
                 tenant_id=tenant_id,
                 original_name=upload.original_name,
+                storage_name=upload.storage_name,
                 content_hash=upload.sha256,
                 document_version=1,
                 parser_version=parser_version,
