@@ -4,7 +4,8 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Protocol
 from uuid import UUID
-from model.gateway import ModelGateway
+from model.gateway import ModelGateway, ModelGatewayError
+from model.errors import ModelError
 
 from src.app.domain.conversations import (
     ConcurrencyConflict,
@@ -21,6 +22,10 @@ class ChatAgent(Protocol):
 
 class ChatApplicationError(RuntimeError):
     """Safe application-level error that can be mapped to a stable API code."""
+
+    def __init__(self, message: str, *, model_error: ModelError | None = None):
+        super().__init__(message)
+        self.model_error = model_error
 
 
 class ChatApplicationService:
@@ -140,7 +145,10 @@ class ChatApplicationService:
             self.conversation_repository.update_run(
                 tenant_id, run.run_id, "failed", str(exc)
             )
-            raise ChatApplicationError("chat execution failed") from exc
+            model_error = (
+                exc.to_contract() if isinstance(exc, ModelGatewayError) else None
+            )
+            raise ChatApplicationError("chat execution failed", model_error=model_error) from exc
 
     async def stream(self, message: str) -> list[str]:
         """Return bounded fake/provider chunks for the transport SSE adapter."""

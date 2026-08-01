@@ -34,7 +34,7 @@ class ModelGatewayError(RuntimeError):
         elif "schema" in text:
             code = ModelErrorCode.MALFORMED_OUTPUT
             retryable = False
-        elif "not configured" in text or "provider" in text:
+        elif "not configured" in text:
             code = ModelErrorCode.PROVIDER_UNAVAILABLE
             retryable = True
         else:

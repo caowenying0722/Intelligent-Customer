@@ -10,7 +10,7 @@ from collections.abc import Callable
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from src.app.application.chat import ChatApplicationService
+from src.app.application.chat import ChatApplicationError, ChatApplicationService
 from src.app.application.ingestion_service import DocumentIngestionService
 from src.app.domain.conversations import (
     ConcurrencyConflict,
@@ -260,6 +260,21 @@ def build_router(
                     "message": "conversation changed; refresh and retry",
                     "request_id": request.state.request_id,
                 },
+            )
+        except ChatApplicationError as exc:
+            model_error = exc.model_error
+            raw_code = model_error.code.value if model_error is not None else (
+                "chat_timeout" if "timed out" in str(exc) else "chat_failed"
+            )
+            code = "chat_failed" if raw_code == "unknown" else raw_code
+            status_code = (
+                504 if code == "chat_timeout" else
+                429 if code == "rate_limited" else
+                503 if code == "provider_unavailable" else 400
+            )
+            return JSONResponse(
+                status_code=status_code,
+                content={"code": code, "message": str(exc), "request_id": request.state.request_id},
             )
         except Exception as exc:  # noqa: BLE001 - stable boundary, no traceback.
             status_code = 504 if "timed out" in str(exc) else 400
