@@ -42,6 +42,7 @@ logs/
 # =========================
 chroma_db/
 md5.txt
+output/
 
 # 本地嵌入模型文件（体积大，按需下载）
 model/Xorbits/

@@ -28,7 +28,7 @@ Conda 环境 `ics` 已成功创建并配置！
 1. 按所选模型服务商创建 API Key。
 2. 本地评测不需要 Key；正式 RAGAS 评测建议写入项目根目录 `.env`。
 
-#### 设置环境变量（三种方式）：
+#### 设置环境变量（两种方式）：
 
 **方式1：通过系统环境变量（推荐）**
 ```bash
@@ -71,15 +71,6 @@ python scripts/setup_private_env.py
 python scripts/preflight_ragas.py
 ```
 
-**方式3：使用启动脚本（Windows）**
-```bash
-# 编辑 run.bat 文件，在第二行添加：
-set MOONSHOT_API_KEY=your-api-key-here
-
-# 然后运行：
-./run.bat
-```
-
 ### 2. 验证配置
 ```bash
 # 激活环境
@@ -93,27 +84,19 @@ python scripts/preflight_ragas.py
 
 ## 🚀 启动应用
 
-### 方式1：使用启动脚本（Windows）
-```bash
-./run.bat
-```
-
-### 方式2：手动启动
+### 方式1：手动启动
 ```bash
 # 激活 conda 环境
 conda activate ics
 
-# 进入项目目录
-cd d:\work_project\Intelligent-Customer-Service
-
-# 启动 Streamlit 应用
-streamlit run app.py
+# 在仓库根目录启动 Streamlit 应用
+python -m streamlit run app.py
 ```
 
-### 方式3：通过 PowerShell（推荐）
+### 方式2：通过 PowerShell（推荐）
 ```powershell
-# 激活环境并启动
-conda activate ics; cd d:\work_project\Intelligent-Customer-Service; streamlit run app.py
+# 在仓库根目录激活环境并启动
+conda activate ics; python -m streamlit run app.py
 ```
 
 ---
