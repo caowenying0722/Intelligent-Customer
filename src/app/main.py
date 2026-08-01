@@ -22,7 +22,7 @@ from src.app.observability.metrics import (
     metrics_token_matches,
     render_prometheus,
 )
-from src.app.observability.tracing import TraceContext
+from src.app.observability.tracing import ApiTracer, TraceContext
 from src.app.security.audit import AuditSink
 from src.app.security.auth import JWTAuthenticator
 from utils.settings import get_settings
@@ -55,6 +55,7 @@ def create_app(
     if settings.application_env == "production" and not metrics_token:
         raise ValueError("METRICS_TOKEN is required in production")
     http_metrics = HttpMetrics()
+    api_tracer = ApiTracer(max_spans=settings.trace_max_spans)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -103,6 +104,7 @@ def create_app(
         title="Intelligent Customer Service", version="0.1.0", lifespan=lifespan
     )
     app.state.http_metrics = http_metrics
+    app.state.trace_exporter = api_tracer.exporter
 
     @app.middleware("http")
     async def http_metrics_middleware(request: Request, call_next):
@@ -171,9 +173,15 @@ def create_app(
         context = TraceContext.from_traceparent(request.headers.get("traceparent"))
         request.state.trace_context = context
         request.state.trace_id = context.trace_id
-        response = await call_next(request)
-        response.headers["traceparent"] = context.traceparent
-        return response
+        with api_tracer.start_http_span(context) as span:
+            response = await call_next(request)
+            span.set_attribute("http.method", request.method)
+            span.set_attribute("http.status_code", response.status_code)
+            span_context = span.get_span_context()
+            server_context = context.with_span_id(f"{span_context.span_id:016x}")
+            request.state.trace_span_id = server_context.span_id
+            response.headers["traceparent"] = server_context.traceparent
+            return response
 
     @app.get("/health/live")
     async def liveness() -> dict[str, str]:

@@ -1,10 +1,26 @@
-"""Dependency-free W3C trace-context propagation for the API boundary."""
+"""W3C trace-context propagation and bounded API span recording."""
 
 from __future__ import annotations
 
 import re
 import secrets
+from collections import deque
 from dataclasses import dataclass
+from threading import Lock
+from typing import Any
+
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import (
+    SimpleSpanProcessor,
+    SpanExporter,
+    SpanExportResult,
+)
+from opentelemetry.trace import (
+    NonRecordingSpan,
+    SpanContext,
+    TraceFlags,
+    set_span_in_context,
+)
 
 _TRACEPARENT = re.compile(
     r"^(?P<version>[0-9a-f]{2})-(?P<trace_id>[0-9a-f]{32})-"
@@ -47,3 +63,64 @@ class TraceContext:
     @property
     def traceparent(self) -> str:
         return f"00-{self.trace_id}-{self.span_id}-{self.trace_flags}"
+
+    def with_span_id(self, span_id: str) -> TraceContext:
+        return TraceContext(
+            trace_id=self.trace_id,
+            span_id=span_id,
+            trace_flags=self.trace_flags,
+            parent_span_id=self.parent_span_id,
+        )
+
+
+class BoundedSpanExporter(SpanExporter):
+    """Keep safe span summaries for diagnostics without retaining attributes."""
+
+    def __init__(self, max_spans: int = 1024) -> None:
+        self._lock = Lock()
+        self._spans: deque[dict[str, str]] = deque(maxlen=max_spans)
+
+    def export(self, spans: Any) -> SpanExportResult:
+        with self._lock:
+            for span in spans:
+                self._spans.append(
+                    {
+                        "name": span.name,
+                        "trace_id": f"{span.context.trace_id:032x}",
+                        "span_id": f"{span.context.span_id:016x}",
+                    }
+                )
+        return SpanExportResult.SUCCESS
+
+    def shutdown(self) -> None:
+        return None
+
+    def force_flush(self, timeout_millis: int = 30_000) -> bool:
+        return True
+
+    def snapshot(self) -> list[dict[str, str]]:
+        with self._lock:
+            return list(self._spans)
+
+
+class ApiTracer:
+    """Create API spans with a local bounded exporter and no network side effect."""
+
+    def __init__(self, max_spans: int = 1024) -> None:
+        self.exporter = BoundedSpanExporter(max_spans=max_spans)
+        self.provider = TracerProvider()
+        self.provider.add_span_processor(SimpleSpanProcessor(self.exporter))
+        self.tracer = self.provider.get_tracer("intelligent-customer-service")
+
+    def start_http_span(self, context: TraceContext):
+        parent_span = NonRecordingSpan(
+            SpanContext(
+                trace_id=int(context.trace_id, 16),
+                span_id=int(context.span_id, 16),
+                is_remote=True,
+                trace_flags=TraceFlags(int(context.trace_flags, 16)),
+            )
+        )
+        return self.tracer.start_as_current_span(
+            "http.request", context=set_span_in_context(parent_span)
+        )

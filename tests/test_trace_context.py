@@ -36,3 +36,16 @@ def test_api_propagates_traceparent_without_exposing_request_content():
     assert output.endswith("-01")
     assert output != incoming
     assert "secret" not in output
+
+
+def test_api_records_bounded_http_span_summary_without_attributes():
+    app = create_app()
+    response = TestClient(app).get("/health/live")
+
+    assert response.status_code == 200
+    spans = app.state.trace_exporter.snapshot()
+    assert spans
+    assert spans[-1]["name"] == "http.request"
+    assert len(spans[-1]["trace_id"]) == 32
+    assert "http.method" not in spans[-1]
+    assert "health/live" not in str(spans[-1])

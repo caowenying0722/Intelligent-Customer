@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     )
     api_host: str = Field(default="127.0.0.1", min_length=1)
     api_port: int = Field(default=8000, ge=1, le=65535)
+    trace_max_spans: int = Field(default=1024, ge=1, le=100_000)
     database_url: str | None = Field(
         default=None, validation_alias=AliasChoices("DATABASE_URL")
     )
