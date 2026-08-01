@@ -1,5 +1,15 @@
+from collections.abc import Iterable, Iterator
+
+
+def capture_stream(chunks: Iterable[str], cache: list[str]) -> Iterator[str]:
+    """Forward complete Agent chunks without per-character blocking sleeps."""
+
+    for chunk in chunks:
+        cache.append(chunk)
+        yield chunk
+
+
 def main() -> None:
-    import time
     import warnings
 
     warnings.filterwarnings("ignore", message=".*torch.classes.*")
@@ -30,16 +40,8 @@ def main() -> None:
         with st.spinner("智能客服思考中..."):
             res_stream = st.session_state["agent"].execute_stream(prompt)
 
-            def capture(generator, cache_list):
-                for chunk in generator:
-                    cache_list.append(chunk)
-
-                    for char in chunk:
-                        time.sleep(0.01)
-                        yield char
-
             st.chat_message("assistant").write_stream(
-                capture(res_stream, response_messages)
+                capture_stream(res_stream, response_messages)
             )
             st.session_state["message"].append(
                 {"role": "assistant", "content": response_messages[-1]}
