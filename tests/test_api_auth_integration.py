@@ -29,3 +29,8 @@ def test_api_router_requires_configured_authenticator():
         "/api/v1/chat", headers={"Authorization": f"Bearer {token}"}, json={"message": "hi"}
     )
     assert response.status_code == 200
+    conversation = response.json()["conversation_id"]
+    assert client.get(
+        f"/api/v1/conversations/{conversation}",
+        headers={"Authorization": f"Bearer {token}", "x-tenant-id": "tenant-b"},
+    ).status_code == 403

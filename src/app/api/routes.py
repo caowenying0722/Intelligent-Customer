@@ -48,11 +48,14 @@ def build_router(
         dependencies=[Depends(auth_dependency(authenticator))] if authenticator else [],
     )
 
+    def request_tenant_id(request: Request) -> str:
+        return getattr(request.state, "tenant_id", request.headers.get("x-tenant-id", "local"))
+
     @router.post("/indexes/rebuild", response_model=IngestionJobResponse)
     async def rebuild_index(request: Request, payload: IndexRebuildRequest):
         if ingestion_service is None or index_rebuild_operation is None:
             return JSONResponse(status_code=503, content={"code": "index_rebuild_unavailable", "message": "index rebuild processor is not configured", "request_id": request.state.request_id})
-        tenant_id = request.headers.get("x-tenant-id", "local")
+        tenant_id = request_tenant_id(request)
         idempotency_key = request.headers.get("idempotency-key") or payload.idempotency_key or ""
         if not idempotency_key:
             return JSONResponse(status_code=422, content={"code": "missing_idempotency_key", "message": "idempotency key is required", "request_id": request.state.request_id})
@@ -98,7 +101,7 @@ def build_router(
         try:
             content = base64.b64decode(payload.content_base64, validate=True)
             submission = ingestion_service.submit_document(
-                tenant_id=request.headers.get("x-tenant-id", "local"),
+                tenant_id=request_tenant_id(request),
                 idempotency_key=request.headers.get("idempotency-key")
                 or payload.idempotency_key
                 or "",
@@ -134,7 +137,7 @@ def build_router(
             return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "document ingestion is not configured", "request_id": request.state.request_id})
         try:
             document = ingestion_service.metadata.get(
-                tenant_id=request.headers.get("x-tenant-id", "local"),
+                tenant_id=request_tenant_id(request),
                 document_id=UUID(document_id),
             )
         except ValueError:
@@ -154,7 +157,7 @@ def build_router(
             return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "document ingestion is not configured", "request_id": request.state.request_id})
         try:
             document = ingestion_service.delete_document(
-                tenant_id=request.headers.get("x-tenant-id", "local"),
+                tenant_id=request_tenant_id(request),
                 document_id=UUID(document_id),
             )
         except (ValueError, KeyError):
@@ -171,7 +174,7 @@ def build_router(
         if ingestion_service is None:
             return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "ingestion is not configured", "request_id": request.state.request_id})
         try:
-            tenant_id = request.headers.get("x-tenant-id", "local")
+            tenant_id = request_tenant_id(request)
             parsed_job_id = UUID(job_id)
             job_store = getattr(ingestion_service, "job_store", None)
             job = (
@@ -200,7 +203,7 @@ def build_router(
             parsed_id = UUID(job_id)
         except ValueError:
             parsed_id = None
-        tenant_id = request.headers.get("x-tenant-id", "local")
+        tenant_id = request_tenant_id(request)
         job_store = getattr(ingestion_service, "job_store", None)
         if job_store is not None:
             try:
@@ -243,7 +246,7 @@ def build_router(
             answer, conversation_id, run_id = await chat_service.chat(
                 payload.message,
                 payload.conversation_id,
-                request.headers.get("x-tenant-id", "local"),
+                request_tenant_id(request),
                 request.headers.get("x-user-id", "local"),
                 payload.expected_version,
                 request.headers.get("idempotency-key") or payload.idempotency_key,
@@ -350,7 +353,7 @@ def build_router(
             parsed = None
         conversation = (
             chat_service.conversation_repository.get(
-                request.headers.get("x-tenant-id", "local"), parsed
+                request_tenant_id(request), parsed
             )
             if parsed
             else None
@@ -394,7 +397,7 @@ def build_router(
             )
         try:
             run = chat_service.conversation_repository.create_run(
-                request.headers.get("x-tenant-id", "local"), UUID(conversation_id)
+                request_tenant_id(request), UUID(conversation_id)
             )
         except (KeyError, ValueError):
             return JSONResponse(
@@ -429,7 +432,7 @@ def build_router(
             )
         try:
             run = chat_service.conversation_repository.get_run(
-                request.headers.get("x-tenant-id", "local"), UUID(run_id)
+                request_tenant_id(request), UUID(run_id)
             )
         except ValueError:
             run = None
@@ -473,7 +476,7 @@ def build_router(
             )
         try:
             runs = chat_service.conversation_repository.list_runs(
-                request.headers.get("x-tenant-id", "local"),
+                request_tenant_id(request),
                 status,
                 created_after,
                 created_before,
@@ -522,7 +525,7 @@ def build_router(
             )
         try:
             run = chat_service.conversation_repository.update_run(
-                request.headers.get("x-tenant-id", "local"),
+                request_tenant_id(request),
                 UUID(run_id),
                 payload.status,
                 payload.error,
