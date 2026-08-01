@@ -802,5 +802,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 9 第六个目标完成：Agent 工具接入确定性 `ToolPolicy`；模型绑定和执行节点只接受 allowlist 工具，参数由原 schema 加大小上限校验，高风险工具必须经过显式 approval checker；工具监控日志只记录参数键和类型摘要，不记录原始参数。
 - 阶段 9 第七个目标完成：新增通用 PII/凭据脱敏与文本指纹工具；Agent 模型日志只记录长度和 64 位指纹，工具异常只记录异常类型，避免日志保存完整提示词、联系方式、token 或原始异常。
 - 阶段 9 第八个目标完成：Settings 与 ReactAgent 增加有界输入/上下文字符预算；超限在模型和图执行前安全终止，不执行工具或模型调用，并用固定消息返回，覆盖配置边界与回归测试。
+- 阶段 9 第九个目标完成：新增默认安全拒绝的 `PromptSafetyPolicy`，对已知指令覆盖/系统提示词外泄模式做确定性检测；命中时在图和模型调用前返回固定拒绝，不把原始提示词或规则细节写入日志，并覆盖中英文 red-team 回归。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
