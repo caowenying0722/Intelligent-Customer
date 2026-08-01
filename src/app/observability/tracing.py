@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import secrets
 from collections import deque
+from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from threading import Lock
 from typing import Any
@@ -25,6 +26,9 @@ from opentelemetry.trace import (
 _TRACEPARENT = re.compile(
     r"^(?P<version>[0-9a-f]{2})-(?P<trace_id>[0-9a-f]{32})-"
     r"(?P<span_id>[0-9a-f]{16})-(?P<flags>[0-9a-f]{2})$"
+)
+_CURRENT_TRACER: ContextVar[ApiTracer | None] = ContextVar(
+    "current_api_tracer", default=None
 )
 
 
@@ -130,3 +134,15 @@ class ApiTracer:
 
     def close(self) -> None:
         self.provider.shutdown()
+
+
+def set_current_tracer(tracer: ApiTracer) -> Token[ApiTracer | None]:
+    return _CURRENT_TRACER.set(tracer)
+
+
+def reset_current_tracer(token: Token[ApiTracer | None]) -> None:
+    _CURRENT_TRACER.reset(token)
+
+
+def get_current_tracer() -> ApiTracer | None:
+    return _CURRENT_TRACER.get()

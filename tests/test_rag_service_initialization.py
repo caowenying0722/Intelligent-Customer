@@ -12,6 +12,7 @@ from langchain_core.runnables import RunnableLambda
 
 from rag.rag_service import RagSummarizeService
 from rag.vector_store import VectorStoreService
+from src.app.observability.tracing import ApiTracer
 from utils.config_handler import chroma_conf
 
 
@@ -83,6 +84,25 @@ class RagServiceInitializationTest(unittest.TestCase):
         self.assertEqual(vector_store.load_count, 1)
         self.assertEqual(vector_store.get_retriever_count, 1)
         self.assertEqual(vector_store.retriever.invoke_count, 2)
+
+    def test_retriever_docs_records_safe_rag_spans(self) -> None:
+        vector_store = FakeVectorStore()
+        tracer = ApiTracer(max_spans=8)
+        service = RagSummarizeService(
+            print_prompts=False,
+            vector_store=cast(VectorStoreService, vector_store),
+            model=cast(BaseChatModel, RunnableLambda(lambda _: "回答")),
+            tracer=tracer,
+        )
+
+        with patch.dict(chroma_conf, {"rerank_enabled": False, "k": 2}):
+            service.retriever_docs("private query")
+
+        names = [item["name"] for item in tracer.exporter.snapshot()]
+        self.assertIn("retrieval.dense", names)
+        self.assertNotIn("private query", str(tracer.exporter.snapshot()))
+        service.close()
+        tracer.close()
 
     def test_background_loading_is_single_flight(self) -> None:
         vector_store = BlockingVectorStore()

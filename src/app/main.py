@@ -22,7 +22,12 @@ from src.app.observability.metrics import (
     metrics_token_matches,
     render_prometheus,
 )
-from src.app.observability.tracing import ApiTracer, TraceContext
+from src.app.observability.tracing import (
+    ApiTracer,
+    TraceContext,
+    reset_current_tracer,
+    set_current_tracer,
+)
 from src.app.security.audit import AuditSink
 from src.app.security.auth import JWTAuthenticator
 from utils.settings import get_settings
@@ -177,15 +182,19 @@ def create_app(
         context = TraceContext.from_traceparent(request.headers.get("traceparent"))
         request.state.trace_context = context
         request.state.trace_id = context.trace_id
-        with api_tracer.start_http_span(context) as span:
-            response = await call_next(request)
-            span.set_attribute("http.method", request.method)
-            span.set_attribute("http.status_code", response.status_code)
-            span_context = span.get_span_context()
-            server_context = context.with_span_id(f"{span_context.span_id:016x}")
-            request.state.trace_span_id = server_context.span_id
-            response.headers["traceparent"] = server_context.traceparent
-            return response
+        tracer_token = set_current_tracer(api_tracer)
+        try:
+            with api_tracer.start_http_span(context) as span:
+                response = await call_next(request)
+                span.set_attribute("http.method", request.method)
+                span.set_attribute("http.status_code", response.status_code)
+                span_context = span.get_span_context()
+                server_context = context.with_span_id(f"{span_context.span_id:016x}")
+                request.state.trace_span_id = server_context.span_id
+                response.headers["traceparent"] = server_context.traceparent
+                return response
+        finally:
+            reset_current_tracer(tracer_token)
 
     @app.get("/health/live")
     async def liveness() -> dict[str, str]:

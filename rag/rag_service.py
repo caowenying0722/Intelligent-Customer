@@ -4,7 +4,9 @@
 
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
+from contextlib import nullcontext
 from threading import Lock
+from typing import Any
 
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -16,6 +18,7 @@ from model.factory import get_chat_model
 from rag.guardrails import is_out_of_scope_query, low_confidence_response
 from rag.reranker import LightweightEvidenceReranker
 from rag.vector_store import VectorStoreService
+from src.app.observability.tracing import get_current_tracer
 from utils.config_handler import chroma_conf
 from utils.prompt_loader import load_rag_prompts
 
@@ -34,6 +37,7 @@ class RagSummarizeService:
         vector_store: VectorStoreService | None = None,
         model: BaseChatModel | None = None,
         document_load_timeout_seconds: float = 300.0,
+        tracer: Any | None = None,
     ):
         self.vector_store = (
             vector_store if vector_store is not None else VectorStoreService()
@@ -51,7 +55,12 @@ class RagSummarizeService:
         self.prompt_template = PromptTemplate.from_template(self.prompt_text)
         self.model = model if model is not None else get_chat_model()
         self.print_prompts = print_prompts
+        self.tracer = tracer
         self.chain = self._init_chain()
+
+    def _span(self, name: str):
+        tracer = self.tracer or get_current_tracer()
+        return tracer.start_span(name) if tracer is not None else nullcontext(None)
 
     def _init_chain(self):
         if self.print_prompts:
@@ -94,13 +103,20 @@ class RagSummarizeService:
         if self.retriever is None:
             raise RuntimeError("RAG retriever was not initialized")
 
-        docs = self.retriever.invoke(query)
+        with self._span("retrieval.dense") as span:
+            docs = self.retriever.invoke(query)
+            if span is not None:
+                span.set_attribute("retrieval.status", "completed")
         if chroma_conf.get("rerank_enabled", False):
-            return self.reranker.rerank(
-                query=query,
-                docs=docs,
-                top_k=chroma_conf.get("rerank_top_k", chroma_conf["k"]),
-            )
+            with self._span("retrieval.rerank") as span:
+                reranked = self.reranker.rerank(
+                    query=query,
+                    docs=docs,
+                    top_k=chroma_conf.get("rerank_top_k", chroma_conf["k"]),
+                )
+                if span is not None:
+                    span.set_attribute("retrieval.status", "completed")
+                return reranked
         return docs[: chroma_conf["k"]]
 
     @staticmethod
@@ -132,12 +148,15 @@ class RagSummarizeService:
             return low_confidence_response()
 
         context = self.format_context(context_docs)
-        answer = self.chain.invoke(
-            {
-                "input": query,
-                "context": context,
-            }
-        )
+        with self._span("llm.generate") as span:
+            answer = self.chain.invoke(
+                {
+                    "input": query,
+                    "context": context,
+                }
+            )
+            if span is not None:
+                span.set_attribute("llm.status", "completed")
         threshold = chroma_conf.get("low_confidence_threshold", 0)
         if threshold and self._max_rerank_score(context_docs) < threshold:
             return f"知识库中没有找到足够可靠的依据，以下仅为低置信度参考：{answer}"

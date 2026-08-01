@@ -833,5 +833,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第十二个目标完成：将 `agent.run` span 接入 ChatApplicationService 的 Agent/模型等待边界，复用 HTTP parent context，并确保 exporter 只保存固定 span 名和 ID。全量 `304 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
 - 阶段 11 第十三个目标完成：在 ModelGateway Chat 路径添加嵌套 `llm.generate` span，使用 fake provider 验证 parent context 和无敏感属性导出。全量 `305 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
 - 阶段 11 第十四个目标完成：在 SSE `ChatApplicationService.stream` 的有界等待段添加 `agent.stream` span，验证取消/超时边界不泄露 chunk 内容。全量 `306 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
+- 阶段 11 第十五个目标完成：为 `RagSummarizeService` 接入 contextvar 传播的 `retrieval.dense`/`retrieval.rerank`/RAG `llm.generate` span，保持 query/document 不进入 exporter。全量 `307 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
