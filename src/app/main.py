@@ -136,8 +136,14 @@ def create_app(
     async def metrics() -> dict[str, object]:
         gateway = getattr(chat_service, "model_gateway", None)
         if gateway is None or not hasattr(gateway, "audit_snapshot"):
-            return {"model_gateway": {"calls": 0, "failures": 0, "provider_calls": {}, "provider_failures": {}}}
-        return {"model_gateway": gateway.audit_snapshot()}
+            return {
+                "model_gateway": {"calls": 0, "failures": 0, "provider_calls": {}, "provider_failures": {}},
+                "model_gateway_health": {"configured_providers": [], "circuit_open": False, "healthy": False},
+            }
+        return {
+            "model_gateway": gateway.audit_snapshot(),
+            "model_gateway_health": gateway.health_snapshot(),
+        }
 
     if ingestion_service is not None and ingestion_service not in lifecycle_resources:
         lifecycle_resources = (*lifecycle_resources, ingestion_service)

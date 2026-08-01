@@ -73,6 +73,18 @@ class ModelGateway:
                 "provider_failures": dict(self._provider_failures),
             }
 
+    def health_snapshot(self) -> dict[str, object]:
+        """Describe configured provider availability without probing upstreams."""
+        with self._lock:
+            open_circuit = self._opened_at is not None and (
+                time.monotonic() - self._opened_at < self.cooldown_seconds
+            )
+            return {
+                "configured_providers": sorted(self.providers),
+                "circuit_open": open_circuit,
+                "healthy": bool(self.providers) and not open_circuit,
+            }
+
     def _check_breaker(self) -> None:
         with self._lock:
             if self._opened_at is None:
