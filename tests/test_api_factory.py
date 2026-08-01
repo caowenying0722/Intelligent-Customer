@@ -80,7 +80,9 @@ def test_chat_route_reuses_conversation_id() -> None:
     )
 
     assert second.status_code == 200
-    conversation = service.conversation_repository.get(UUID(first["conversation_id"]))
+    conversation = service.conversation_repository.get(
+        "local", UUID(first["conversation_id"])
+    )
     assert conversation is not None
     assert [message.content for message in conversation.messages] == [
         "one",
@@ -105,6 +107,22 @@ def test_conversation_query_returns_messages_and_stable_404() -> None:
     ]
     assert missing.status_code == 404
     assert missing.json()["code"] == "conversation_not_found"
+
+
+def test_tenant_context_prevents_cross_tenant_conversation_access() -> None:
+    service = ChatApplicationService(FakeAgent())
+    client = TestClient(create_app(chat_service=service))
+    created = client.post(
+        "/api/v1/chat", json={"message": "private"}, headers={"x-tenant-id": "a"}
+    ).json()
+
+    response = client.get(
+        f"/api/v1/conversations/{created['conversation_id']}",
+        headers={"x-tenant-id": "b"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "conversation_not_found"
 
 
 def test_chat_route_rejects_extra_fields_without_calling_agent() -> None:

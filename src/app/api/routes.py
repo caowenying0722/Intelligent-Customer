@@ -36,7 +36,9 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
             )
         try:
             answer, conversation_id = await chat_service.chat(
-                payload.message, payload.conversation_id
+                payload.message,
+                payload.conversation_id,
+                request.headers.get("x-tenant-id", "local"),
             )
         except Exception as exc:  # noqa: BLE001 - stable boundary, no traceback.
             status_code = 504 if "timed out" in str(exc) else 400
@@ -96,7 +98,11 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
         except ValueError:
             parsed = None
         conversation = (
-            chat_service.conversation_repository.get(parsed) if parsed else None
+            chat_service.conversation_repository.get(
+                request.headers.get("x-tenant-id", "local"), parsed
+            )
+            if parsed
+            else None
         )
         if conversation is None:
             return JSONResponse(

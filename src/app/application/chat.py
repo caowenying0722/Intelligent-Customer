@@ -41,22 +41,22 @@ class ChatApplicationService:
             conversation_repository or ConversationRepository()
         )
 
-    def _conversation_id(self, conversation_id: str | None) -> UUID:
+    def _conversation_id(self, tenant_id: str, conversation_id: str | None) -> UUID:
         if conversation_id is None:
-            return self.conversation_repository.create().conversation_id
+            return self.conversation_repository.create(tenant_id).conversation_id
         try:
             parsed = UUID(conversation_id)
         except ValueError as exc:
             raise ChatApplicationError("invalid conversation_id") from exc
-        if self.conversation_repository.get(parsed) is None:
+        if self.conversation_repository.get(tenant_id, parsed) is None:
             raise ChatApplicationError("conversation not found")
         return parsed
 
     async def chat(
-        self, message: str, conversation_id: str | None = None
+        self, message: str, conversation_id: str | None = None, tenant_id: str = "local"
     ) -> tuple[str, UUID]:
-        resolved_id = self._conversation_id(conversation_id)
-        self.conversation_repository.append(resolved_id, "user", message)
+        resolved_id = self._conversation_id(tenant_id, conversation_id)
+        self.conversation_repository.append(tenant_id, resolved_id, "user", message)
         try:
             if self._async_runner is not None:
                 result = self._async_runner(self.agent, message)
@@ -65,7 +65,9 @@ class ChatApplicationService:
             else:
                 result = asyncio.to_thread(self.agent.run, message)
             answer = await asyncio.wait_for(result, timeout=self.timeout_seconds)
-            self.conversation_repository.append(resolved_id, "assistant", answer)
+            self.conversation_repository.append(
+                tenant_id, resolved_id, "assistant", answer
+            )
             return answer, resolved_id
         except asyncio.CancelledError:
             raise

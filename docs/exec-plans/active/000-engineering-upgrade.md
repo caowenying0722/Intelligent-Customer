@@ -675,5 +675,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 2 第七个目标完成：新增 `GET /api/v1/conversations/{conversation_id}` 只读查询和稳定 404 错误，11 个 API 测试通过；持久化仍留给阶段 3。
 - 阶段 2 第八个目标完成：统一 422、HTTPException 和未处理异常为 `code/message/request_id` 契约，并验证不泄漏堆栈或供应商错误详情；13 个 API 测试通过。
 - 阶段 2 第九个目标完成：将聊天、SSE、会话查询拆到 `src/app/api/routes.py`，`main.py` 仅保留工厂、健康检查、生命周期和错误中间件；既有 API contract tests 保持通过。
+- 阶段 3 首个目标完成：进程内会话 repository 的创建、读取和追加均强制 `tenant_id`，API 从 `x-tenant-id` 注入上下文并新增跨租户拒绝测试；JWT/RBAC 和 PostgreSQL 留在后续目标。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
