@@ -10,16 +10,24 @@ from uuid import uuid4
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
+from src.app.application.chat import ChatApplicationService
+from src.app.schemas import ChatRequest, ChatResponse, ErrorResponse
+
 ReadinessCheck = Callable[[], bool]
 
 
-def create_app(*, readiness_check: ReadinessCheck | None = None) -> FastAPI:
+def create_app(
+    *,
+    readiness_check: ReadinessCheck | None = None,
+    chat_service: ChatApplicationService | None = None,
+) -> FastAPI:
     """Build an API app with injectable, side-effect-free readiness checks."""
     app = FastAPI(title="Intelligent Customer Service", version="0.1.0")
 
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):
         request_id = request.headers.get("x-request-id") or str(uuid4())
+        request.state.request_id = request_id
         response = await call_next(request)
         response.headers["x-request-id"] = request_id
         return response
@@ -37,6 +45,36 @@ def create_app(*, readiness_check: ReadinessCheck | None = None) -> FastAPI:
                 content={"status": "not_ready"},
             )
         return {"status": "ready"}
+
+    @app.post(
+        "/api/v1/chat",
+        response_model=ChatResponse,
+        responses={400: {"model": ErrorResponse}, 504: {"model": ErrorResponse}},
+    )
+    async def chat(request: Request, payload: ChatRequest):
+        if chat_service is None:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "chat_unavailable",
+                    "message": "chat service is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
+        try:
+            answer = await chat_service.chat(payload.message)
+        except Exception as exc:  # noqa: BLE001 - stable boundary, no traceback.
+            status_code = 504 if "timed out" in str(exc) else 400
+            code = "chat_timeout" if status_code == 504 else "chat_failed"
+            return JSONResponse(
+                status_code=status_code,
+                content={
+                    "code": code,
+                    "message": str(exc),
+                    "request_id": request.state.request_id,
+                },
+            )
+        return ChatResponse(request_id=request.state.request_id, answer=answer)
 
     return app
 

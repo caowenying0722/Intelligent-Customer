@@ -667,5 +667,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 将 Sentence Transformers 从 3.3.1 升级到 5.2.0，并显式固定 Transformers 5.14.1；HuggingFace adapter 导入、clean dry-run、70 项测试、40% branch coverage、AppTest、secret scan 和离线 BM25 smoke 均通过，pip-audit 降至 3 条/3 包。
 - 拆开 `RagSummarizeService` 构造与文档入库副作用，新增单飞 `start_document_loading()` 后台任务、显式超时和失败传播；74 项测试通过，源码 branch coverage 为 41%，AppTest、secret scan、离线 BM25 smoke 和 pip-audit 均按预期完成。
 - 阶段 2 首个目标进行中：新增 FastAPI 应用工厂、request ID、liveness/readiness 和可注入检查；默认工厂不构造模型或 Chroma，API 边界测试使用 `TestClient` 和 fake readiness。
+- 阶段 2 第二个目标完成：新增严格 `ChatRequest`/`ChatResponse`/`ErrorResponse`、可注入 `ChatApplicationService`、有限 timeout 和 `POST /api/v1/chat`；6 个 API 测试覆盖成功、422、未配置和 timeout 错误。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

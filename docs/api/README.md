@@ -15,4 +15,11 @@ app = create_app()
 
 所有响应写入 `x-request-id`。客户端可传入该请求头，否则由服务生成 UUID。模型、向量库和会话依赖不会在模块导入或默认应用工厂中构造。
 
-聊天 schema、application service、SSE 和取消传播将在后续独立目标中加入。
+当前聊天边界：
+
+- `POST /api/v1/chat` 接收严格的 `{"message": "..."}` schema。
+- `ChatApplicationService` 通过注入的 Agent 执行，并用 `asyncio.wait_for` 设置服务级 timeout。
+- Agent 异常只映射为稳定的 `chat_failed`/`chat_timeout` 错误，不返回堆栈或供应商原始响应。
+- 默认应用未注入 Agent 时返回 `503 chat_unavailable`。
+
+SSE、取消传播和持久化会话将在后续独立目标中加入。

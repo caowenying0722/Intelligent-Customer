@@ -87,7 +87,7 @@ flowchart LR
 | BM25 检索 | 已实现并可离线运行 | `rag/simple_bm25.py` |
 | 启发式重排 | 已实现但存在标签泄漏 | `rag/reranker.py` |
 | RAG 回归样本 | 有 28 条主集和 6 条 focus 集，但未版本化/冻结 | `data/evaluation/*.jsonl` |
-| FastAPI / API v1 / SSE | 已实现首个边界 | `src/app/main.py` 提供应用工厂、request ID、liveness/readiness；聊天和 SSE 尚未实现 |
+| FastAPI / API v1 / SSE | 已实现首个聊天边界 | `src/app/main.py` 提供应用工厂、request ID、liveness/readiness 和 fake Agent 可注入的 `POST /api/v1/chat`；SSE 尚未实现 |
 | PostgreSQL / Alembic | 未实现 | 无依赖、模型或 migration |
 | Redis / Celery | 未实现 | 无依赖、worker 或任务状态机 |
 | Qdrant / hybrid filter | 未实现 | 当前仅本地 Chroma |
@@ -131,7 +131,7 @@ flowchart LR
 | `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，20 个直接运行依赖精确匹配，`pip check` 成功 |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 26 个直接运行/开发依赖精确匹配 |
 | `pip install --dry-run --ignore-installed -r requirements-dev.lock` | 成功 | Python 3.10 clean dry-run，锁定的传递依赖可解析 |
-| `python -m pytest -q` | 成功：77 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、RAG 显式加载/后台单飞/超时、FastAPI 健康边界、Agent 上限、模型适配器、PDF/UI、LangGraph/Chroma 兼容和子进程安全测试 |
+| `python -m pytest -q` | 成功：80 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、RAG 显式加载/后台单飞/超时、FastAPI 健康边界/Chat API、Agent 上限、模型适配器、PDF/UI、LangGraph/Chroma 兼容和子进程安全测试 |
 | `python -m ruff check .` | 成功 | 仓库 `pyproject.toml` 固定精确规则集，全仓零诊断 |
 | `python -m ruff format --check .` | 成功：68 files already formatted | 已完成全仓 Python 格式基线 |
 | `python -m mypy agent rag model evaluation utils scripts tests app.py` | 成功：59 source files | 仓库配置固定 Python 3.10、缺失类型依赖和包基线规则 |
@@ -144,7 +144,7 @@ flowchart LR
 
 | 指标 | 当前值 | 可用性说明 |
 |---|---:|---|
-| 测试数量 / 通过率 | 77 / 100% | 覆盖环境/配置/路径、惰性初始化、RAG 显式加载/后台任务、FastAPI 健康边界、Agent 上限、模型传输、PDF/UI、LangGraph/Chroma 兼容和子进程安全；仍没有完整 Agent/API/RAG 集成覆盖 |
+| 测试数量 / 通过率 | 80 / 100% | 覆盖环境/配置/路径、惰性初始化、RAG 显式加载/后台任务、FastAPI 健康边界/Chat API、Agent 上限、模型传输、PDF/UI、LangGraph/Chroma 兼容和子进程安全；仍没有完整 Agent/API/RAG 集成覆盖 |
 | 主评测集样本 | 28 | 非冻结、无 dataset version |
 | Focus 评测集样本 | 6 | 非隐藏集 |
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
@@ -172,7 +172,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：77 个测试集中在环境/YAML 配置、路径、惰性初始化、RAG 显式加载/后台任务、FastAPI 健康边界、Agent 上限、模型传输/协议转换、PDF/UI 兼容、LangGraph/Chroma 兼容、子进程安全、评测辅助函数和 secret scanner；源码分支覆盖率为 42%。Agent 业务路由、RAG 核心、文档入库交互、取消与并发仍缺自动化测试。
+- 测试：80 个测试集中在环境/YAML 配置、路径、惰性初始化、RAG 显式加载/后台任务、FastAPI 健康边界/Chat API、Agent 上限、模型传输/协议转换、PDF/UI 兼容、LangGraph/Chroma 兼容、子进程安全、评测辅助函数和 secret scanner；源码分支覆盖率为 42%。Agent 业务路由、RAG 核心、文档入库交互、取消与并发仍缺自动化测试。
 - 可观测性：普通文本日志写控制台和每日文件；没有 request ID、trace、metrics 或字段脱敏。
 - 部署：FastAPI 应用工厂和 liveness/readiness 已有可测试边界；仍没有 API 进程入口、聊天路由、容器、优雅关闭或 CI。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
