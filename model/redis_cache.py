@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from typing import Any, Callable
 
 
@@ -28,6 +29,13 @@ class RedisCacheAdapter:
 
     def _key(self, key: str) -> str:
         return f"{self.namespace}:{key}"
+
+    @staticmethod
+    def key(*, tenant_id: str, model: str, prompt: str, prompt_version: str = "v1") -> str:
+        if not tenant_id.strip() or not model.strip():
+            raise ValueError("tenant_id and model must not be empty")
+        digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        return f"{tenant_id}:{model}:{prompt_version}:{digest}"
 
     def get(self, key: str) -> Any | None:
         try:
