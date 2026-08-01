@@ -58,3 +58,24 @@ def test_worker_does_not_duplicate_running_or_other_tenant_jobs() -> None:
         assert store.updated == []
     finally:
         manager.close()
+
+
+def test_worker_persists_fast_terminal_state_instead_of_stale_running() -> None:
+    job = IngestionJob(
+        job_id=uuid4(), tenant_id="tenant-a", idempotency_key="fast",
+        status=IngestionJobStatus.QUEUED, created_at=datetime.now(timezone.utc),
+    )
+    store = FakeStore([job])
+    manager = IngestionJobManager(max_workers=1)
+    try:
+        assert IngestionWorker(manager, store).recover_queued(
+            tenant_id="tenant-a", operation_for=lambda persisted: lambda: None
+        ) == [job.job_id]
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline and not store.updated:
+            time.sleep(0.01)
+        time.sleep(0.05)
+        assert manager.get(tenant_id="tenant-a", job_id=job.job_id).status == IngestionJobStatus.COMPLETED
+        assert store.updated[-1]["status"] == IngestionJobStatus.COMPLETED
+    finally:
+        manager.close()

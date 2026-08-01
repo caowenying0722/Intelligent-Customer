@@ -34,17 +34,43 @@ class IngestionWorker:
             if persisted.status != IngestionJobStatus.QUEUED:
                 continue
             operation = operation_for(persisted)
+
+            def run(operation=operation, persisted=persisted):
+                try:
+                    result = operation()
+                except Exception as exc:
+                    self.store.update_job_status(
+                        tenant_id=persisted.tenant_id,
+                        job_id=persisted.job_id,
+                        status=IngestionJobStatus.FAILED,
+                        error=str(exc),
+                    )
+                    raise
+                self.store.update_job_status(
+                    tenant_id=persisted.tenant_id,
+                    job_id=persisted.job_id,
+                    status=IngestionJobStatus.COMPLETED,
+                )
+                return result
+
             job = self.manager.submit(
                 tenant_id=persisted.tenant_id,
                 idempotency_key=persisted.idempotency_key,
-                operation=operation,
+                operation=run,
                 job_id=persisted.job_id,
                 max_attempts=persisted.max_attempts,
             )
             recovered.append(job.job_id)
+            current = self.manager.get(tenant_id=job.tenant_id, job_id=job.job_id) or job
+            status = (
+                current.status
+                if current.status in {IngestionJobStatus.COMPLETED, IngestionJobStatus.FAILED}
+                else IngestionJobStatus.RUNNING
+            )
             self.store.update_job_status(
                 tenant_id=job.tenant_id,
                 job_id=job.job_id,
-                status=IngestionJobStatus.RUNNING,
+                status=status,
+                error=current.error,
             )
         return recovered
