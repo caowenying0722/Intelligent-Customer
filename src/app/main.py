@@ -17,6 +17,7 @@ from src.app.infrastructure.factory import (
     build_document_ingestion_service,
 )
 from utils.settings import get_settings
+from src.app.security.auth import JWTAuthenticator
 
 ReadinessCheck = Callable[[], bool]
 
@@ -32,6 +33,7 @@ def create_app(
     ingestion_operation: Callable | None = None,
     index_rebuild_operation: Callable | None = None,
     model_health_token: str | None = None,
+    authenticator: JWTAuthenticator | None = None,
 ) -> FastAPI:
     settings = get_settings()
     if model_health_token is None:
@@ -164,7 +166,7 @@ def create_app(
 
     if ingestion_service is not None and ingestion_service not in lifecycle_resources:
         lifecycle_resources = (*lifecycle_resources, ingestion_service)
-    app.include_router(build_router(chat_service, ingestion_service, ingestion_operation, index_rebuild_operation))
+    app.include_router(build_router(chat_service, ingestion_service, ingestion_operation, index_rebuild_operation, authenticator))
     return app
 
 

@@ -7,7 +7,7 @@ from datetime import datetime
 from uuid import UUID
 from collections.abc import Callable
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.app.application.chat import ChatApplicationError, ChatApplicationService
@@ -32,6 +32,8 @@ from src.app.schemas import (
     IngestionJobResponse,
     IndexRebuildRequest,
 )
+from src.app.security.auth import JWTAuthenticator
+from src.app.security.dependencies import auth_dependency
 
 
 def build_router(
@@ -39,8 +41,12 @@ def build_router(
     ingestion_service: DocumentIngestionService | None = None,
     ingestion_operation: Callable | None = None,
     index_rebuild_operation: Callable | None = None,
+    authenticator: JWTAuthenticator | None = None,
 ) -> APIRouter:
-    router = APIRouter(prefix="/api/v1")
+    router = APIRouter(
+        prefix="/api/v1",
+        dependencies=[Depends(auth_dependency(authenticator))] if authenticator else [],
+    )
 
     @router.post("/indexes/rebuild", response_model=IngestionJobResponse)
     async def rebuild_index(request: Request, payload: IndexRebuildRequest):
