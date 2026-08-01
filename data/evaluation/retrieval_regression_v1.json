@@ -1,0 +1,20 @@
+{
+  "dataset_version": "retrieval-regression-v1",
+  "samples": [
+    {
+      "sample_id": "fault_wifi_connect",
+      "question": "机器人无法连接 WiFi 应该怎么排查？",
+      "expected_sources": ["故障排除.txt", "扫地机器人100问2.txt"]
+    },
+    {
+      "sample_id": "maintenance_after_cleaning",
+      "question": "清扫完成后主刷和尘盒如何维护？",
+      "expected_sources": ["维护保养.txt", "扫地机器人100问2.txt"]
+    },
+    {
+      "sample_id": "purchase_small_home",
+      "question": "小户型选择扫地机器人要关注什么？",
+      "expected_sources": ["选购指南.txt", "扫地机器人100问.txt"]
+    }
+  ]
+}
