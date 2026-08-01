@@ -661,5 +661,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 将 Settings 的 Agent 最大步骤接入 LangGraph `recursion_limit`，新增工具调用总数上限、超限批次拒绝和安全终止消息；fake model/graph 回归覆盖，完整测试 58 项通过。
 - 四份业务 YAML 改为 `safe_load` + 严格 Pydantic schema，校验未知字段、范围、URL、路径和跨字段关系；Chroma/data/MD5/Prompt/CSV 路径统一锚定项目根并保留 dict 兼容接口；完整测试 64 项通过。
 - 新增仓库级 `pyproject.toml`，全仓 64 个 Python 文件格式化、Ruff 零诊断、Mypy 55 个源码文件零错误；收窄宽泛异常、明确时区与本地子进程 1800 秒上限；65 个测试通过，源码 branch coverage 真实基线为 39%。
+- 将 `pypdf` 从 5.1.0 升级到 6.14.2，并增加真实 PDF 加载兼容测试；pip-audit 从 84 条/13 包降至 49 条/12 包，66 个测试通过，剩余漏洞继续按兼容组处理。
 
 阶段 1 尚未完成：从空环境重建、transitive lock、依赖漏洞修复、首次 RAG 同步入库，以及在核心测试补齐后设置覆盖率回归阈值。全流程 deadline/cancellation 将在阶段 2 application service 中实现，CI 在阶段 10 固化。
