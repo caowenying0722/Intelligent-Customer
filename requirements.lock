@@ -14,6 +14,8 @@ aiohttp==3.14.3
     #   langchain-community
 aiosignal==1.4.0
     # via aiohttp
+alembic==1.18.5
+    # via -r requirements.txt
 altair==6.2.2
     # via streamlit
 annotated-doc==0.0.5
@@ -243,10 +245,14 @@ langsmith==0.10.15
     # via
     #   langchain-community
     #   langchain-core
+mako==1.3.12
+    # via alembic
 markdown-it-py==4.2.0
     # via rich
 markupsafe==3.0.3
-    # via jinja2
+    # via
+    #   jinja2
+    #   mako
 marshmallow==3.26.2
     # via dataclasses-json
 mdurl==0.1.2
@@ -485,6 +491,7 @@ sniffio==1.3.1
 sqlalchemy==2.0.51
     # via
     #   -r requirements.txt
+    #   alembic
     #   langchain-community
 starlette==1.3.1
     # via fastapi
@@ -515,7 +522,9 @@ tokenizers==0.22.2
 toml==0.10.2
     # via streamlit
 tomli==2.4.1
-    # via build
+    # via
+    #   alembic
+    #   build
 torch==2.13.0
     # via sentence-transformers
 tornado==6.5.7
@@ -543,6 +552,7 @@ typing-extensions==4.16.0
     # via
     #   aiohttp
     #   aiosignal
+    #   alembic
     #   altair
     #   anyio
     #   chromadb
