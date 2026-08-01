@@ -77,7 +77,9 @@ def test_worker_persists_fast_terminal_state_instead_of_stale_running() -> None:
             tenant_id="tenant-a", operation_for=lambda persisted: lambda: None
         ) == [job.job_id]
         deadline = time.monotonic() + 1
-        while time.monotonic() < deadline and not store.updated:
+        while time.monotonic() < deadline and (
+            not store.updated or store.updated[-1]["status"] == IngestionJobStatus.RUNNING
+        ):
             time.sleep(0.01)
         time.sleep(0.05)
         assert manager.get(tenant_id="tenant-a", job_id=job.job_id).status == IngestionJobStatus.COMPLETED
@@ -125,4 +127,32 @@ def test_worker_persists_progress_boundaries() -> None:
             time.sleep(0.01)
         assert [item["progress"] for item in store.progress] == [0, 100]
     finally:
+        manager.close()
+
+
+def test_worker_persists_cooperative_cancellation() -> None:
+    job = IngestionJob(
+        job_id=uuid4(), tenant_id="tenant-a", idempotency_key="cancel",
+        status=IngestionJobStatus.QUEUED, created_at=datetime.now(timezone.utc),
+    )
+    store = FakeStore([job])
+    manager = IngestionJobManager(max_workers=1)
+    started = threading.Event()
+    release = threading.Event()
+    try:
+        IngestionWorker(manager, store).recover_queued(
+            tenant_id="tenant-a",
+            operation_for=lambda _: lambda: (started.set(), release.wait(1)),
+        )
+        assert started.wait(1)
+        assert manager.cancel(tenant_id="tenant-a", job_id=job.job_id)
+        release.set()
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline and (
+            not store.updated or store.updated[-1]["status"] == IngestionJobStatus.RUNNING
+        ):
+            time.sleep(0.01)
+        assert store.updated[-1]["status"] == IngestionJobStatus.CANCELLED
+    finally:
+        release.set()
         manager.close()

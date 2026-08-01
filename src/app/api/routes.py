@@ -202,6 +202,8 @@ def build_router(
             except (KeyError, TypeError):
                 job = None
             cancelled = job is not None
+            if cancelled and job is not None and job.status.value == "running" and parsed_id is not None:
+                ingestion_service.jobs.cancel(tenant_id=tenant_id, job_id=parsed_id)
         else:
             cancelled = parsed_id is not None and ingestion_service.jobs.cancel(
                 tenant_id=tenant_id, job_id=parsed_id

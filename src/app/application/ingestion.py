@@ -28,6 +28,10 @@ class PermanentIngestionError(RuntimeError):
     """An ingestion failure that must not be retried."""
 
 
+class IngestionCancelledError(RuntimeError):
+    """A cooperative task cancellation requested by the caller."""
+
+
 @dataclass(frozen=True)
 class IngestionJob:
     job_id: UUID
@@ -208,9 +212,14 @@ class IngestionJobManager:
         except Exception as exc:
             with self._lock:
                 current = self._jobs[job_id]
+                status = (
+                    IngestionJobStatus.CANCELLED
+                    if isinstance(exc, IngestionCancelledError)
+                    else IngestionJobStatus.FAILED
+                )
                 self._jobs[job_id] = self._replace(
                     current,
-                    status=IngestionJobStatus.FAILED,
+                    status=status,
                     completed_at=datetime.now(timezone.utc),
                     error=str(exc)[:500],
                 )

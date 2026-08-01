@@ -11,6 +11,7 @@ from src.app.application.ingestion import (
     IngestionJobManager,
     IngestionJobStatus,
     RetryableIngestionError,
+    IngestionCancelledError,
 )
 
 
@@ -55,13 +56,26 @@ class IngestionWorker:
             def run(operation=operation, persisted=persisted):
                 self._progress(tenant_id=persisted.tenant_id, job_id=persisted.job_id, progress=0)
                 try:
+                    if self.manager.is_cancel_requested(
+                        tenant_id=persisted.tenant_id, job_id=persisted.job_id
+                    ):
+                        raise IngestionCancelledError("ingestion job cancelled")
                     result = operation()
+                    if self.manager.is_cancel_requested(
+                        tenant_id=persisted.tenant_id, job_id=persisted.job_id
+                    ):
+                        raise IngestionCancelledError("ingestion job cancelled")
                 except Exception as exc:
                     current = self.manager.get(
                         tenant_id=persisted.tenant_id, job_id=persisted.job_id
                     )
                     exhausted = current is None or current.attempt >= current.max_attempts
-                    if not isinstance(exc, RetryableIngestionError) or exhausted:
+                    if isinstance(exc, IngestionCancelledError):
+                        self.store.update_job_status(
+                            tenant_id=persisted.tenant_id, job_id=persisted.job_id,
+                            status=IngestionJobStatus.CANCELLED, error=str(exc),
+                        )
+                    elif not isinstance(exc, RetryableIngestionError) or exhausted:
                         self.store.update_job_status(
                             tenant_id=persisted.tenant_id,
                             job_id=persisted.job_id,
