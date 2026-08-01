@@ -4,6 +4,10 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from utils.settings import Settings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 120.0
@@ -21,6 +25,14 @@ class ModelRuntimeConfig:
     @property
     def requests_verify(self) -> bool | str:
         return str(self.ca_bundle) if self.ca_bundle is not None else True
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> ModelRuntimeConfig:
+        return cls(
+            request_timeout_seconds=settings.model_request_timeout_seconds,
+            max_retries=settings.model_max_retries,
+            ca_bundle=settings.model_ca_bundle,
+        )
 
     @classmethod
     def from_env(

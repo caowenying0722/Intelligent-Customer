@@ -42,7 +42,7 @@ class EnvironmentCheckTest(unittest.TestCase):
             parse_pinned_requirements(PROJECT_ROOT / "requirements-dev.txt")
         )
 
-        self.assertEqual(len(pins), 22)
+        self.assertEqual(len(pins), 23)
         self.assertEqual(pins["pytest"].version, "9.1.1")
         self.assertEqual(pins["ruff"].version, "0.16.1")
         self.assertEqual(pins["mypy"].version, "2.3.0")

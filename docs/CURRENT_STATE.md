@@ -9,7 +9,7 @@
 ## 运行环境与依赖
 
 - 初始审计 shell 的解释器为 Python 3.13.13；该环境混用全局 site-packages 与 `.local_deps/`，不作为受支持运行环境。
-- 受支持开发版本现由 `.python-version` 固定为 Python 3.10.20；本机 `ics` 环境已验证 17 个直接运行依赖与 `requirements.txt` 精确一致，`app` 可以导入。
+- 受支持开发版本现由 `.python-version` 固定为 Python 3.10.20；本机 `ics` 环境已验证 18 个直接运行依赖与 `requirements.txt` 精确一致，`app` 可以导入。
 - `requirements-dev.txt` 在运行依赖上固定 pytest、Ruff、Mypy、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
 - 当前只有直接依赖和开发工具精确固定，尚无完整的跨平台 transitive lock；因此不能把它描述为完全可重复的供应链锁定。
 - 目标环境导入 `app` 仍会立即访问 Chroma、扫描知识文件并产生本地/遥测输出；可导入不代表无副作用。
@@ -58,8 +58,9 @@ flowchart LR
 
 ### 模型和工具链路
 
-- `model.factory` 在导入时读取根目录 `.env`、设置离线 Hugging Face 环境变量并创建全局聊天模型。
-- Provider 选择依赖环境变量；支持 OpenAI-compatible 和仓库自定义 Anthropic-compatible 同步适配器。
+- `utils.settings.Settings` 集中读取并校验应用环境、日志级别、模型 provider/密钥/传输、Agent 最大步骤以及未来 API 的 host/port/CORS；密钥使用 `SecretStr`，生产环境拒绝通配 CORS。
+- `model.factory` 通过可注入的 `Settings` 构建 OpenAI-compatible 或仓库自定义 Anthropic-compatible 同步适配器；`MODEL_PROVIDER` 为规范变量，旧 `LLM__PROVIDER` 仍可兼容读取。
+- 现有 RAG/Chroma/Prompt YAML 业务配置仍由 `utils.config_handler` 在导入时加载，全局聊天模型也尚未延迟创建；集中 Settings 没有掩盖这两个后续目标。
 - 模型请求默认验证 TLS；企业私有 CA 只能通过 `MODEL_CA_BUNDLE` 指向已有 PEM 文件，非法路径启动即失败，不提供关闭验证的开关。
 - 工具包括本地 RAG、静态天气、随机位置、随机用户 ID、当前月份和本地 CSV 报告数据。没有认证上下文、租户边界、审批或幂等控制。
 - `agent/tools/middleware.py` 没有接入当前 Agent，且其导入依赖与锁定的 LangChain API 不兼容。
@@ -76,10 +77,10 @@ flowchart LR
 
 | 能力 | 当前状态 | 证据或说明 |
 |---|---|---|
-| Streamlit UI | 已实现但当前环境不可导入 | `app.py`；缺少已安装的 `streamlit` |
+| Streamlit UI | 已实现且目标环境可导入，但导入有副作用 | `app.py`；导入会初始化 RAG/Chroma |
 | 基础 LangGraph Agent | 已实现 Demo | `agent/react_agent.py` |
 | 工具调用 | 已实现 Demo | `agent/tools/agent_tools.py` |
-| Chroma 向量检索 | 代码存在，当前环境缺依赖 | `rag/vector_store.py` |
+| Chroma 向量检索 | 已实现且依赖已安装，但初始化耦合 import | `rag/vector_store.py` |
 | BM25 检索 | 已实现并可离线运行 | `rag/simple_bm25.py` |
 | 启发式重排 | 已实现但存在标签泄漏 | `rag/reranker.py` |
 | RAG 回归样本 | 有 28 条主集和 6 条 focus 集，但未版本化/冻结 | `data/evaluation/*.jsonl` |
@@ -124,11 +125,13 @@ flowchart LR
 
 | 命令 | 结果 | 分类与说明 |
 |---|---|---|
-| `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，17 个直接运行依赖精确匹配，`pip check` 成功 |
-| `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 22 个直接运行/开发依赖精确匹配 |
+| `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，18 个直接运行依赖精确匹配，`pip check` 成功 |
+| `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 23 个直接运行/开发依赖精确匹配 |
 | `pip install --dry-run --ignore-installed -r requirements-dev.txt` | 成功 | Python 3.10 可解析；输出同时证明传递依赖仍会漂移，不能替代 lock |
-| `python -m pytest -q` | 成功：41 passed | 包含依赖隔离、TLS 默认验证、CA bundle、超时/重试边界和模型适配器测试 |
-| Ruff lint/format（本目标新增文件） | 成功 | 仓库全量格式化和 lint 门禁仍待单独目标完成 |
+| `python -m pytest -q` | 成功：48 passed，10 subtests | 包含依赖隔离、集中 Settings、TLS 默认验证、CA bundle、超时/重试边界和模型适配器测试 |
+| Ruff lint/format（本目标涉及文件） | 成功 | 集中 Settings、模型工厂及其测试均通过 |
+| `python -m ruff check .` | 失败：70 项 | 既有代码包含导入顺序、异常处理、时区等债务；未自动改写无关文件 |
+| `python -m ruff format --check .` | 失败：30 个文件待格式化 | 本目标涉及文件已格式化；全仓机械改写留给独立目标 |
 | Mypy（本目标新增文件） | 成功 | 使用 `--explicit-package-bases`；全仓类型门禁仍未建立 |
 | `python -m pip_audit -r requirements.txt` | 失败：84 条/13 包 | 真实安全基线；未忽略，进入阶段 1 下一修复目标 |
 
@@ -138,7 +141,7 @@ flowchart LR
 
 | 指标 | 当前值 | 可用性说明 |
 |---|---:|---|
-| 测试数量 / 通过率 | 41 / 100% | 新增环境/依赖隔离与模型传输安全测试；仍没有核心 Agent/API/RAG 集成覆盖 |
+| 测试数量 / 通过率 | 48 / 100% | 新增环境/依赖隔离、集中配置与模型传输安全测试；仍没有核心 Agent/API/RAG 集成覆盖 |
 | 主评测集样本 | 28 | 非冻结、无 dataset version |
 | Focus 评测集样本 | 6 | 非隐藏集 |
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
@@ -166,7 +169,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：41 个单元测试集中在环境约束、模型传输/协议转换、评测辅助函数和 secret scanner。Agent 状态机、RAG 核心、文档入库、UI、故障路径、取消与并发均没有自动化测试。
+- 测试：48 个单元测试集中在环境约束、集中配置、模型传输/协议转换、评测辅助函数和 secret scanner。Agent 状态机、RAG 核心、文档入库、UI、故障路径、取消与并发均没有自动化测试。
 - 可观测性：普通文本日志写控制台和每日文件；没有 request ID、trace、metrics 或字段脱敏。
 - 部署：只有本地 Streamlit 命令；没有 API 服务、进程模型、容器、健康检查、优雅关闭或 CI。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
@@ -179,7 +182,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 4. 随机 user ID 如何代表真实登录用户，如何防止读取其他人的报告？当前没有安全边界。
 5. 如何部署、扩容和恢复会话？当前导入时写本地 Chroma，session 只在单进程内存。
 6. 企业私有 CA 如何接入而不关闭 TLS？当前通过显式 PEM 路径创建验证客户端，路径无效时 fail-fast。
-7. 41 个环境/模型适配/辅助函数测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
+7. 48 个环境/配置/模型适配/辅助函数测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
 
 ## 当前是否适合继续自动修改
 

@@ -23,6 +23,8 @@ MODEL_MAX_RETRIES=2
 MODEL_CA_BUNDLE=config/company-ca.pem
 ```
 
+应用环境、日志、模型传输、Agent 最大步骤及未来 API/CORS 边界统一由 `utils.settings.Settings` 校验。可用变量和安全默认值见 `.env.example`；密钥不会在 Settings 的字符串表示中回显。
+
 ### 已安装的关键组件
 - Python 3.10
 - LangChain 0.3.7 和相关组件
@@ -52,17 +54,17 @@ MODEL_CA_BUNDLE=config/company-ca.pem
 **方式1：通过系统环境变量（推荐）**
 ```bash
 # Windows (PowerShell)
-$env:LLM__PROVIDER = "anthropic"
+$env:MODEL_PROVIDER = "anthropic"
 $env:ANTHROPIC_AUTH_TOKEN = "<your token>"
 $env:ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic"
 $env:ANTHROPIC_MODEL = "deepseek-v4-flash"
 
 # Windows (CMD)
-set LLM__PROVIDER=anthropic
+set MODEL_PROVIDER=anthropic
 set ANTHROPIC_AUTH_TOKEN=<your token>
 
 # Linux/Mac
-export LLM__PROVIDER=anthropic
+export MODEL_PROVIDER=anthropic
 export ANTHROPIC_AUTH_TOKEN="<your token>"
 export ANTHROPIC_BASE_URL="https://api.deepseek.com/anthropic"
 export ANTHROPIC_MODEL="deepseek-v4-flash"
@@ -74,7 +76,7 @@ export ANTHROPIC_MODEL="deepseek-v4-flash"
 cp .env.example .env
 
 # 编辑 .env 文件并填入你的 API Key
-LLM__PROVIDER=anthropic
+MODEL_PROVIDER=anthropic
 ANTHROPIC_AUTH_TOKEN=<your token>
 ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
 ANTHROPIC_MODEL=deepseek-v4-flash
@@ -222,7 +224,7 @@ chat_base_url: https://api.deepseek.com/v1
 embedding_model_path: BAAI/bge-m3
 ```
 
-如果 `.env` 中设置了 `LLM__PROVIDER=anthropic` 和 `ANTHROPIC_AUTH_TOKEN`，项目会优先使用 Anthropic-compatible 网关。
+如果 `.env` 中设置了 `MODEL_PROVIDER=anthropic` 和 `ANTHROPIC_AUTH_TOKEN`，项目会使用 Anthropic-compatible 网关。旧变量 `LLM__PROVIDER` 仅作为兼容别名保留。
 
 ---
 

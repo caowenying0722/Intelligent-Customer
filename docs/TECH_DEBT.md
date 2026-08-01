@@ -16,12 +16,12 @@
 | TD-010 | 会话只存在 Streamlit 内存，且历史消息不传回 Agent | High | 刷新/重启丢失状态，所谓多轮只展示不推理，无法横向扩容 | `app.py:12-18,26-43`、`agent/react_agent.py:48-53` | 先定义 conversation repository，再用内存实现兼容，后续 PostgreSQL + checkpoint | 2/3/4 | 待处理 |
 | TD-011 | Chroma persist path 相对当前工作目录，而非项目根目录 | Medium | 从不同 cwd 启动会创建/读取不同数据库 | `rag/vector_store.py:19-23`、`config/chroma.yml:2` | 由 Settings 解析为规范绝对路径；测试非根 cwd 启动 | 1 | 待处理 |
 | TD-012 | 入库 MD5 记录和向量写入非原子，异常被吞后继续 | Medium | 崩溃/并发下可能重复或遗漏；调用者不知道部分失败 | `rag/vector_store.py:73-136` | 显式任务状态、内容哈希唯一约束、批次幂等、分类错误和有限重试 | 6 | 待处理 |
-| TD-013 | YAML 配置在 import 时加载且无 schema/范围校验 | Medium | 错误类型、负数上限或无效 URL 到运行时才失败，测试难隔离 | `utils/config_handler.py:13-36` | 集中 Pydantic Settings，兼容读取现有 YAML，启动时 fail-fast | 1/2 | 待处理 |
+| TD-013 | YAML 配置在 import 时加载且无 schema/范围校验 | Medium | 业务 YAML 的错误类型或无效路径仍可能到运行时才失败，测试难隔离 | `utils/settings.py`、`utils/config_handler.py:13-36` | 环境/模型/Agent/API 边界已集中到 Pydantic Settings 并 fail-fast；后续为现有 YAML 增加 schema 并延迟加载 | 1/2 | 部分完成 |
 | TD-014 | middleware 模块未接线且与锁定 LangChain API 不兼容 | Medium | 死代码产生虚假能力印象，直接 import 失败 | `agent/tools/middleware.py:3-8` | 在选定 LangChain/LangGraph 版本后重写并接线，或删除；增加 import test | 1/4 | 待处理 |
 | TD-015 | 系统提示词要求输出“真实思考过程” | Medium | 泄露内部推理/策略，增加提示注入和数据暴露面 | `prompts/main_prompt.txt:51-53` | 改成简短用户可见状态，不要求 chain-of-thought；工具审计使用结构化事件 | 4/9 | 待处理 |
 | TD-016 | 评测报告不记录 commit、dirty state、dataset version 或延迟 | Medium | 结果不可追溯、不可复现，无法做 CI 回归与性能比较 | `evaluation/runner.py:155-190` | 增加 run manifest、数据哈希、配置快照、逐样本耗时和错误分类 | 10 | 待处理 |
 | TD-017 | 引用有效性只验证编号范围，不验证证据支持 | Medium | 无依据回答也可得到 1.0 citation validity | `evaluation/local_metrics.py:100-133` | 区分格式有效、引用覆盖和 entailment/人工标签；加入错误引用样本 | 10 | 待处理 |
-| TD-018 | 核心主链缺少自动化测试 | Medium | 41 个环境/模型适配/辅助测试通过仍不能证明 Agent、RAG、入库和 UI 可运行 | `tests/` | 分层新增 unit/integration/contract/evaluation 测试；默认 fake model | 1/2/10 | 待处理 |
+| TD-018 | 核心主链缺少自动化测试 | Medium | 48 个环境/配置/模型适配/辅助测试通过仍不能证明 Agent、RAG、入库和 UI 可运行 | `tests/` | 分层新增 unit/integration/contract/evaluation 测试；默认 fake model | 1/2/10 | 待处理 |
 | TD-019 | formatter、lint、type check、coverage 和依赖审计尚未形成全仓/CI 门禁 | Medium | 大部分现有代码仍不受风格、类型、覆盖率和安全回归控制 | `requirements-dev.txt`、无 `.github/workflows` | 开发工具版本和环境检查已建立；后续配置全仓 Ruff/Mypy/Coverage 并在 CI 固化 | 1/10 | 部分完成 |
 | TD-020 | 评测输出含问题、答案、参考答案、召回全文和绝对路径，过去未被忽略 | Medium | 可能误提交用户/知识库数据和本机信息 | `evaluation/runner.py:95-106,175-217`、`.gitignore` | 忽略 `output/`（本轮完成）；后续增加脱敏 artifact profile 与保留策略 | 1/9/10 | 部分完成 |
 | TD-021 | README 仓库地址曾与 Git remote 不一致 | Low | 推送到了错误目标或克隆命令与开发 remote 不一致 | `README.md:19,122,277`、本地 `origin` | 用户已确认并将 `origin` 修正为 `caowenying0722/Intelligent-Customer` | 1/11 | 已完成 |

@@ -12,28 +12,12 @@ from langchain_openai import ChatOpenAI
 from model.anthropic_compatible import AnthropicCompatibleChatModel
 from model.runtime_config import ModelRuntimeConfig
 from utils.config_handler import rag_conf
-from utils.env_loader import load_env_file
-
-
-def load_project_env() -> None:
-    env_path = Path(__file__).resolve().parents[1] / ".env"
-    load_env_file(env_path)
-
-
-load_project_env()
+from utils.settings import Settings, get_settings
 
 # 配置 HuggingFace 离线模式，避免本地模型加载时卡在远程 metadata 检查
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("HF_DATASETS_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-
-# 自动将 DeepSeek/Moonshot API Key 映射为 OPENAI_API_KEY（ChatOpenAI 读取的变量名）
-_deepseek_key = os.environ.get("DEEPSEEK_API_KEY", "")
-_moonshot_key = os.environ.get("MOONSHOT_API_KEY", "")
-if _deepseek_key and not os.environ.get("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = _deepseek_key
-elif _moonshot_key and not os.environ.get("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = _moonshot_key
 
 
 class BaseModelFactory(ABC):
@@ -81,21 +65,19 @@ def resolve_huggingface_local_path(model_name: str) -> str:
 
 
 class ChatModelFactory(BaseModelFactory):
+    def __init__(self, settings: Settings | None = None) -> None:
+        self.settings = settings
+
     def generator(self) -> BaseChatModel:
-        provider = os.environ.get("LLM__PROVIDER", "").lower()
-        anthropic_key = os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get(
-            "ANTHROPIC_API_KEY"
-        )
-        runtime_config = ModelRuntimeConfig.from_env()
-        if provider == "anthropic" or anthropic_key:
+        settings = self.settings or get_settings()
+        runtime_config = ModelRuntimeConfig.from_settings(settings)
+        if settings.resolved_model_provider == "anthropic":
             return AnthropicCompatibleChatModel(
-                model_name=os.environ.get("ANTHROPIC_MODEL")
-                or os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL")
+                model_name=settings.anthropic_model
+                or settings.anthropic_default_sonnet_model
                 or rag_conf["chat_model_name"],
-                base_url=os.environ.get(
-                    "ANTHROPIC_BASE_URL", "https://api.anthropic.com"
-                ),
-                api_key=anthropic_key or "EMPTY",
+                base_url=settings.anthropic_base_url,
+                api_key=settings.anthropic_api_key_value or "EMPTY",
                 timeout=runtime_config.request_timeout_seconds,
                 verify=runtime_config.requests_verify,
             )
@@ -103,7 +85,7 @@ class ChatModelFactory(BaseModelFactory):
         model_kwargs: dict[str, Any] = {
             "model": rag_conf["chat_model_name"],
             "base_url": rag_conf["chat_base_url"],
-            "api_key": os.environ.get("OPENAI_API_KEY") or "EMPTY",
+            "api_key": settings.openai_compatible_api_key_value or "EMPTY",
             "request_timeout": runtime_config.request_timeout_seconds,
             "max_retries": runtime_config.max_retries,
         }

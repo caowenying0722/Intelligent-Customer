@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import ssl
 import tempfile
 import unittest
@@ -9,6 +8,7 @@ from unittest.mock import patch
 
 from model.factory import ChatModelFactory
 from model.runtime_config import ModelRuntimeConfig
+from utils.settings import Settings
 
 
 class ModelRuntimeConfigTest(unittest.TestCase):
@@ -66,18 +66,17 @@ class ModelRuntimeConfigTest(unittest.TestCase):
             )
 
     def test_openai_factory_passes_timeout_and_retry_limit(self) -> None:
-        env = {
-            "LLM__PROVIDER": "openai",
-            "OPENAI_API_KEY": "dummy",
-            "MODEL_REQUEST_TIMEOUT_SECONDS": "12.5",
-            "MODEL_MAX_RETRIES": "4",
-        }
+        settings = Settings.model_validate(
+            {
+                "model_provider": "openai",
+                "openai_api_key": "dummy",
+                "model_request_timeout_seconds": 12.5,
+                "model_max_retries": 4,
+            }
+        )
 
-        with (
-            patch.dict(os.environ, env, clear=True),
-            patch("model.factory.ChatOpenAI") as chat_openai,
-        ):
-            ChatModelFactory().generator()
+        with patch("model.factory.ChatOpenAI") as chat_openai:
+            ChatModelFactory(settings=settings).generator()
 
         kwargs = chat_openai.call_args.kwargs
         self.assertEqual(kwargs["request_timeout"], 12.5)
@@ -89,21 +88,22 @@ class ModelRuntimeConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             bundle = Path(temp_dir) / "private-ca.pem"
             bundle.write_text("test certificate placeholder", encoding="utf-8")
-            env = {
-                "LLM__PROVIDER": "openai",
-                "OPENAI_API_KEY": "dummy",
-                "MODEL_REQUEST_TIMEOUT_SECONDS": "20",
-                "MODEL_CA_BUNDLE": str(bundle),
-            }
+            settings = Settings.model_validate(
+                {
+                    "model_provider": "openai",
+                    "openai_api_key": "dummy",
+                    "model_request_timeout_seconds": 20,
+                    "model_ca_bundle": bundle,
+                }
+            )
 
             with (
-                patch.dict(os.environ, env, clear=True),
                 patch("model.factory.ChatOpenAI") as chat_openai,
                 patch("model.factory.httpx.Client") as sync_client,
                 patch("model.factory.httpx.AsyncClient") as async_client,
                 patch("model.factory.ssl.create_default_context") as create_context,
             ):
-                ChatModelFactory().generator()
+                ChatModelFactory(settings=settings).generator()
 
         create_context.assert_called_once_with(cafile=str(bundle.resolve()))
         sync_client.assert_called_once_with(
@@ -124,18 +124,17 @@ class ModelRuntimeConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             bundle = Path(temp_dir) / "private-ca.pem"
             bundle.write_text("test certificate placeholder", encoding="utf-8")
-            env = {
-                "LLM__PROVIDER": "anthropic",
-                "ANTHROPIC_AUTH_TOKEN": "dummy",
-                "MODEL_REQUEST_TIMEOUT_SECONDS": "18",
-                "MODEL_CA_BUNDLE": str(bundle),
-            }
+            settings = Settings.model_validate(
+                {
+                    "model_provider": "anthropic",
+                    "anthropic_auth_token": "dummy",
+                    "model_request_timeout_seconds": 18,
+                    "model_ca_bundle": bundle,
+                }
+            )
 
-            with (
-                patch.dict(os.environ, env, clear=True),
-                patch("model.factory.AnthropicCompatibleChatModel") as anthropic_model,
-            ):
-                ChatModelFactory().generator()
+            with patch("model.factory.AnthropicCompatibleChatModel") as anthropic_model:
+                ChatModelFactory(settings=settings).generator()
 
         kwargs = anthropic_model.call_args.kwargs
         self.assertEqual(kwargs["timeout"], 18.0)
