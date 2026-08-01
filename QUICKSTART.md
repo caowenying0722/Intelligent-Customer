@@ -48,7 +48,7 @@ AGENT_MAX_TOOL_CALLS=5
 - Python 3.10
 - LangChain 0.3.7 和相关组件
 - LangGraph 0.2.50（工作流编排）
-- Streamlit 1.40.1（Web UI）
+- Streamlit 1.54.0 + Pillow 12.3.0（Web UI 与图像处理）
 - ChromaDB 0.5.15（向量数据库）
 - Torch 2.12.0 和 Transformers（本地模型支持）
 - Sentence Transformers（文本嵌入）

@@ -9,13 +9,13 @@
 ## 运行环境与依赖
 
 - 初始审计 shell 的解释器为 Python 3.13.13；该环境混用全局 site-packages 与 `.local_deps/`，不作为受支持运行环境。
-- 受支持开发版本现由 `.python-version` 固定为 Python 3.10.20；本机 `ics` 环境已验证 18 个直接运行依赖与 `requirements.txt` 精确一致，`app` 可以导入。
+- 受支持开发版本现由 `.python-version` 固定为 Python 3.10.20；本机 `ics` 环境已验证 19 个直接运行依赖与 `requirements.txt` 精确一致，`app` 可以导入。
 - `requirements-dev.txt` 在运行依赖上固定 pytest、Ruff、Mypy、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
 - 当前只有直接依赖和开发工具精确固定，尚无完整的跨平台 transitive lock；因此不能把它描述为完全可重复的供应链锁定。
 - 目标环境普通导入 `app` 不再加载 Agent、模型、RAG 或 Chroma；Streamlit 执行 `main()` 后才构建 Agent，首次调用 RAG 工具时才同步初始化 Chroma 和扫描知识文件。
 - 旧 `.local_deps/` 目录仍存在但已不再由评测/报告脚本自动插入 `sys.path`；初始行为曾覆盖目标环境中的正确二进制包并导致 RAGAS 导入失败。
 - Python 3.13 下执行完整依赖 dry-run 失败：`langchain-community==0.3.31` 要求 NumPy 2.x，而 `langchain-chroma==0.1.4` 在该解释器组合下要求 NumPy 1.x。
-- `pypdf` 已从 5.1.0 升级到 6.14.2，并通过真实 PDF 加载回归；pip-audit 从 84 条/13 包下降到 49 条/12 包。LangChain/LangGraph 等剩余修复涉及生态大版本迁移，必须分批回归，不能用忽略规则伪装通过。
+- `pypdf`、Streamlit 和 Pillow 已升级到已知修复版本，并分别通过 PDF 与 UI 启动回归；pip-audit 从 84 条/13 包下降到 22 条/10 包。LangChain/LangGraph 等剩余修复涉及生态大版本迁移，必须分批回归，不能用忽略规则伪装通过。
 
 ## 当前架构与核心调用链
 
@@ -128,15 +128,15 @@ flowchart LR
 
 | 命令 | 结果 | 分类与说明 |
 |---|---|---|
-| `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，18 个直接运行依赖精确匹配，`pip check` 成功 |
-| `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 23 个直接运行/开发依赖精确匹配 |
+| `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，19 个直接运行依赖精确匹配，`pip check` 成功 |
+| `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 24 个直接运行/开发依赖精确匹配 |
 | `pip install --dry-run --ignore-installed -r requirements-dev.txt` | 成功 | Python 3.10 可解析；输出同时证明传递依赖仍会漂移，不能替代 lock |
-| `python -m pytest -q` | 成功：66 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、Agent 上限、模型适配器、PDF 兼容和子进程安全测试 |
+| `python -m pytest -q` | 成功：67 passed，21 subtests | 包含依赖隔离、配置/路径、惰性初始化、Agent 上限、模型适配器、PDF/UI 兼容和子进程安全测试 |
 | `python -m ruff check .` | 成功 | 仓库 `pyproject.toml` 固定精确规则集，全仓零诊断 |
-| `python -m ruff format --check .` | 成功：65 files already formatted | 已完成全仓 Python 格式基线 |
-| `python -m mypy agent rag model evaluation utils scripts tests app.py` | 成功：56 source files | 仓库配置固定 Python 3.10、缺失类型依赖和包基线规则 |
+| `python -m ruff format --check .` | 成功：66 files already formatted | 已完成全仓 Python 格式基线 |
+| `python -m mypy agent rag model evaluation utils scripts tests app.py` | 成功：57 source files | 仓库配置固定 Python 3.10、缺失类型依赖和包基线规则 |
 | `python -m coverage run -m pytest -q && coverage report` | 成功：39% | 仅统计源码、启用 branch coverage；当前只记录真实基线，尚未设置回归阈值 |
-| `python -m pip_audit -r requirements.txt` | 失败：49 条/12 包 | `pypdf` 的 35 条记录已消除；剩余风险未忽略，继续分兼容组修复 |
+| `python -m pip_audit -r requirements.txt` | 失败：22 条/10 包 | PDF 与 UI 兼容组共消除 62 条记录；剩余风险未忽略，继续分兼容组修复 |
 
 ## 可复现指标基线
 
@@ -144,7 +144,7 @@ flowchart LR
 
 | 指标 | 当前值 | 可用性说明 |
 |---|---:|---|
-| 测试数量 / 通过率 | 66 / 100% | 覆盖环境/配置/路径、惰性初始化、Agent 上限、模型传输、PDF 兼容和子进程安全；仍没有完整 Agent/API/RAG 集成覆盖 |
+| 测试数量 / 通过率 | 67 / 100% | 覆盖环境/配置/路径、惰性初始化、Agent 上限、模型传输、PDF/UI 兼容和子进程安全；仍没有完整 Agent/API/RAG 集成覆盖 |
 | 主评测集样本 | 28 | 非冻结、无 dataset version |
 | Focus 评测集样本 | 6 | 非隐藏集 |
 | 标准 Recall@1/3/5/10 | 尚未测量 | 当前 `retrieval_recall=0.754252` 是关键词组覆盖率，不是标准 Recall@K |
@@ -162,7 +162,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 完整清单见 [TECH_DEBT.md](TECH_DEBT.md)。优先级最高的风险是：
 
-1. 当前运行依赖仍存在 49 条已知漏洞记录，部分修复需要 LangChain/LangGraph 大版本迁移；`ragas`、`transformers` 和 `diskcache` 还有无可用修复版本的记录。
+1. 当前运行依赖仍存在 22 条已知漏洞记录，部分修复需要 LangChain/LangGraph 大版本迁移；`ragas`、`transformers` 和 `diskcache` 还有无可用修复版本的记录。
 2. 依赖集合在 Python 3.13 环境不可解，且尚无完整 transitive lock/空环境重建证明。
 3. Agent 步骤和工具调用已有代码级上限，但请求没有全流程 deadline/cancellation，工具副作用也没有幂等控制。
 4. 随机用户身份与本地报告数据没有认证、授权和租户隔离。
@@ -172,7 +172,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：66 个单元测试集中在环境/YAML 配置、路径、惰性初始化、Agent 上限、模型传输/协议转换、PDF 兼容、子进程安全、评测辅助函数和 secret scanner；源码分支覆盖率为 39%。Agent 业务路由、RAG 核心、文档入库、UI、取消与并发仍缺自动化测试。
+- 测试：67 个单元测试集中在环境/YAML 配置、路径、惰性初始化、Agent 上限、模型传输/协议转换、PDF/UI 兼容、子进程安全、评测辅助函数和 secret scanner；源码分支覆盖率为 39%。Agent 业务路由、RAG 核心、文档入库交互、取消与并发仍缺自动化测试。
 - 可观测性：普通文本日志写控制台和每日文件；没有 request ID、trace、metrics 或字段脱敏。
 - 部署：只有本地 Streamlit 命令；没有 API 服务、进程模型、容器、健康检查、优雅关闭或 CI。
 - 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
@@ -185,7 +185,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 4. 随机 user ID 如何代表真实登录用户，如何防止读取其他人的报告？当前没有安全边界。
 5. 如何部署、扩容和恢复会话？当前首次 RAG 请求仍写本地 Chroma，session 只在单进程内存。
 6. 企业私有 CA 如何接入而不关闭 TLS？当前通过显式 PEM 路径创建验证客户端，路径无效时 fail-fast。
-7. 66 个环境/配置/路径/惰性初始化/Agent 上限/模型适配/PDF 兼容测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
+7. 67 个环境/配置/路径/惰性初始化/Agent 上限/模型适配/PDF/UI 兼容测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
 
 ## 当前是否适合继续自动修改
 
