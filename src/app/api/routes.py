@@ -310,8 +310,16 @@ def build_router(
                         return
                     yield f"data: {json.dumps({'type': 'token', 'text': chunk}, ensure_ascii=False)}\n\n"
                 yield f"data: {json.dumps({'type': 'completed', 'request_id': request_id})}\n\n"
-            except Exception as exc:  # noqa: BLE001 - stable SSE error envelope.
-                yield f"data: {json.dumps({'type': 'error', 'code': 'chat_failed', 'message': str(exc), 'request_id': request_id})}\n\n"
+            except ChatApplicationError as exc:
+                model_error = exc.model_error
+                code = model_error.code.value if model_error is not None else (
+                    "chat_timeout" if "timed out" in str(exc) else "chat_failed"
+                )
+                if code == "unknown":
+                    code = "chat_failed"
+                yield f"data: {json.dumps({'type': 'error', 'code': code, 'message': str(exc), 'request_id': request_id})}\n\n"
+            except Exception:
+                yield f"data: {json.dumps({'type': 'error', 'code': 'chat_failed', 'message': 'chat execution failed', 'request_id': request_id})}\n\n"
 
         return StreamingResponse(events(), media_type="text/event-stream")
 

@@ -179,5 +179,8 @@ class ChatApplicationService:
         except (TimeoutError, asyncio.TimeoutError) as exc:
             raise ChatApplicationError("chat execution timed out") from exc
         except Exception as exc:  # noqa: BLE001 - map provider details to safe error.
-            raise ChatApplicationError("chat execution failed") from exc
+            model_error = (
+                exc.to_contract() if isinstance(exc, ModelGatewayError) else None
+            )
+            raise ChatApplicationError("chat execution failed", model_error=model_error) from exc
         return chunks

@@ -40,3 +40,18 @@ def test_stream_gateway_error_is_safe():
     assert response.status_code == 200
     assert '"code": "chat_failed"' in response.text
     assert "secret" not in response.text
+
+
+def test_stream_gateway_timeout_uses_model_error_code():
+    gateway = ModelGateway(
+        {"fake": lambda _: (_ for _ in ()).throw(TimeoutError("secret timeout"))},
+        timeout_seconds=0.1,
+    )
+    service = ChatApplicationService(
+        Agent(), stream_gateway=gateway, model_provider="fake"
+    )
+    response = TestClient(create_app(chat_service=service)).post(
+        "/api/v1/chat/stream", json={"message": "hello"}
+    )
+    assert '"code": "timeout"' in response.text
+    assert "secret timeout" not in response.text

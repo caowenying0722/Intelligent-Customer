@@ -784,5 +784,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 7 第四个目标完成：统一 `ModelResponse` 增加 retry_count、fallback_chain、finish_reason；Gateway 仅接受显式路由元数据，不从供应商私有响应猜测。
 - 阶段 7 第五个目标完成：新增 `ModelErrorCode`/`ModelError` 稳定错误契约，GatewayError 可映射 timeout/rate limit/budget/malformed/provider unavailable 等分类及 retryable 标记。
 - 阶段 7 第六个目标完成：ChatApplicationService 携带 ModelError 分类到 API 边界；timeout/rate-limit/provider-unavailable 映射稳定 HTTP 状态，unknown 保持 `chat_failed`，不泄漏供应商原文。
+- 阶段 7 第七个目标完成：SSE 流式路径统一携带 ModelError code，timeout/rate-limit 等错误以稳定事件输出，未知异常降级为 `chat_failed` 且不输出原始异常文本。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
