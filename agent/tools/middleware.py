@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from typing import Any
 
 from langchain.agents import AgentState
 from langchain.agents.middleware import (
@@ -14,6 +13,7 @@ from langgraph.runtime import Runtime
 from langgraph.types import Command
 
 from agent.tools.policy import safe_argument_summary
+from src.app.security.redaction import text_metadata
 from utils.logger_handler import logger
 from utils.prompt_loader import load_report_prompts, load_system_prompts
 
@@ -42,7 +42,11 @@ def monitor_tool(
 
         return result
     except Exception as e:
-        logger.error(f"工具{request.tool_call['name']}调用失败，原因：{e!s}")
+        logger.error(
+            "工具%s调用失败，异常类型=%s",
+            request.tool_call["name"],
+            type(e).__name__,
+        )
         raise
 
 
@@ -55,13 +59,14 @@ def log_before_model(
 
     latest_message = state["messages"][-1]
     content = latest_message.content
-    if isinstance(content, str):
-        content_preview: Any = content.strip()
-    else:
-        content_preview = type(content).__name__
-
     logger.debug(
-        f"[log_before_model]{type(latest_message).__name__} | {content_preview}"
+        "[log_before_model]消息类型=%s | 内容元数据=%s",
+        type(latest_message).__name__,
+        (
+            text_metadata(content)
+            if isinstance(content, str)
+            else {"type": type(content).__name__}
+        ),
     )
 
 
