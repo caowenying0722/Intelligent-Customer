@@ -167,6 +167,9 @@ def test_agent_run_lifecycle_is_tenant_scoped() -> None:
     assert updated.status_code == 200
     assert updated.json()["status"] == "failed"
     assert updated.json()["error"] == "boom"
+    assert updated.json()["started_at"]
+    assert updated.json()["completed_at"]
+    assert updated.json()["duration_ms"] is not None
 
     cross_tenant = client.get(
         f"/api/v1/runs/{run_id}", headers={"x-tenant-id": "other"}

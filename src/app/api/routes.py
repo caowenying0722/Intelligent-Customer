@@ -190,6 +190,9 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
             status=run.status,
             error=run.error,
             created_at=run.created_at.isoformat(),
+            started_at=run.started_at.isoformat() if run.started_at else None,
+            completed_at=run.completed_at.isoformat() if run.completed_at else None,
+            duration_ms=run.duration_ms,
         )
 
     @router.get("/runs/{run_id}", response_model=AgentRunResponse)
@@ -224,6 +227,9 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
             status=run.status,
             error=run.error,
             created_at=run.created_at.isoformat(),
+            started_at=run.started_at.isoformat() if run.started_at else None,
+            completed_at=run.completed_at.isoformat() if run.completed_at else None,
+            duration_ms=run.duration_ms,
         )
 
     @router.patch("/runs/{run_id}", response_model=AgentRunResponse)
@@ -277,6 +283,9 @@ def build_router(chat_service: ChatApplicationService | None) -> APIRouter:
             status=run.status,
             error=run.error,
             created_at=run.created_at.isoformat(),
+            started_at=run.started_at.isoformat() if run.started_at else None,
+            completed_at=run.completed_at.isoformat() if run.completed_at else None,
+            duration_ms=run.duration_ms,
         )
 
     return router

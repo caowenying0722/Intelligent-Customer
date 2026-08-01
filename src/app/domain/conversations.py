@@ -56,6 +56,15 @@ class AgentRun:
     error: str | None = None
     idempotency_key: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+    @property
+    def duration_ms(self) -> int | None:
+        end = self.completed_at or datetime.now(tz=timezone.utc)
+        if self.started_at is None:
+            return None
+        return max(0, int((end - self.started_at).total_seconds() * 1000))
 
 
 class ConversationRepositoryProtocol(Protocol):
@@ -197,6 +206,13 @@ class ConversationRepository:
                 error=error,
                 idempotency_key=run.idempotency_key,
                 created_at=run.created_at,
+                started_at=run.started_at
+                or (datetime.now(tz=timezone.utc) if status == "running" else None),
+                completed_at=(
+                    datetime.now(tz=timezone.utc)
+                    if status in {"completed", "failed", "cancelled"}
+                    else run.completed_at
+                ),
             )
             self._runs[run_id] = updated
             return updated

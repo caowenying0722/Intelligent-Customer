@@ -50,3 +50,6 @@ class AgentRunResponse(BaseModel):
     status: str
     error: str | None = None
     created_at: str
+    started_at: str | None = None
+    completed_at: str | None = None
+    duration_ms: int | None = None

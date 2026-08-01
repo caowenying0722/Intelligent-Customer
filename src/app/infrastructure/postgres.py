@@ -24,7 +24,7 @@ from src.app.domain.conversations import (
     RunStateConflict,
 )
 
-EXPECTED_SCHEMA_REVISION = "0005_add_run_idempotency"
+EXPECTED_SCHEMA_REVISION = "0006_add_run_timing"
 
 
 class Base(DeclarativeBase):
@@ -71,6 +71,12 @@ class AgentRunRow(Base):
     error: Mapped[str | None] = mapped_column(String(4000), nullable=True)
     idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class SqlAlchemyConversationRepository:
@@ -250,6 +256,8 @@ class SqlAlchemyConversationRepository:
                 error=row.error,
                 idempotency_key=row.idempotency_key,
                 created_at=row.created_at,
+                started_at=row.started_at,
+                completed_at=row.completed_at,
             )
 
     def update_run(
@@ -269,6 +277,13 @@ class SqlAlchemyConversationRepository:
                 raise RunStateConflict(f"{row.status}->{status}")
             row.status = status
             row.error = error
+            if status == "running" and row.started_at is None:
+                row.started_at = datetime.now().astimezone()
+            if (
+                status in {"completed", "failed", "cancelled"}
+                and row.completed_at is None
+            ):
+                row.completed_at = datetime.now().astimezone()
             session.commit()
             return AgentRun(
                 run_id=UUID(row.id),
@@ -278,4 +293,6 @@ class SqlAlchemyConversationRepository:
                 error=row.error,
                 idempotency_key=row.idempotency_key,
                 created_at=row.created_at,
+                started_at=row.started_at,
+                completed_at=row.completed_at,
             )
