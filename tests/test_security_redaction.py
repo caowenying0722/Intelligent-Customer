@@ -4,7 +4,9 @@ from src.app.security.redaction import redact_text, text_metadata
 
 
 def test_redact_text_removes_common_pii_and_credentials() -> None:
-    value = "联系 user@example.com 或 13812345678，Bearer abc.def，sk-proj-123456789012345"
+    value = (
+        "联系 user@example.com 或 13812345678，Bearer abc.def，sk-proj-123456789012345"
+    )
 
     redacted = redact_text(value)
 

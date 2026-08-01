@@ -11,7 +11,13 @@ from model.contracts import ModelRequest
 
 def request_fingerprint(request: ModelRequest) -> str:
     material = "|".join(
-        [request.tenant_id, request.provider, request.model, request.prompt_version, request.prompt]
+        [
+            request.tenant_id,
+            request.provider,
+            request.model,
+            request.prompt_version,
+            request.prompt,
+        ]
     )
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 

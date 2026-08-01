@@ -1,11 +1,11 @@
 """Chat HTTP routes; business orchestration stays in application services."""
 
-import json
 import base64
 import binascii
+import json
+from collections.abc import Callable
 from datetime import datetime
 from uuid import UUID
-from collections.abc import Callable
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -23,14 +23,14 @@ from src.app.schemas import (
     ChatRequest,
     ChatResponse,
     ConversationResponse,
-    ErrorResponse,
-    MessageResponse,
-    RunUpdateRequest,
+    DocumentStatusResponse,
     DocumentUploadRequest,
     DocumentUploadResponse,
-    DocumentStatusResponse,
-    IngestionJobResponse,
+    ErrorResponse,
     IndexRebuildRequest,
+    IngestionJobResponse,
+    MessageResponse,
+    RunUpdateRequest,
 )
 from src.app.security.audit import AuditSink
 from src.app.security.auth import JWTAuthenticator
@@ -53,16 +53,34 @@ def build_router(
     )
 
     def request_tenant_id(request: Request) -> str:
-        return getattr(request.state, "tenant_id", request.headers.get("x-tenant-id", "local"))
+        return getattr(
+            request.state, "tenant_id", request.headers.get("x-tenant-id", "local")
+        )
 
     @router.post("/indexes/rebuild", response_model=IngestionJobResponse)
     async def rebuild_index(request: Request, payload: IndexRebuildRequest):
         if ingestion_service is None or index_rebuild_operation is None:
-            return JSONResponse(status_code=503, content={"code": "index_rebuild_unavailable", "message": "index rebuild processor is not configured", "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "index_rebuild_unavailable",
+                    "message": "index rebuild processor is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
         tenant_id = request_tenant_id(request)
-        idempotency_key = request.headers.get("idempotency-key") or payload.idempotency_key or ""
+        idempotency_key = (
+            request.headers.get("idempotency-key") or payload.idempotency_key or ""
+        )
         if not idempotency_key:
-            return JSONResponse(status_code=422, content={"code": "missing_idempotency_key", "message": "idempotency key is required", "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "code": "missing_idempotency_key",
+                    "message": "idempotency key is required",
+                    "request_id": request.state.request_id,
+                },
+            )
         try:
             job = ingestion_service.jobs.submit(
                 tenant_id=tenant_id,
@@ -74,20 +92,37 @@ def build_router(
             job_store = getattr(ingestion_service, "job_store", None)
             if job_store is not None:
                 job_store.create_job(job=job)
-                current = ingestion_service.jobs.get(tenant_id=tenant_id, job_id=job.job_id) or job
+                current = (
+                    ingestion_service.jobs.get(tenant_id=tenant_id, job_id=job.job_id)
+                    or job
+                )
                 if current.status in {"completed", "failed", "cancelled"}:
                     job_store.update_job_status(
-                        tenant_id=tenant_id, job_id=job.job_id,
-                        status=current.status, error=current.error,
+                        tenant_id=tenant_id,
+                        job_id=job.job_id,
+                        status=current.status,
+                        error=current.error,
                     )
         except ValueError as exc:
-            return JSONResponse(status_code=422, content={"code": "invalid_rebuild", "message": str(exc), "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "code": "invalid_rebuild",
+                    "message": str(exc),
+                    "request_id": request.state.request_id,
+                },
+            )
         return IngestionJobResponse(
-            job_id=str(job.job_id), tenant_id=job.tenant_id, status=job.status.value,
-            error=job.error, created_at=job.created_at.isoformat(),
+            job_id=str(job.job_id),
+            tenant_id=job.tenant_id,
+            status=job.status.value,
+            error=job.error,
+            created_at=job.created_at.isoformat(),
             started_at=job.started_at.isoformat() if job.started_at else None,
             completed_at=job.completed_at.isoformat() if job.completed_at else None,
-            progress=job.progress, attempt=job.attempt, max_attempts=job.max_attempts,
+            progress=job.progress,
+            attempt=job.attempt,
+            max_attempts=job.max_attempts,
             cancel_requested=job.cancel_requested,
         )
 
@@ -138,9 +173,23 @@ def build_router(
     @router.get("/documents/{document_id}", response_model=DocumentStatusResponse)
     async def get_document(request: Request, document_id: str):
         if ingestion_service is None:
-            return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "document ingestion is not configured", "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "ingestion_unavailable",
+                    "message": "document ingestion is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
         if ingestion_service.metadata is None:
-            return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "document metadata is not configured", "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "ingestion_unavailable",
+                    "message": "document metadata is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
         try:
             document = ingestion_service.metadata.get(
                 tenant_id=request_tenant_id(request),
@@ -149,36 +198,70 @@ def build_router(
         except ValueError:
             document = None
         if document is None:
-            return JSONResponse(status_code=404, content={"code": "document_not_found", "message": "document not found", "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": "document_not_found",
+                    "message": "document not found",
+                    "request_id": request.state.request_id,
+                },
+            )
         return DocumentStatusResponse(
-            document_id=str(document.document_id), tenant_id=document.tenant_id,
-            original_name=document.original_name, content_hash=document.content_hash,
-            document_version=document.document_version, status=document.status.value,
+            document_id=str(document.document_id),
+            tenant_id=document.tenant_id,
+            original_name=document.original_name,
+            content_hash=document.content_hash,
+            document_version=document.document_version,
+            status=document.status.value,
             index_version=document.index_version,
         )
 
     @router.delete("/documents/{document_id}", response_model=DocumentStatusResponse)
     async def delete_document(request: Request, document_id: str):
         if ingestion_service is None:
-            return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "document ingestion is not configured", "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "ingestion_unavailable",
+                    "message": "document ingestion is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
         try:
             document = ingestion_service.delete_document(
                 tenant_id=request_tenant_id(request),
                 document_id=UUID(document_id),
             )
         except (ValueError, KeyError):
-            return JSONResponse(status_code=404, content={"code": "document_not_found", "message": "document not found", "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": "document_not_found",
+                    "message": "document not found",
+                    "request_id": request.state.request_id,
+                },
+            )
         return DocumentStatusResponse(
-            document_id=str(document.document_id), tenant_id=document.tenant_id,
-            original_name=document.original_name, content_hash=document.content_hash,
-            document_version=document.document_version, status=document.status.value,
+            document_id=str(document.document_id),
+            tenant_id=document.tenant_id,
+            original_name=document.original_name,
+            content_hash=document.content_hash,
+            document_version=document.document_version,
+            status=document.status.value,
             index_version=document.index_version,
         )
 
     @router.get("/jobs/{job_id}", response_model=IngestionJobResponse)
     async def get_ingestion_job(request: Request, job_id: str):
         if ingestion_service is None:
-            return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "ingestion is not configured", "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "ingestion_unavailable",
+                    "message": "ingestion is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
         try:
             tenant_id = request_tenant_id(request)
             parsed_job_id = UUID(job_id)
@@ -186,25 +269,46 @@ def build_router(
             job = (
                 job_store.get_job(tenant_id=tenant_id, job_id=parsed_job_id)
                 if job_store is not None
-                else ingestion_service.jobs.get(tenant_id=tenant_id, job_id=parsed_job_id)
+                else ingestion_service.jobs.get(
+                    tenant_id=tenant_id, job_id=parsed_job_id
+                )
             )
         except ValueError:
             job = None
         if job is None:
-            return JSONResponse(status_code=404, content={"code": "job_not_found", "message": "ingestion job not found", "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": "job_not_found",
+                    "message": "ingestion job not found",
+                    "request_id": request.state.request_id,
+                },
+            )
         return IngestionJobResponse(
-            job_id=str(job.job_id), tenant_id=job.tenant_id, status=job.status.value,
-            error=job.error, created_at=job.created_at.isoformat(),
+            job_id=str(job.job_id),
+            tenant_id=job.tenant_id,
+            status=job.status.value,
+            error=job.error,
+            created_at=job.created_at.isoformat(),
             started_at=job.started_at.isoformat() if job.started_at else None,
             completed_at=job.completed_at.isoformat() if job.completed_at else None,
-            progress=job.progress, attempt=job.attempt,
-            max_attempts=job.max_attempts, cancel_requested=job.cancel_requested,
+            progress=job.progress,
+            attempt=job.attempt,
+            max_attempts=job.max_attempts,
+            cancel_requested=job.cancel_requested,
         )
 
     @router.post("/jobs/{job_id}/cancel", response_model=IngestionJobResponse)
     async def cancel_ingestion_job(request: Request, job_id: str):
         if ingestion_service is None:
-            return JSONResponse(status_code=503, content={"code": "ingestion_unavailable", "message": "ingestion is not configured", "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "ingestion_unavailable",
+                    "message": "ingestion is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
         try:
             parsed_id = UUID(job_id)
         except ValueError:
@@ -217,7 +321,12 @@ def build_router(
             except (KeyError, TypeError):
                 job = None
             cancelled = job is not None
-            if cancelled and job is not None and job.status.value == "running" and parsed_id is not None:
+            if (
+                cancelled
+                and job is not None
+                and job.status.value == "running"
+                and parsed_id is not None
+            ):
                 ingestion_service.jobs.cancel(tenant_id=tenant_id, job_id=parsed_id)
         else:
             if parsed_id is None:
@@ -233,12 +342,24 @@ def build_router(
                     else None
                 )
         if not cancelled or job is None:
-            return JSONResponse(status_code=409, content={"code": "job_not_cancellable", "message": "job not found or already running", "request_id": request.state.request_id})
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "code": "job_not_cancellable",
+                    "message": "job not found or already running",
+                    "request_id": request.state.request_id,
+                },
+            )
         return IngestionJobResponse(
-            job_id=str(job.job_id), tenant_id=job.tenant_id, status=job.status.value,
-            error=job.error, created_at=job.created_at.isoformat(),
-            progress=job.progress, attempt=job.attempt,
-            max_attempts=job.max_attempts, cancel_requested=job.cancel_requested,
+            job_id=str(job.job_id),
+            tenant_id=job.tenant_id,
+            status=job.status.value,
+            error=job.error,
+            created_at=job.created_at.isoformat(),
+            progress=job.progress,
+            attempt=job.attempt,
+            max_attempts=job.max_attempts,
+            cancel_requested=job.cancel_requested,
         )
 
     @router.post(
@@ -286,18 +407,28 @@ def build_router(
             )
         except ChatApplicationError as exc:
             model_error = exc.model_error
-            raw_code = model_error.code.value if model_error is not None else (
-                "chat_timeout" if "timed out" in str(exc) else "chat_failed"
+            raw_code = (
+                model_error.code.value
+                if model_error is not None
+                else ("chat_timeout" if "timed out" in str(exc) else "chat_failed")
             )
             code = "chat_failed" if raw_code == "unknown" else raw_code
             status_code = (
-                504 if code == "chat_timeout" else
-                429 if code == "rate_limited" else
-                503 if code == "provider_unavailable" else 400
+                504
+                if code == "chat_timeout"
+                else 429
+                if code == "rate_limited"
+                else 503
+                if code == "provider_unavailable"
+                else 400
             )
             return JSONResponse(
                 status_code=status_code,
-                content={"code": code, "message": str(exc), "request_id": request.state.request_id},
+                content={
+                    "code": code,
+                    "message": str(exc),
+                    "request_id": request.state.request_id,
+                },
             )
         except Exception as exc:  # noqa: BLE001 - stable boundary, no traceback.
             status_code = 504 if "timed out" in str(exc) else 400
@@ -335,13 +466,15 @@ def build_router(
                 yield f"data: {json.dumps({'type': 'completed', 'request_id': request_id})}\n\n"
             except ChatApplicationError as exc:
                 model_error = exc.model_error
-                code = model_error.code.value if model_error is not None else (
-                    "chat_timeout" if "timed out" in str(exc) else "chat_failed"
+                code = (
+                    model_error.code.value
+                    if model_error is not None
+                    else ("chat_timeout" if "timed out" in str(exc) else "chat_failed")
                 )
                 if code == "unknown":
                     code = "chat_failed"
                 yield f"data: {json.dumps({'type': 'error', 'code': code, 'message': str(exc), 'request_id': request_id})}\n\n"
-            except Exception:
+            except Exception:  # noqa: BLE001 - SSE boundary emits a stable safe error.
                 yield f"data: {json.dumps({'type': 'error', 'code': 'chat_failed', 'message': 'chat execution failed', 'request_id': request_id})}\n\n"
 
         return StreamingResponse(events(), media_type="text/event-stream")
@@ -366,9 +499,7 @@ def build_router(
         except ValueError:
             parsed = None
         conversation = (
-            chat_service.conversation_repository.get(
-                request_tenant_id(request), parsed
-            )
+            chat_service.conversation_repository.get(request_tenant_id(request), parsed)
             if parsed
             else None
         )

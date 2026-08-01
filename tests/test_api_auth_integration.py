@@ -20,21 +20,36 @@ class Agent:
 def test_api_router_requires_configured_authenticator():
     secret = "x" * 32
     auth = JWTAuthenticator(secret=secret, issuer="iss", audience="aud")
-    client = TestClient(create_app(chat_service=ChatApplicationService(Agent()), authenticator=auth))
+    client = TestClient(
+        create_app(chat_service=ChatApplicationService(Agent()), authenticator=auth)
+    )
     assert client.post("/api/v1/chat", json={"message": "hi"}).status_code == 401
     token = jwt.encode(
-        {"sub": "u", "tenant_id": "t", "roles": ["customer"], "iss": "iss", "aud": "aud", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
-        secret, algorithm="HS256",
+        {
+            "sub": "u",
+            "tenant_id": "t",
+            "roles": ["customer"],
+            "iss": "iss",
+            "aud": "aud",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        secret,
+        algorithm="HS256",
     )
     response = client.post(
-        "/api/v1/chat", headers={"Authorization": f"Bearer {token}"}, json={"message": "hi"}
+        "/api/v1/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "hi"},
     )
     assert response.status_code == 200
     conversation = response.json()["conversation_id"]
-    assert client.get(
-        f"/api/v1/conversations/{conversation}",
-        headers={"Authorization": f"Bearer {token}", "x-tenant-id": "tenant-b"},
-    ).status_code == 403
+    assert (
+        client.get(
+            f"/api/v1/conversations/{conversation}",
+            headers={"Authorization": f"Bearer {token}", "x-tenant-id": "tenant-b"},
+        ).status_code
+        == 403
+    )
 
 
 def test_api_auth_and_audit_sink_work_together() -> None:
@@ -62,11 +77,14 @@ def test_api_auth_and_audit_sink_work_together() -> None:
     )
 
     assert client.post("/api/v1/chat").status_code == 401
-    assert client.post(
-        "/api/v1/chat",
-        headers={"Authorization": f"Bearer {token}", "x-tenant-id": "tenant-a"},
-        json={"message": "hello"},
-    ).status_code == 200
+    assert (
+        client.post(
+            "/api/v1/chat",
+            headers={"Authorization": f"Bearer {token}", "x-tenant-id": "tenant-a"},
+            json={"message": "hello"},
+        ).status_code
+        == 200
+    )
 
     events = sink.snapshot()
     assert events[0].event_type == "auth.failure"

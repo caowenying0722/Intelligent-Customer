@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
-from collections.abc import Callable, Mapping
-from typing import Any
-from model.cache import ModelCache
-from model.quota import TenantQuota
-from model.cost import BudgetExceededError, CostTracker, UsageRecord
-from model.structured import validate_structured
-from model.contracts import ModelRequest, ModelResponse, ModelUsage
-from model.errors import ModelError, ModelErrorCode
-from model.audit import start_trace
-from model.audit import request_fingerprint
-from model.idempotency import IdempotencyConflictError, IdempotencyStore
-import time
 import threading
 import time
 from collections import deque
+from collections.abc import Callable, Mapping
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+
+from model.audit import request_fingerprint, start_trace
+from model.cache import ModelCache
+from model.contracts import ModelRequest, ModelResponse, ModelUsage
+from model.cost import BudgetExceededError, CostTracker, UsageRecord
+from model.errors import ModelError, ModelErrorCode
+from model.idempotency import IdempotencyConflictError, IdempotencyStore
+from model.quota import TenantQuota
+from model.structured import validate_structured
 
 
 class ModelGatewayError(RuntimeError):
@@ -43,7 +42,9 @@ class ModelGatewayError(RuntimeError):
         else:
             code = ModelErrorCode.UNKNOWN
             retryable = False
-        return ModelError(code=code, message=str(self), retryable=retryable, provider=provider)
+        return ModelError(
+            code=code, message=str(self), retryable=retryable, provider=provider
+        )
 
 
 class RetryableModelError(RuntimeError):
@@ -183,7 +184,9 @@ class ModelGateway:
             },
         )
 
-    def invoke_idempotent(self, request: ModelRequest, *, idempotency_key: str) -> ModelResponse:
+    def invoke_idempotent(
+        self, request: ModelRequest, *, idempotency_key: str
+    ) -> ModelResponse:
         if self.idempotency_store is None:
             return self.invoke_contract(request)
         if not idempotency_key.strip():
@@ -240,7 +243,9 @@ class ModelGateway:
         with self._lock:
             self._failures += 1
             if provider is not None:
-                self._provider_failures[provider] = self._provider_failures.get(provider, 0) + 1
+                self._provider_failures[provider] = (
+                    self._provider_failures.get(provider, 0) + 1
+                )
             self._consecutive_failures += 1
             if self._consecutive_failures >= self.failure_threshold:
                 self._opened_at = time.monotonic()
@@ -259,7 +264,9 @@ class ModelGateway:
             self._provider_calls[provider] = self._provider_calls.get(provider, 0) + 1
         try:
             for attempt in range(1, self.max_retries + 2):
-                executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="model-call")
+                executor = ThreadPoolExecutor(
+                    max_workers=1, thread_name_prefix="model-call"
+                )
                 future = executor.submit(operation, request)
                 try:
                     result = future.result(timeout=self.timeout_seconds)
@@ -269,14 +276,20 @@ class ModelGateway:
                     future.cancel()
                     if attempt > self.max_retries:
                         self._record_failure(provider)
-                        raise ModelGatewayError("model request exceeded configured timeout") from exc
+                        raise ModelGatewayError(
+                            "model request exceeded configured timeout"
+                        ) from exc
                 except PermanentModelError as exc:
                     self._record_failure(provider)
-                    raise ModelGatewayError("model provider rejected the request") from exc
+                    raise ModelGatewayError(
+                        "model provider rejected the request"
+                    ) from exc
                 except RetryableModelError as exc:
                     if attempt > self.max_retries:
                         self._record_failure(provider)
-                        raise ModelGatewayError("model provider retries exhausted") from exc
+                        raise ModelGatewayError(
+                            "model provider retries exhausted"
+                        ) from exc
                 except Exception as exc:
                     self._record_failure(provider)
                     raise ModelGatewayError("model provider call failed") from exc
@@ -306,7 +319,9 @@ class ModelGateway:
                 return self.invoke(provider=candidate, request=request)
             except ModelGatewayError as exc:
                 last_error = exc
-        raise ModelGatewayError(f"all providers failed for model route: {route}") from last_error
+        raise ModelGatewayError(
+            f"all providers failed for model route: {route}"
+        ) from last_error
 
     def invoke_cached(
         self,
@@ -323,7 +338,10 @@ class ModelGateway:
                 raise ModelGatewayError("tenant model quota exceeded")
             return self.invoke(provider=provider, request=request)
         key = self.cache.key(
-            tenant_id=tenant_id, model=model, prompt=prompt, prompt_version=prompt_version
+            tenant_id=tenant_id,
+            model=model,
+            prompt=prompt,
+            prompt_version=prompt_version,
         )
         cached = self.cache.get(key)
         if cached is not None:

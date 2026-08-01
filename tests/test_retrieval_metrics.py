@@ -35,6 +35,4 @@ def test_evaluate_retrieval_aggregates_and_requires_matching_ids() -> None:
 def test_frozen_regression_dataset_is_versioned_and_validated() -> None:
     samples = load_frozen_regression("data/evaluation/retrieval_regression_v1.json")
     assert len(samples) == 3
-    assert {sample.dataset_version for sample in samples} == {
-        "retrieval-regression-v1"
-    }
+    assert {sample.dataset_version for sample in samples} == {"retrieval-regression-v1"}

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 from typing import Final
 
 
@@ -12,10 +12,20 @@ class PromptInjectionError(ValueError):
 
 
 _DEFAULT_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
-    re.compile(r"\b(?:ignore|disregard|override)\b.{0,80}\b(?:instructions?|rules?)\b", re.I),
-    re.compile(r"(?:忽略|无视|绕过).{0,30}(?:之前|以上|系统|开发者).{0,20}(?:指令|规则|提示)", re.I),
-    re.compile(r"\b(?:reveal|show|print|leak)\b.{0,60}\b(?:system|developer).{0,30}\b(?:prompt|message)\b", re.I),
-    re.compile(r"(?:泄露|显示|输出).{0,30}(?:系统|开发者).{0,20}(?:提示词|消息|指令)", re.I),
+    re.compile(
+        r"\b(?:ignore|disregard|override)\b.{0,80}\b(?:instructions?|rules?)\b", re.I
+    ),
+    re.compile(
+        r"(?:忽略|无视|绕过).{0,30}(?:之前|以上|系统|开发者).{0,20}(?:指令|规则|提示)",
+        re.I,
+    ),
+    re.compile(
+        r"\b(?:reveal|show|print|leak)\b.{0,60}\b(?:system|developer).{0,30}\b(?:prompt|message)\b",
+        re.I,
+    ),
+    re.compile(
+        r"(?:泄露|显示|输出).{0,30}(?:系统|开发者).{0,20}(?:提示词|消息|指令)", re.I
+    ),
 )
 
 

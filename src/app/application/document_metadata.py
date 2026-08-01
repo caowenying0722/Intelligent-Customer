@@ -93,7 +93,9 @@ class DocumentMetadataRegistry:
             record = self._records.get(document_id)
             return record if record and record.tenant_id == tenant_id else None
 
-    def get_by_hash(self, *, tenant_id: str, content_hash: str) -> DocumentRecord | None:
+    def get_by_hash(
+        self, *, tenant_id: str, content_hash: str
+    ) -> DocumentRecord | None:
         with self._lock:
             document_id = self._by_hash.get((tenant_id, content_hash))
             return self._records.get(document_id) if document_id is not None else None

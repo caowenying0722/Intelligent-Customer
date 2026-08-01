@@ -8,7 +8,6 @@ from src.app.security.audit import InMemoryAuditSink, SecurityAuditEvent, actor_
 from src.app.security.auth import JWTAuthenticator
 from src.app.security.dependencies import auth_dependency, role_dependency
 
-
 SECRET = "s" * 32
 
 
@@ -44,10 +43,13 @@ def test_auth_audit_is_sanitized_and_records_outcomes() -> None:
     raw_token = _token()
 
     assert client.get("/secure").status_code == 401
-    assert client.get(
-        "/secure",
-        headers={"Authorization": f"Bearer {raw_token}", "x-tenant-id": "tenant-b"},
-    ).status_code == 403
+    assert (
+        client.get(
+            "/secure",
+            headers={"Authorization": f"Bearer {raw_token}", "x-tenant-id": "tenant-b"},
+        ).status_code
+        == 403
+    )
     assert (
         client.get(
             "/secure", headers={"Authorization": f"Bearer {raw_token}"}

@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from hashlib import sha256
 
-
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
 _PHONE = re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)")
 _BEARER = re.compile(r"(?i)\b(bearer)\s+[A-Za-z0-9._~+/=-]+")

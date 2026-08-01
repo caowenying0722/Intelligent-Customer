@@ -4,9 +4,9 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Protocol
 from uuid import UUID
-from model.gateway import ModelGateway, ModelGatewayError
-from model.errors import ModelError
 
+from model.errors import ModelError
+from model.gateway import ModelGateway, ModelGatewayError
 from src.app.domain.conversations import (
     ConcurrencyConflict,
     ConversationRepository,
@@ -148,7 +148,9 @@ class ChatApplicationService:
             model_error = (
                 exc.to_contract() if isinstance(exc, ModelGatewayError) else None
             )
-            raise ChatApplicationError("chat execution failed", model_error=model_error) from exc
+            raise ChatApplicationError(
+                "chat execution failed", model_error=model_error
+            ) from exc
 
     async def stream(self, message: str) -> list[str]:
         """Return bounded fake/provider chunks for the transport SSE adapter."""
@@ -182,5 +184,7 @@ class ChatApplicationService:
             model_error = (
                 exc.to_contract() if isinstance(exc, ModelGatewayError) else None
             )
-            raise ChatApplicationError("chat execution failed", model_error=model_error) from exc
+            raise ChatApplicationError(
+                "chat execution failed", model_error=model_error
+            ) from exc
         return chunks

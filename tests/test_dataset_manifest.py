@@ -1,7 +1,7 @@
 import hashlib
 import json
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -18,7 +18,9 @@ def test_repository_evaluation_manifest_is_valid() -> None:
 
 
 def test_manifest_rejects_duplicate_ids_and_hash_mismatch() -> None:
-    with tempfile.TemporaryDirectory(dir=Path.cwd(), prefix=".dataset-test-") as directory:
+    with tempfile.TemporaryDirectory(
+        dir=Path.cwd(), prefix=".dataset-test-"
+    ) as directory:
         root = Path(directory)
         dataset = root / "dataset.jsonl"
         dataset.write_text(

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256
-import json
-import logging
 from typing import Protocol
 
 

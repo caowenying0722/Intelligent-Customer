@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
-
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -74,8 +73,12 @@ def run(dataset_path: str, output_path: str, limit: int | None = None) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", default="data/evaluation/retrieval_regression_v1.json")
-    parser.add_argument("--output", default="output/evaluation/deterministic-summary.json")
+    parser.add_argument(
+        "--dataset", default="data/evaluation/retrieval_regression_v1.json"
+    )
+    parser.add_argument(
+        "--output", default="output/evaluation/deterministic-summary.json"
+    )
     parser.add_argument("--limit", type=int, default=None)
     args = parser.parse_args()
     print(run(args.dataset, args.output, args.limit))

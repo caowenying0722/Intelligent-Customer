@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any
 
 from langchain_core.documents import Document
 
@@ -81,7 +82,7 @@ class RetrievalResult:
         final_rank: int | None = None,
         source: str | None = None,
         fused_score: float | None = None,
-    ) -> "RetrievalResult":
+    ) -> RetrievalResult:
         metadata = dict(document.metadata)
         actual_tenant = str(metadata.get("tenant_id", ""))
         if actual_tenant != tenant_id:

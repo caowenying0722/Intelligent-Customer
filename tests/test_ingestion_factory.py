@@ -23,16 +23,25 @@ def test_ingestion_factory_selects_sql_repository_and_recovers_state() -> None:
     )
     try:
         submission = service.submit_document(
-            tenant_id="tenant-a", idempotency_key="factory-job", filename="a.txt",
-            content=b"factory", content_type="text/plain", parser_version="p1",
-            chunker_version="c1", embedding_model="e1", embedding_dimension=3,
-            index_version="idx-1", operation=lambda path, upload, record: None,
+            tenant_id="tenant-a",
+            idempotency_key="factory-job",
+            filename="a.txt",
+            content=b"factory",
+            content_type="text/plain",
+            parser_version="p1",
+            chunker_version="c1",
+            embedding_model="e1",
+            embedding_dimension=3,
+            index_version="idx-1",
+            operation=lambda path, upload, record: None,
         )
         deadline = time.monotonic() + 2
         repository = SqlAlchemyIngestionRepository(f"sqlite:///{database.as_posix()}")
         try:
             while time.monotonic() < deadline:
-                job = repository.get_job(tenant_id="tenant-a", job_id=submission.job.job_id)
+                job = repository.get_job(
+                    tenant_id="tenant-a", job_id=submission.job.job_id
+                )
                 if job and job.status.value == "completed":
                     break
                 time.sleep(0.01)

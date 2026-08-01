@@ -2,13 +2,13 @@ import time
 
 import pytest
 
+from model.cache import ModelCache
 from model.gateway import (
     ModelGateway,
     ModelGatewayError,
     PermanentModelError,
     RetryableModelError,
 )
-from model.cache import ModelCache
 
 
 def test_gateway_routes_to_provider_and_retries_bounded_failure():
@@ -33,13 +33,17 @@ def test_gateway_does_not_retry_permanent_failure():
         raise PermanentModelError("bad request")
 
     with pytest.raises(ModelGatewayError, match="rejected"):
-        ModelGateway({"fake": provider}, max_retries=3).invoke(provider="fake", request={})
+        ModelGateway({"fake": provider}, max_retries=3).invoke(
+            provider="fake", request={}
+        )
     assert len(calls) == 1
 
 
 def test_gateway_times_out_and_caps_retries():
     with pytest.raises(ModelGatewayError, match="timeout"):
-        ModelGateway({"fake": lambda _: time.sleep(0.1)}, timeout_seconds=0.01, max_retries=1).invoke(provider="fake", request={})
+        ModelGateway(
+            {"fake": lambda _: time.sleep(0.1)}, timeout_seconds=0.01, max_retries=1
+        ).invoke(provider="fake", request={})
 
 
 def test_gateway_rejects_unknown_provider():
@@ -79,14 +83,21 @@ def test_gateway_success_resets_consecutive_failures():
 
 
 def test_gateway_routes_alias_to_fallback_provider():
-    gateway = ModelGateway({
-        "primary": lambda _: (_ for _ in ()).throw(PermanentModelError("down")),
-        "backup": lambda request: "backup:" + request,
-    })
-    assert gateway.invoke_routed(
-        route="chat", request="hello", routes={"chat": "primary"},
-        fallbacks={"chat": ["backup"]},
-    ) == "backup:hello"
+    gateway = ModelGateway(
+        {
+            "primary": lambda _: (_ for _ in ()).throw(PermanentModelError("down")),
+            "backup": lambda request: "backup:" + request,
+        }
+    )
+    assert (
+        gateway.invoke_routed(
+            route="chat",
+            request="hello",
+            routes={"chat": "primary"},
+            fallbacks={"chat": ["backup"]},
+        )
+        == "backup:hello"
+    )
 
 
 def test_gateway_rejects_unknown_model_route():
@@ -121,7 +132,13 @@ def test_gateway_cache_hit_skips_provider_and_scopes_tenant():
         {"fake": lambda request: calls.append(request) or "answer"},
         cache=ModelCache(),
     )
-    kwargs = dict(provider="fake", model="m", tenant_id="tenant-a", prompt="hello", request="hello")
+    kwargs = dict(
+        provider="fake",
+        model="m",
+        tenant_id="tenant-a",
+        prompt="hello",
+        request="hello",
+    )
     assert gateway.invoke_cached(**kwargs) == "answer"
     assert gateway.invoke_cached(**kwargs) == "answer"
     assert gateway.invoke_cached(**{**kwargs, "tenant_id": "tenant-b"}) == "answer"

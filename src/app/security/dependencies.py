@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from fastapi import Header, HTTPException, Request
 
+from src.app.security.audit import (
+    AuditSink,
+    LoggingAuditSink,
+    SecurityAuditEvent,
+    actor_hash,
+    record_safely,
+)
 from src.app.security.auth import (
     AuthenticationError,
     AuthorizationError,
@@ -11,13 +18,6 @@ from src.app.security.auth import (
     TokenClaims,
     require_role,
     require_tenant,
-)
-from src.app.security.audit import (
-    AuditSink,
-    LoggingAuditSink,
-    SecurityAuditEvent,
-    actor_hash,
-    record_safely,
 )
 
 
@@ -44,7 +44,9 @@ def auth_dependency(
                         reason="invalid_authorization_header",
                     ),
                 )
-                raise HTTPException(status_code=401, detail="invalid authorization header")
+                raise HTTPException(
+                    status_code=401, detail="invalid authorization header"
+                )
             token = value.strip()
         try:
             claims = authenticator.authenticate(token)
@@ -155,7 +157,9 @@ def tenant_dependency(
                     reason="tenant_scope_mismatch",
                 ),
             )
-            raise HTTPException(status_code=403, detail="tenant scope mismatch") from exc
+            raise HTTPException(
+                status_code=403, detail="tenant scope mismatch"
+            ) from exc
         return claims
 
     return dependency

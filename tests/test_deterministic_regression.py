@@ -1,7 +1,7 @@
-from pathlib import Path
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from scripts.run_deterministic_regression import run
 

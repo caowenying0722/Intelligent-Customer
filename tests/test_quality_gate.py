@@ -1,5 +1,5 @@
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -49,9 +49,7 @@ def test_quality_gate_rejects_model_calls_in_deterministic_mode() -> None:
 
 def test_quality_gate_rejects_non_numeric_threshold_value() -> None:
     with pytest.raises(ValueError):
-        evaluate_quality_gate(
-            _summary(), minimum_metrics={"recall@1": float("nan")}
-        )
+        evaluate_quality_gate(_summary(), minimum_metrics={"recall@1": float("nan")})
 
 
 def test_quality_gate_config_is_versioned_and_cli_overrides() -> None:

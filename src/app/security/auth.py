@@ -50,9 +50,12 @@ class JWTAuthenticator:
                 options={"require": ["exp", "iss", "aud", "sub", "tenant_id"]},
             )
             claims = TokenClaims(
-                subject=payload["sub"], tenant_id=payload["tenant_id"],
-                roles=payload.get("roles", []), issuer=payload["iss"],
-                audience=payload["aud"], expires_at=payload["exp"],
+                subject=payload["sub"],
+                tenant_id=payload["tenant_id"],
+                roles=payload.get("roles", []),
+                issuer=payload["iss"],
+                audience=payload["aud"],
+                expires_at=payload["exp"],
             )
             if claims.expires_at <= int(datetime.now(timezone.utc).timestamp()):
                 raise AuthenticationError("token expired")

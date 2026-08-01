@@ -6,8 +6,8 @@ testing the application does not require qdrant-client or a running service.
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from rag.retrieval_types import RetrievalResult
@@ -40,7 +40,7 @@ class QdrantVectorBackend:
         try:
             future.result(timeout=self.timeout_seconds)
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - readiness fails closed without leaking client details.
             future.cancel()
             return False
         finally:
@@ -53,7 +53,9 @@ class QdrantVectorBackend:
             return future.result(timeout=self.timeout_seconds)
         except TimeoutError as exc:
             future.cancel()
-            raise TimeoutError(f"Qdrant {label} exceeded its configured timeout") from exc
+            raise TimeoutError(
+                f"Qdrant {label} exceeded its configured timeout"
+            ) from exc
         except Exception as exc:
             future.cancel()
             if isinstance(exc, ValueError):
@@ -114,13 +116,21 @@ class QdrantVectorBackend:
         )
         results: list[RetrievalResult] = []
         for rank, point in enumerate(points, start=1):
-            point_id = point.get("id") if isinstance(point, dict) else getattr(point, "id", None)
+            point_id = (
+                point.get("id")
+                if isinstance(point, dict)
+                else getattr(point, "id", None)
+            )
             payload = (
                 point.get("payload", {})
                 if isinstance(point, dict)
                 else getattr(point, "payload", {})
             )
-            score = point.get("score") if isinstance(point, dict) else getattr(point, "score", None)
+            score = (
+                point.get("score")
+                if isinstance(point, dict)
+                else getattr(point, "score", None)
+            )
             if not isinstance(payload, dict):
                 raise VectorBackendError("Qdrant point payload is invalid")
             if (
@@ -138,7 +148,9 @@ class QdrantVectorBackend:
                     document_version=str(payload.get("document_version", "unknown")),
                     index_version=index_version,
                     source=str(payload.get("source", "qdrant")),
-                    fused_score=float(score) if isinstance(score, (int, float)) else None,
+                    fused_score=float(score)
+                    if isinstance(score, (int, float))
+                    else None,
                     final_rank=rank,
                     metadata=payload,
                 )
@@ -204,7 +216,9 @@ class QdrantVectorBackend:
 
         self._run_bounded(call_backend, "alias switch")
 
-    def rollback_active_alias(self, *, alias_name: str, previous_collection: str) -> None:
+    def rollback_active_alias(
+        self, *, alias_name: str, previous_collection: str
+    ) -> None:
         """Rollback by atomically pointing the alias at a known-good collection."""
         self.switch_active_alias(
             alias_name=alias_name, target_collection=previous_collection

@@ -18,7 +18,9 @@ def test_gateway_validates_structured_output():
 
 def test_gateway_rejects_malformed_output_without_retry():
     calls = []
-    gateway = ModelGateway({"fake": lambda _: calls.append(1) or {"text": "bad"}}, max_retries=3)
+    gateway = ModelGateway(
+        {"fake": lambda _: calls.append(1) or {"text": "bad"}}, max_retries=3
+    )
     with pytest.raises(ModelGatewayError, match="schema validation"):
         gateway.invoke_structured(provider="fake", request="hi", schema=Answer)
     assert len(calls) == 1

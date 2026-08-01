@@ -8,9 +8,13 @@ from typing import Protocol
 
 
 class AliasBackend(Protocol):
-    def switch_active_alias(self, *, alias_name: str, target_collection: str) -> None: ...
+    def switch_active_alias(
+        self, *, alias_name: str, target_collection: str
+    ) -> None: ...
 
-    def rollback_active_alias(self, *, alias_name: str, previous_collection: str) -> None: ...
+    def rollback_active_alias(
+        self, *, alias_name: str, previous_collection: str
+    ) -> None: ...
 
 
 class IndexRebuildError(RuntimeError):
@@ -19,7 +23,11 @@ class IndexRebuildError(RuntimeError):
 
 class BlueGreenIndexCoordinator:
     def __init__(
-        self, backend: AliasBackend, *, alias_name: str = "active", timeout_seconds: float = 300.0
+        self,
+        backend: AliasBackend,
+        *,
+        alias_name: str = "active",
+        timeout_seconds: float = 300.0,
     ) -> None:
         if not alias_name.strip():
             raise ValueError("alias_name must not be empty")
@@ -64,7 +72,9 @@ class BlueGreenIndexCoordinator:
         if not isinstance(candidate, str) or not candidate.strip():
             raise IndexRebuildError("candidate builder returned an invalid collection")
         try:
-            valid = self._bounded(lambda: validate_candidate(candidate), "candidate validation")
+            valid = self._bounded(
+                lambda: validate_candidate(candidate), "candidate validation"
+            )
         except IndexRebuildError:
             raise
         except Exception as exc:
@@ -81,7 +91,9 @@ class BlueGreenIndexCoordinator:
                     alias_name=self.alias_name, previous_collection=previous_collection
                 )
             except Exception as rollback_exc:
-                raise IndexRebuildError("index activation and rollback failed") from rollback_exc
+                raise IndexRebuildError(
+                    "index activation and rollback failed"
+                ) from rollback_exc
             raise IndexRebuildError("candidate index activation failed") from exc
         if cleanup_old_collections is not None:
             try:

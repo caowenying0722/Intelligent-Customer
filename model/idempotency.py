@@ -41,14 +41,18 @@ class IdempotencyStore:
                 tenant_id=tenant_id, key=key, fingerprint=fingerprint, result=producer()
             )
 
-    def get_or_set(self, *, tenant_id: str, key: str, fingerprint: str, result: object) -> object:
+    def get_or_set(
+        self, *, tenant_id: str, key: str, fingerprint: str, result: object
+    ) -> object:
         now = time.monotonic()
         identity = (tenant_id, key)
         with self._lock:
             current = self._records.get(identity)
             if current is not None and current.expires_at > now:
                 if current.fingerprint != fingerprint:
-                    raise IdempotencyConflictError("idempotency key reused with different request")
+                    raise IdempotencyConflictError(
+                        "idempotency key reused with different request"
+                    )
                 return current.result
             self._records[identity] = IdempotencyRecord(
                 fingerprint, result, now + self.ttl_seconds
@@ -62,10 +66,14 @@ class IdempotencyStore:
             if current is None or current.expires_at <= now:
                 return None
             if current.fingerprint != fingerprint:
-                raise IdempotencyConflictError("idempotency key reused with different request")
+                raise IdempotencyConflictError(
+                    "idempotency key reused with different request"
+                )
             return current.result
 
-    def set(self, *, tenant_id: str, key: str, fingerprint: str, result: object) -> object:
+    def set(
+        self, *, tenant_id: str, key: str, fingerprint: str, result: object
+    ) -> object:
         with self._lock:
             self._records[(tenant_id, key)] = IdempotencyRecord(
                 fingerprint, result, time.monotonic() + self.ttl_seconds

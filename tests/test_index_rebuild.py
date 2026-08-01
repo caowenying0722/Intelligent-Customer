@@ -1,5 +1,6 @@
-import pytest
 import time
+
+import pytest
 
 from rag.index_rebuild import BlueGreenIndexCoordinator, IndexRebuildError
 

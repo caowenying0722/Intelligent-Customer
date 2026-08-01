@@ -1,9 +1,10 @@
+from decimal import Decimal
+
 from fastapi.testclient import TestClient
 
-from model.gateway import ModelGateway
 from model.cache import ModelCache
 from model.cost import CostTracker
-from decimal import Decimal
+from model.gateway import ModelGateway
 from src.app.application.chat import ChatApplicationService
 from src.app.main import create_app
 
@@ -18,7 +19,9 @@ class Agent:
 
 def test_metrics_exposes_only_gateway_counters():
     gateway = ModelGateway({"fake": lambda request: request}, cache=ModelCache())
-    service = ChatApplicationService(Agent(), model_gateway=gateway, model_provider="fake")
+    service = ChatApplicationService(
+        Agent(), model_gateway=gateway, model_provider="fake"
+    )
     client = TestClient(create_app(chat_service=service))
     client.post("/api/v1/chat", json={"message": "secret-input"})
     response = client.get("/metrics")
@@ -42,10 +45,17 @@ def test_metrics_exposes_aggregate_usage_without_tenant_details():
     tracker = CostTracker()
     gateway = ModelGateway({"fake": lambda _: "ok"}, cost_tracker=tracker)
     gateway.record_usage(
-        tenant_id="tenant-secret", provider="fake", model="m", input_tokens=10,
-        output_tokens=5, input_cost_per_1k=Decimal("1"), output_cost_per_1k=Decimal("2"),
+        tenant_id="tenant-secret",
+        provider="fake",
+        model="m",
+        input_tokens=10,
+        output_tokens=5,
+        input_cost_per_1k=Decimal("1"),
+        output_cost_per_1k=Decimal("2"),
     )
-    service = ChatApplicationService(Agent(), model_gateway=gateway, model_provider="fake")
+    service = ChatApplicationService(
+        Agent(), model_gateway=gateway, model_provider="fake"
+    )
     response = TestClient(create_app(chat_service=service)).get("/metrics")
     body = response.json()["model_gateway"]["usage"]
     assert body["records"] == 1

@@ -35,7 +35,10 @@ def ndcg_at_k(retrieved: Sequence[str], relevant: Iterable[str], k: int) -> floa
     relevant_set = set(relevant)
     if not relevant_set:
         return 0.0
-    gains = [1.0 if item in relevant_set else 0.0 for item in _relevant_at_k(retrieved, relevant_set, k)]
+    gains = [
+        1.0 if item in relevant_set else 0.0
+        for item in _relevant_at_k(retrieved, relevant_set, k)
+    ]
     dcg = sum(gain / math.log2(rank + 1) for rank, gain in enumerate(gains, start=1))
     ideal_length = min(len(relevant_set), k)
     ideal = sum(1.0 / math.log2(rank + 1) for rank in range(1, ideal_length + 1))

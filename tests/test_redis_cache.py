@@ -1,7 +1,7 @@
 import pytest
 
-from model.redis_cache import RedisCacheAdapter
 from model.gateway import ModelGateway
+from model.redis_cache import RedisCacheAdapter
 
 
 class FakeRedis:
@@ -54,7 +54,11 @@ def test_gateway_uses_redis_cache_and_falls_back_when_redis_is_down():
         cache=RedisCacheAdapter(client, namespace="gateway"),
     )
     kwargs = dict(
-        provider="fake", model="m", tenant_id="tenant-a", prompt="hello", request="hello"
+        provider="fake",
+        model="m",
+        tenant_id="tenant-a",
+        prompt="hello",
+        request="hello",
     )
     assert gateway.invoke_cached(**kwargs) == "ok"
     assert gateway.invoke_cached(**kwargs) == "ok"

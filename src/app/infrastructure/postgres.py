@@ -63,7 +63,9 @@ class MessageRow(Base):
 class AgentRunRow(Base):
     __tablename__ = "agent_runs"
     __table_args__ = (
-        Index("ix_agent_runs_tenant_status_created", "tenant_id", "status", "created_at"),
+        Index(
+            "ix_agent_runs_tenant_status_created", "tenant_id", "status", "created_at"
+        ),
         Index("ix_agent_runs_tenant_created", "tenant_id", "created_at"),
     )
 
@@ -88,7 +90,9 @@ class DocumentRow(Base):
     __tablename__ = "documents"
     __table_args__ = (
         Index("ix_documents_tenant_hash", "tenant_id", "content_hash", unique=True),
-        Index("ix_documents_tenant_status_created", "tenant_id", "status", "created_at"),
+        Index(
+            "ix_documents_tenant_status_created", "tenant_id", "status", "created_at"
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -109,14 +113,28 @@ class DocumentRow(Base):
 class IngestionJobRow(Base):
     __tablename__ = "ingestion_jobs"
     __table_args__ = (
-        Index("ix_ingestion_jobs_tenant_status_created", "tenant_id", "status", "created_at"),
-        Index("ux_ingestion_jobs_tenant_idempotency", "tenant_id", "idempotency_key", unique=True),
+        Index(
+            "ix_ingestion_jobs_tenant_status_created",
+            "tenant_id",
+            "status",
+            "created_at",
+        ),
+        Index(
+            "ux_ingestion_jobs_tenant_idempotency",
+            "tenant_id",
+            "idempotency_key",
+            unique=True,
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(128), index=True)
-    document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.id"), index=True, nullable=True)
-    task_type: Mapped[str] = mapped_column(String(64), default="ingestion", server_default="ingestion")
+    document_id: Mapped[str | None] = mapped_column(
+        ForeignKey("documents.id"), index=True, nullable=True
+    )
+    task_type: Mapped[str] = mapped_column(
+        String(64), default="ingestion", server_default="ingestion"
+    )
     task_payload: Mapped[str | None] = mapped_column(String(512), nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32))
@@ -127,8 +145,12 @@ class IngestionJobRow(Base):
     result_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
     cancel_requested: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class SqlAlchemyConversationRepository:

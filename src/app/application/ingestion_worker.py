@@ -7,23 +7,32 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from src.app.application.ingestion import (
+    IngestionCancelledError,
     IngestionJob,
     IngestionJobManager,
     IngestionJobStatus,
     RetryableIngestionError,
-    IngestionCancelledError,
 )
 
 
 class RecoverableJobStore(Protocol):
-    def list_recoverable_jobs(self, *, tenant_id: str | None = None) -> list[IngestionJob]: ...
+    def list_recoverable_jobs(
+        self, *, tenant_id: str | None = None
+    ) -> list[IngestionJob]: ...
 
     def update_job_status(
-        self, *, tenant_id: str, job_id: UUID, status: IngestionJobStatus,
-        error: str | None = None, attempt: int | None = None
+        self,
+        *,
+        tenant_id: str,
+        job_id: UUID,
+        status: IngestionJobStatus,
+        error: str | None = None,
+        attempt: int | None = None,
     ) -> IngestionJob: ...
 
-    def update_progress(self, *, tenant_id: str, job_id: UUID, progress: int) -> IngestionJob: ...
+    def update_progress(
+        self, *, tenant_id: str, job_id: UUID, progress: int
+    ) -> IngestionJob: ...
 
 
 class IngestionWorker:
@@ -32,7 +41,9 @@ class IngestionWorker:
         self.store = store
 
     def _progress(self, *, tenant_id: str, job_id: UUID, progress: int) -> None:
-        self.manager.update_progress(tenant_id=tenant_id, job_id=job_id, progress=progress)
+        self.manager.update_progress(
+            tenant_id=tenant_id, job_id=job_id, progress=progress
+        )
         updater = getattr(self.store, "update_progress", None)
         if callable(updater):
             updater(tenant_id=tenant_id, job_id=job_id, progress=progress)
@@ -54,7 +65,9 @@ class IngestionWorker:
             operation = operation_for(persisted)
 
             def run(operation=operation, persisted=persisted):
-                self._progress(tenant_id=persisted.tenant_id, job_id=persisted.job_id, progress=0)
+                self._progress(
+                    tenant_id=persisted.tenant_id, job_id=persisted.job_id, progress=0
+                )
                 try:
                     if self.manager.is_cancel_requested(
                         tenant_id=persisted.tenant_id, job_id=persisted.job_id
@@ -69,11 +82,15 @@ class IngestionWorker:
                     current = self.manager.get(
                         tenant_id=persisted.tenant_id, job_id=persisted.job_id
                     )
-                    exhausted = current is None or current.attempt >= current.max_attempts
+                    exhausted = (
+                        current is None or current.attempt >= current.max_attempts
+                    )
                     if isinstance(exc, IngestionCancelledError):
                         self.store.update_job_status(
-                            tenant_id=persisted.tenant_id, job_id=persisted.job_id,
-                            status=IngestionJobStatus.CANCELLED, error=str(exc),
+                            tenant_id=persisted.tenant_id,
+                            job_id=persisted.job_id,
+                            status=IngestionJobStatus.CANCELLED,
+                            error=str(exc),
                         )
                     elif not isinstance(exc, RetryableIngestionError) or exhausted:
                         self.store.update_job_status(
@@ -84,7 +101,9 @@ class IngestionWorker:
                             attempt=current.attempt if current is not None else None,
                         )
                     raise
-                self._progress(tenant_id=persisted.tenant_id, job_id=persisted.job_id, progress=100)
+                self._progress(
+                    tenant_id=persisted.tenant_id, job_id=persisted.job_id, progress=100
+                )
                 self.store.update_job_status(
                     tenant_id=persisted.tenant_id,
                     job_id=persisted.job_id,
@@ -102,10 +121,13 @@ class IngestionWorker:
                 task_payload=persisted.task_payload,
             )
             recovered.append(job.job_id)
-            current = self.manager.get(tenant_id=job.tenant_id, job_id=job.job_id) or job
+            current = (
+                self.manager.get(tenant_id=job.tenant_id, job_id=job.job_id) or job
+            )
             status = (
                 current.status
-                if current.status in {IngestionJobStatus.COMPLETED, IngestionJobStatus.FAILED}
+                if current.status
+                in {IngestionJobStatus.COMPLETED, IngestionJobStatus.FAILED}
                 else IngestionJobStatus.RUNNING
             )
             self.store.update_job_status(

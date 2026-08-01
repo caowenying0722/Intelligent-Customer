@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any, Callable
+from typing import Any
 from uuid import UUID, uuid4
 
 
@@ -137,14 +138,18 @@ class IngestionJobManager:
                 return False
             future = self._futures[job_id]
             if future.cancel():
-                self._jobs[job_id] = self._replace(job, status=IngestionJobStatus.CANCELLED)
+                self._jobs[job_id] = self._replace(
+                    job, status=IngestionJobStatus.CANCELLED
+                )
                 return True
             if job.status == IngestionJobStatus.RUNNING:
                 self._jobs[job_id] = self._replace(job, cancel_requested=True)
                 return True
             return False
 
-    def update_progress(self, *, tenant_id: str, job_id: UUID, progress: int) -> IngestionJob:
+    def update_progress(
+        self, *, tenant_id: str, job_id: UUID, progress: int
+    ) -> IngestionJob:
         if progress < 0 or progress > 100:
             raise ValueError("progress must be between 0 and 100")
         with self._lock:
@@ -180,7 +185,7 @@ class IngestionJobManager:
                 try:
                     result = operation()
                     break
-                except RetryableIngestionError as exc:
+                except RetryableIngestionError:
                     if attempt >= self._max_attempts:
                         raise
                     delay = min(
@@ -209,7 +214,7 @@ class IngestionJobManager:
                         completed_at=datetime.now(timezone.utc),
                         result=result,
                     )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - worker records every job failure safely.
             with self._lock:
                 current = self._jobs[job_id]
                 status = (

@@ -1,9 +1,10 @@
+from decimal import Decimal
+
 import pytest
 
+from model.cost import CostTracker
 from model.gateway import ModelGateway, ModelGatewayError
 from model.quota import TenantQuota
-from model.cost import CostTracker
-from decimal import Decimal
 
 
 def test_tenant_quota_isolated_and_bounded():
@@ -33,6 +34,10 @@ def test_gateway_maps_cost_budget_to_stable_error():
     )
     with pytest.raises(ModelGatewayError, match="cost budget"):
         gateway.record_usage(
-            tenant_id="a", provider="fake", model="m", input_tokens=1,
-            output_tokens=0, input_cost_per_1k=Decimal("1"),
+            tenant_id="a",
+            provider="fake",
+            model="m",
+            input_tokens=1,
+            output_tokens=0,
+            input_cost_per_1k=Decimal("1"),
         )

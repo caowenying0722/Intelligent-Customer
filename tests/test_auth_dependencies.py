@@ -5,8 +5,11 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from src.app.security.auth import JWTAuthenticator
-from src.app.security.dependencies import auth_dependency, role_dependency, tenant_dependency
-
+from src.app.security.dependencies import (
+    auth_dependency,
+    role_dependency,
+    tenant_dependency,
+)
 
 SECRET = "x" * 32
 
@@ -14,10 +17,15 @@ SECRET = "x" * 32
 def token(roles=None, tenant="tenant-a"):
     return jwt.encode(
         {
-            "sub": "u", "tenant_id": tenant, "roles": roles or ["customer"],
-            "iss": "iss", "aud": "aud",
+            "sub": "u",
+            "tenant_id": tenant,
+            "roles": roles or ["customer"],
+            "iss": "iss",
+            "aud": "aud",
             "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
-        }, SECRET, algorithm="HS256"
+        },
+        SECRET,
+        algorithm="HS256",
     )
 
 
@@ -42,7 +50,13 @@ def test_dependencies_return_stable_401_403_and_tenant_scope():
 
     client = TestClient(app)
     assert client.get("/auth").status_code == 401
-    assert client.get("/auth", headers={"Authorization": "Bearer " + token()}).status_code == 200
-    assert client.get("/admin", headers={"Authorization": "Bearer " + token()}).status_code == 403
+    assert (
+        client.get("/auth", headers={"Authorization": "Bearer " + token()}).status_code
+        == 200
+    )
+    assert (
+        client.get("/admin", headers={"Authorization": "Bearer " + token()}).status_code
+        == 403
+    )
     headers = {"Authorization": "Bearer " + token(), "x-tenant-id": "tenant-b"}
     assert client.get("/tenant", headers=headers).status_code == 403

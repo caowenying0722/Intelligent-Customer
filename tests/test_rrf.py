@@ -1,19 +1,17 @@
 import pytest
 from langchain_core.documents import Document
 
-from rag.rrf import reciprocal_rank_fusion, reciprocal_rank_fusion_scored
 from rag.retrieval_types import (
     RetrievalResult,
     build_chroma_scope_filter,
     filter_documents_by_scope,
 )
+from rag.rrf import reciprocal_rank_fusion, reciprocal_rank_fusion_scored
 from rag.simple_bm25 import RRFHybridRetriever
 
 
 def test_rrf_deduplicates_and_matches_hand_calculation() -> None:
-    result = reciprocal_rank_fusion(
-        [["a", "b", "c"], ["b", "a", "d"]], k=1
-    )
+    result = reciprocal_rank_fusion([["a", "b", "c"], ["b", "a", "d"]], k=1)
 
     # b and a both receive 1/2 + 1/3; the stable first-seen order wins.
     assert result == ["a", "b", "c", "d"]
@@ -103,12 +101,8 @@ def test_scope_filter_fails_closed_for_tenant_and_index_mismatch() -> None:
 
 
 def test_chroma_scope_filter_rejects_partial_index_scope() -> None:
-    assert build_chroma_scope_filter(tenant_id="tenant-a") == {
-        "tenant_id": "tenant-a"
-    }
-    assert build_chroma_scope_filter(
-        tenant_id="tenant-a", index_version="idx-1"
-    ) == {
+    assert build_chroma_scope_filter(tenant_id="tenant-a") == {"tenant_id": "tenant-a"}
+    assert build_chroma_scope_filter(tenant_id="tenant-a", index_version="idx-1") == {
         "$and": [{"tenant_id": "tenant-a"}, {"index_version": "idx-1"}]
     }
     with pytest.raises(ValueError, match="tenant_id"):

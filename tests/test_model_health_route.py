@@ -16,7 +16,9 @@ class Agent:
 
 def test_model_health_route_requires_optional_token():
     gateway = ModelGateway({"fake": lambda _: "ok"})
-    service = ChatApplicationService(Agent(), model_gateway=gateway, model_provider="fake")
+    service = ChatApplicationService(
+        Agent(), model_gateway=gateway, model_provider="fake"
+    )
     client = TestClient(create_app(chat_service=service, model_health_token="admin"))
     assert client.get("/health/model").status_code == 401
     response = client.get("/health/model", headers={"x-model-health-token": "admin"})
@@ -36,7 +38,10 @@ def test_settings_supply_health_token(monkeypatch):
     clear_settings_cache()
     client = TestClient(create_app())
     assert client.get("/health/model").status_code == 401
-    assert client.get(
-        "/health/model", headers={"x-model-health-token": "from-env"}
-    ).status_code == 200
+    assert (
+        client.get(
+            "/health/model", headers={"x-model-health-token": "from-env"}
+        ).status_code
+        == 200
+    )
     clear_settings_cache()

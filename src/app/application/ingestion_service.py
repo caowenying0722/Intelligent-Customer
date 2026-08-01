@@ -2,23 +2,22 @@
 
 from __future__ import annotations
 
-import threading
 import hashlib
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import UUID
 
+from src.app.application.document_metadata import (
+    DocumentRecord,
+    DocumentStatus,
+)
 from src.app.application.ingestion import (
     IngestionJob,
     IngestionJobManager,
     IngestionJobStatus,
-)
-from src.app.application.document_metadata import (
-    DocumentMetadataRegistry,
-    DocumentRecord,
-    DocumentStatus,
 )
 from src.app.application.upload_storage import SecureUploadStorage
 from src.app.application.uploads import ValidatedUpload, validate_upload
@@ -119,9 +118,7 @@ class DocumentIngestionService:
                 raise KeyError("document not found")
             if document.status != DocumentStatus.DELETED:
                 self.storage.remove(document.storage_name)
-                document = metadata.delete(
-                    tenant_id=tenant_id, document_id=document_id
-                )
+                document = metadata.delete(tenant_id=tenant_id, document_id=document_id)
                 if self.job_store is not None:
                     self.job_store.update_document_status(
                         tenant_id=tenant_id,

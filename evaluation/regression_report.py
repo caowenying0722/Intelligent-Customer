@@ -6,9 +6,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from evaluation.dataset import file_sha256, resolve_project_path
 from evaluation.frozen_regression import load_frozen_regression
 from evaluation.retrieval_metrics import evaluate_retrieval
-from evaluation.dataset import file_sha256, resolve_project_path
 
 
 def repository_snapshot() -> dict[str, Any]:
@@ -40,7 +40,9 @@ def build_retrieval_regression_summary(
     rows_by_id = {str(row.get("id")): row for row in rows}
     expected = {sample.sample_id: sample.expected_sources for sample in samples}
     retrieved = {
-        sample_id: [str(item) for item in rows_by_id[sample_id].get("retrieved_sources", [])]
+        sample_id: [
+            str(item) for item in rows_by_id[sample_id].get("retrieved_sources", [])
+        ]
         for sample_id in expected
         if sample_id in rows_by_id
     }

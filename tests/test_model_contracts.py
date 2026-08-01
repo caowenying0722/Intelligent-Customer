@@ -1,14 +1,16 @@
 import pytest
 
+from model.cache import ModelCache
 from model.contracts import ModelRequest, ModelResponse
 from model.gateway import ModelGateway
-from model.cache import ModelCache
 
 
 def test_gateway_returns_provider_neutral_contract():
     gateway = ModelGateway({"fake": lambda prompt: "answer:" + prompt})
     response = gateway.invoke_contract(
-        ModelRequest(tenant_id="t", provider="fake", model="m", prompt="hello", request_id="r1")
+        ModelRequest(
+            tenant_id="t", provider="fake", model="m", prompt="hello", request_id="r1"
+        )
     )
     assert isinstance(response, ModelResponse)
     assert response.output == "answer:hello"
@@ -23,7 +25,9 @@ def test_gateway_returns_provider_neutral_contract():
 
 def test_request_contract_rejects_extra_fields():
     with pytest.raises(ValueError):
-        ModelRequest(tenant_id="t", provider="fake", model="m", prompt="x", secret="bad")
+        ModelRequest(
+            tenant_id="t", provider="fake", model="m", prompt="x", secret="bad"
+        )
 
 
 def test_contract_reports_cache_hit_without_provider_call():
@@ -43,7 +47,9 @@ def test_contract_accepts_explicit_routing_metadata():
     gateway = ModelGateway({"fake": lambda _: "ok"})
     response = gateway.invoke_contract(
         ModelRequest(tenant_id="t", provider="fake", model="m", prompt="x"),
-        finish_reason="length", retry_count=1, fallback_chain=["primary", "fake"],
+        finish_reason="length",
+        retry_count=1,
+        fallback_chain=["primary", "fake"],
     )
     assert response.finish_reason == "length"
     assert response.retry_count == 1

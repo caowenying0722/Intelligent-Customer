@@ -1,7 +1,7 @@
 from model.cache import ModelCache
+from model.quota import TenantQuota
 from model.redis_cache import RedisCacheAdapter
 from utils.settings import Settings
-from model.quota import TenantQuota
 
 
 class Client:
@@ -30,7 +30,9 @@ def test_cache_adapters_use_settings():
 
 
 def test_quota_uses_settings_when_enabled():
-    settings = Settings.model_validate({"model_quota_max_calls": 2, "model_quota_window_seconds": 10})
+    settings = Settings.model_validate(
+        {"model_quota_max_calls": 2, "model_quota_window_seconds": 10}
+    )
     quota = TenantQuota.from_settings(settings)
     assert quota is not None
     assert quota.max_calls == 2

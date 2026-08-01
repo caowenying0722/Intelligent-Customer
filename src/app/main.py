@@ -16,8 +16,8 @@ from src.app.infrastructure.factory import (
     build_conversation_repository,
     build_document_ingestion_service,
 )
-from src.app.security.auth import JWTAuthenticator
 from src.app.security.audit import AuditSink
+from src.app.security.auth import JWTAuthenticator
 from utils.settings import get_settings
 
 ReadinessCheck = Callable[[], bool]
@@ -42,6 +42,7 @@ def create_app(
         model_health_token = settings.model_health_token_value
     if settings.application_env == "production" and not model_health_token:
         raise ValueError("MODEL_HEALTH_TOKEN is required in production")
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         if (
@@ -54,8 +55,8 @@ def create_app(
             ).recover_queued(
                 tenant_id=None,
                 task_type="index_rebuild",
-                operation_for=lambda job: lambda: index_rebuild_operation(
-                    job.task_payload or ""
+                operation_for=lambda job: (
+                    lambda: index_rebuild_operation(job.task_payload or "")
                 ),
             )
         yield
@@ -77,9 +78,7 @@ def create_app(
         lifecycle_resources = (*lifecycle_resources, repository)
 
     if ingestion_service is None and database_url:
-        ingestion_service = build_document_ingestion_service(
-            database_url=database_url
-        )
+        ingestion_service = build_document_ingestion_service(database_url=database_url)
         lifecycle_resources = (*lifecycle_resources, ingestion_service)
 
     if readiness_check is None and chat_service is not None:
@@ -148,8 +147,17 @@ def create_app(
         gateway = getattr(chat_service, "model_gateway", None)
         if gateway is None or not hasattr(gateway, "audit_snapshot"):
             return {
-                "model_gateway": {"calls": 0, "failures": 0, "provider_calls": {}, "provider_failures": {}},
-                "model_gateway_health": {"configured_providers": [], "circuit_open": False, "healthy": False},
+                "model_gateway": {
+                    "calls": 0,
+                    "failures": 0,
+                    "provider_calls": {},
+                    "provider_failures": {},
+                },
+                "model_gateway_health": {
+                    "configured_providers": [],
+                    "circuit_open": False,
+                    "healthy": False,
+                },
             }
         return {
             "model_gateway": gateway.audit_snapshot(),
@@ -158,11 +166,18 @@ def create_app(
 
     @app.get("/health/model", response_model=None)
     async def model_health(request: Request) -> JSONResponse | dict[str, object]:
-        if model_health_token is not None and request.headers.get("x-model-health-token") != model_health_token:
+        if (
+            model_health_token is not None
+            and request.headers.get("x-model-health-token") != model_health_token
+        ):
             return JSONResponse(status_code=401, content={"status": "unauthorized"})
         gateway = getattr(chat_service, "model_gateway", None)
         if gateway is None or not hasattr(gateway, "health_snapshot"):
-            return {"status": "unhealthy", "configured_providers": [], "circuit_open": False}
+            return {
+                "status": "unhealthy",
+                "configured_providers": [],
+                "circuit_open": False,
+            }
         snapshot = gateway.health_snapshot()
         return {"status": "ok" if snapshot["healthy"] else "unhealthy", **snapshot}
 

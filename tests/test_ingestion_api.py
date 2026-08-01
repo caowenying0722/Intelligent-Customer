@@ -49,14 +49,22 @@ def test_document_upload_and_job_query_api_contract() -> None:
             )
             assert job.status_code == 200
             deadline = time.monotonic() + 1
-            while time.monotonic() < deadline and client.get(
-                f"/api/v1/jobs/{payload['job_id']}", headers={"x-tenant-id": "tenant-a"}
-            ).json()["status"] != "completed":
+            while (
+                time.monotonic() < deadline
+                and client.get(
+                    f"/api/v1/jobs/{payload['job_id']}",
+                    headers={"x-tenant-id": "tenant-a"},
+                ).json()["status"]
+                != "completed"
+            ):
                 time.sleep(0.01)
-            assert client.get(
-                f"/api/v1/documents/{payload['document_id']}",
-                headers={"x-tenant-id": "tenant-b"},
-            ).status_code == 404
+            assert (
+                client.get(
+                    f"/api/v1/documents/{payload['document_id']}",
+                    headers={"x-tenant-id": "tenant-b"},
+                ).status_code
+                == 404
+            )
     finally:
         service.close()
         shutil.rmtree(storage_root, ignore_errors=True)
@@ -83,24 +91,39 @@ def test_document_delete_is_tenant_scoped_and_removes_file() -> None:
     service = DocumentIngestionService(
         SecureUploadStorage(storage_root), jobs, DocumentMetadataRegistry()
     )
-    app = create_app(ingestion_service=service, ingestion_operation=lambda path, upload, record: None)
+    app = create_app(
+        ingestion_service=service, ingestion_operation=lambda path, upload, record: None
+    )
     try:
         with TestClient(app) as client:
             uploaded = client.post(
-                "/api/v1/documents", headers={"x-tenant-id": "tenant-a"},
-                json={"filename": "manual.txt", "content_base64": base64.b64encode(b"delete-me").decode(), "content_type": "text/plain", "idempotency_key": "delete-1"},
+                "/api/v1/documents",
+                headers={"x-tenant-id": "tenant-a"},
+                json={
+                    "filename": "manual.txt",
+                    "content_base64": base64.b64encode(b"delete-me").decode(),
+                    "content_type": "text/plain",
+                    "idempotency_key": "delete-1",
+                },
             ).json()
             document = service.metadata.get(tenant_id="tenant-a", document_id=uuid4())
             assert document is None
-            assert client.delete(
-                f"/api/v1/documents/{uploaded['document_id']}", headers={"x-tenant-id": "tenant-b"}
-            ).status_code == 404
+            assert (
+                client.delete(
+                    f"/api/v1/documents/{uploaded['document_id']}",
+                    headers={"x-tenant-id": "tenant-b"},
+                ).status_code
+                == 404
+            )
             deleted = client.delete(
-                f"/api/v1/documents/{uploaded['document_id']}", headers={"x-tenant-id": "tenant-a"}
+                f"/api/v1/documents/{uploaded['document_id']}",
+                headers={"x-tenant-id": "tenant-a"},
             )
             assert deleted.status_code == 200
             assert deleted.json()["status"] == "deleted"
-            record = service.metadata.get(tenant_id="tenant-a", document_id=UUID(uploaded["document_id"]))
+            record = service.metadata.get(
+                tenant_id="tenant-a", document_id=UUID(uploaded["document_id"])
+            )
             assert record.status.value == "deleted"
             assert not (storage_root / record.storage_name).exists()
     finally:
@@ -122,7 +145,9 @@ def test_index_rebuild_is_bounded_and_idempotent() -> None:
     )
     try:
         with TestClient(app) as client:
-            missing = client.post("/api/v1/indexes/rebuild", json={"index_version": "v1"})
+            missing = client.post(
+                "/api/v1/indexes/rebuild", json={"index_version": "v1"}
+            )
             assert missing.status_code == 422
             first = client.post(
                 "/api/v1/indexes/rebuild",

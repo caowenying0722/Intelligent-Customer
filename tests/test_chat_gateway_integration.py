@@ -15,7 +15,9 @@ class Agent:
 
 def test_chat_service_can_use_gateway_instead_of_direct_provider():
     gateway = ModelGateway({"fake": lambda request: "gateway:" + request})
-    service = ChatApplicationService(Agent(), model_gateway=gateway, model_provider="fake")
+    service = ChatApplicationService(
+        Agent(), model_gateway=gateway, model_provider="fake"
+    )
     response = TestClient(create_app(chat_service=service)).post(
         "/api/v1/chat", json={"message": "hello"}
     )
@@ -24,8 +26,12 @@ def test_chat_service_can_use_gateway_instead_of_direct_provider():
 
 
 def test_gateway_provider_error_maps_to_stable_chat_error():
-    gateway = ModelGateway({"fake": lambda _: (_ for _ in ()).throw(PermanentModelError("secret"))})
-    service = ChatApplicationService(Agent(), model_gateway=gateway, model_provider="fake")
+    gateway = ModelGateway(
+        {"fake": lambda _: (_ for _ in ()).throw(PermanentModelError("secret"))}
+    )
+    service = ChatApplicationService(
+        Agent(), model_gateway=gateway, model_provider="fake"
+    )
     response = TestClient(create_app(chat_service=service)).post(
         "/api/v1/chat", json={"message": "hello"}
     )

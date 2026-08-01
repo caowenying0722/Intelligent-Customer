@@ -16,8 +16,11 @@ from src.app.application.document_metadata import (
 )
 from src.app.application.ingestion import IngestionJob, IngestionJobStatus
 from src.app.application.uploads import ValidatedUpload
-from src.app.infrastructure.postgres import DocumentRow, IngestionJobRow
-from src.app.infrastructure.postgres import SqlAlchemyConversationRepository
+from src.app.infrastructure.postgres import (
+    DocumentRow,
+    IngestionJobRow,
+    SqlAlchemyConversationRepository,
+)
 
 
 class SqlAlchemyIngestionRepository:
@@ -64,7 +67,9 @@ class SqlAlchemyIngestionRepository:
                 return self._document(existing)
         return record
 
-    def get_document(self, *, tenant_id: str, document_id: UUID) -> DocumentRecord | None:
+    def get_document(
+        self, *, tenant_id: str, document_id: UUID
+    ) -> DocumentRecord | None:
         with Session(self.engine) as session:
             row = session.scalar(
                 select(DocumentRow).where(
@@ -77,7 +82,9 @@ class SqlAlchemyIngestionRepository:
     def get(self, *, tenant_id: str, document_id: UUID) -> DocumentRecord | None:
         return self.get_document(tenant_id=tenant_id, document_id=document_id)
 
-    def get_by_hash(self, *, tenant_id: str, content_hash: str) -> DocumentRecord | None:
+    def get_by_hash(
+        self, *, tenant_id: str, content_hash: str
+    ) -> DocumentRecord | None:
         with Session(self.engine) as session:
             row = session.scalar(
                 select(DocumentRow).where(
@@ -88,17 +95,27 @@ class SqlAlchemyIngestionRepository:
             return self._document(row) if row else None
 
     def register(
-        self, *, tenant_id: str, upload: ValidatedUpload, parser_version: str,
-        chunker_version: str, embedding_model: str, embedding_dimension: int,
+        self,
+        *,
+        tenant_id: str,
+        upload: ValidatedUpload,
+        parser_version: str,
+        chunker_version: str,
+        embedding_model: str,
+        embedding_dimension: int,
         index_version: str,
     ) -> tuple[DocumentRecord, bool]:
         existing = self.get_by_hash(tenant_id=tenant_id, content_hash=upload.sha256)
         if existing is not None:
             return existing, False
         record, _ = DocumentMetadataRegistry().register(
-            tenant_id=tenant_id, upload=upload, parser_version=parser_version,
-            chunker_version=chunker_version, embedding_model=embedding_model,
-            embedding_dimension=embedding_dimension, index_version=index_version,
+            tenant_id=tenant_id,
+            upload=upload,
+            parser_version=parser_version,
+            chunker_version=chunker_version,
+            embedding_model=embedding_model,
+            embedding_dimension=embedding_dimension,
+            index_version=index_version,
         )
         return self.create_document(record), True
 
@@ -170,8 +187,13 @@ class SqlAlchemyIngestionRepository:
             return self._job(row) if row else None
 
     def update_job_status(
-        self, *, tenant_id: str, job_id: UUID, status: IngestionJobStatus,
-        error: str | None = None, attempt: int | None = None
+        self,
+        *,
+        tenant_id: str,
+        job_id: UUID,
+        status: IngestionJobStatus,
+        error: str | None = None,
+        attempt: int | None = None,
     ) -> IngestionJob:
         with Session(self.engine) as session:
             row = session.scalar(
@@ -215,7 +237,9 @@ class SqlAlchemyIngestionRepository:
             session.commit()
             return self._job(row)
 
-    def list_recoverable_jobs(self, *, tenant_id: str | None = None) -> list[IngestionJob]:
+    def list_recoverable_jobs(
+        self, *, tenant_id: str | None = None
+    ) -> list[IngestionJob]:
         with Session(self.engine) as session:
             statement = select(IngestionJobRow).where(
                 IngestionJobRow.status.in_(["queued", "running"])
@@ -259,24 +283,37 @@ class SqlAlchemyIngestionRepository:
     @staticmethod
     def _document(row: DocumentRow) -> DocumentRecord:
         return DocumentRecord(
-            document_id=UUID(row.id), tenant_id=row.tenant_id,
-            original_name=row.original_name, storage_name=row.storage_name,
-            content_hash=row.content_hash, document_version=row.document_version,
-            parser_version=row.parser_version, chunker_version=row.chunker_version,
-            embedding_model=row.embedding_model, embedding_dimension=row.embedding_dimension,
-            index_version=row.index_version, status=DocumentStatus(row.status),
+            document_id=UUID(row.id),
+            tenant_id=row.tenant_id,
+            original_name=row.original_name,
+            storage_name=row.storage_name,
+            content_hash=row.content_hash,
+            document_version=row.document_version,
+            parser_version=row.parser_version,
+            chunker_version=row.chunker_version,
+            embedding_model=row.embedding_model,
+            embedding_dimension=row.embedding_dimension,
+            index_version=row.index_version,
+            status=DocumentStatus(row.status),
             created_at=row.created_at,
         )
 
     @staticmethod
     def _job(row: IngestionJobRow) -> IngestionJob:
         return IngestionJob(
-            job_id=UUID(row.id), tenant_id=row.tenant_id,
-            idempotency_key=row.idempotency_key, status=IngestionJobStatus(row.status),
-            created_at=row.created_at, started_at=row.started_at,
-            completed_at=row.completed_at, error=row.error, result=row.result_ref,
-            attempt=row.attempt, max_attempts=row.max_attempts,
-            progress=row.progress, cancel_requested=row.cancel_requested,
+            job_id=UUID(row.id),
+            tenant_id=row.tenant_id,
+            idempotency_key=row.idempotency_key,
+            status=IngestionJobStatus(row.status),
+            created_at=row.created_at,
+            started_at=row.started_at,
+            completed_at=row.completed_at,
+            error=row.error,
+            result=row.result_ref,
+            attempt=row.attempt,
+            max_attempts=row.max_attempts,
+            progress=row.progress,
+            cancel_requested=row.cancel_requested,
             task_type=row.task_type,
             task_payload=row.task_payload,
         )

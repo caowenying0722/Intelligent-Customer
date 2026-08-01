@@ -6,8 +6,8 @@ from collections.abc import Callable
 
 from langchain_core.documents import Document
 
-from rag.rrf import reciprocal_rank_fusion, reciprocal_rank_fusion_scored
 from rag.retrieval_types import RetrievalResult, filter_documents_by_scope
+from rag.rrf import reciprocal_rank_fusion, reciprocal_rank_fusion_scored
 
 
 def _safe_divide(numerator: float, denominator: float) -> float:

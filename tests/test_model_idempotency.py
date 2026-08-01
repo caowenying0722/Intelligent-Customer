@@ -1,6 +1,7 @@
-import pytest
 import time
 from concurrent.futures import ThreadPoolExecutor
+
+import pytest
 
 from model.contracts import ModelRequest
 from model.gateway import ModelGateway, ModelGatewayError
@@ -54,6 +55,13 @@ def test_idempotency_serializes_concurrent_same_key():
     )
     request = ModelRequest(tenant_id="a", provider="fake", model="m", prompt="one")
     with ThreadPoolExecutor(max_workers=4) as pool:
-        results = list(pool.map(lambda _: gateway.invoke_idempotent(request, idempotency_key="k").output, range(4)))
+        results = list(
+            pool.map(
+                lambda _: (
+                    gateway.invoke_idempotent(request, idempotency_key="k").output
+                ),
+                range(4),
+            )
+        )
     assert results == ["ok"] * 4
     assert calls == ["one"]

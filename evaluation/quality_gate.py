@@ -74,7 +74,9 @@ def evaluate_quality_gate(
         failures.append("retrieval regression dataset is incomplete")
     if require_model_free:
         retriever = summary.get("retriever", {})
-        model_calls = retriever.get("model_calls") if isinstance(retriever, dict) else None
+        model_calls = (
+            retriever.get("model_calls") if isinstance(retriever, dict) else None
+        )
         if model_calls != 0:
             failures.append("deterministic evaluation reported model calls")
     metrics = regression.get("metrics", {})
@@ -105,7 +107,9 @@ def _parse_metric(value: str) -> tuple[str, float]:
     try:
         return name.strip(), float(threshold)
     except ValueError as exc:
-        raise argparse.ArgumentTypeError("metric threshold value must be numeric") from exc
+        raise argparse.ArgumentTypeError(
+            "metric threshold value must be numeric"
+        ) from exc
 
 
 def main(argv: list[str] | None = None) -> int:

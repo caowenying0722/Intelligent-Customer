@@ -46,8 +46,12 @@ class Settings(BaseSettings):
     model_health_token: SecretStr | None = None
     model_cache_max_entries: int = Field(default=1024, ge=1, le=100_000)
     model_cache_ttl_seconds: float = Field(default=60.0, gt=0, le=86_400)
-    model_cache_max_entries_per_tenant: int | None = Field(default=None, ge=1, le=100_000)
-    model_cache_namespace: str = Field(default="model-cache", min_length=1, max_length=64)
+    model_cache_max_entries_per_tenant: int | None = Field(
+        default=None, ge=1, le=100_000
+    )
+    model_cache_namespace: str = Field(
+        default="model-cache", min_length=1, max_length=64
+    )
     model_quota_max_calls: int | None = Field(default=None, ge=1, le=1_000_000)
     model_quota_window_seconds: float = Field(default=60.0, gt=0, le=86_400)
     model_ca_bundle: Path | None = None
@@ -154,7 +158,11 @@ class Settings(BaseSettings):
 
     @property
     def model_health_token_value(self) -> str | None:
-        return self.model_health_token.get_secret_value() if self.model_health_token else None
+        return (
+            self.model_health_token.get_secret_value()
+            if self.model_health_token
+            else None
+        )
 
 
 @lru_cache(maxsize=1)

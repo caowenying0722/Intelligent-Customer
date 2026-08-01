@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from decimal import Decimal
-import threading
 
 
 @dataclass(frozen=True)
@@ -70,6 +70,8 @@ class CostTracker:
                 "records": len(self._records),
                 "input_tokens": sum(item.input_tokens for item in self._records),
                 "output_tokens": sum(item.output_tokens for item in self._records),
-                "estimated_cost": str(sum((item.estimated_cost for item in self._records), Decimal("0"))),
+                "estimated_cost": str(
+                    sum((item.estimated_cost for item in self._records), Decimal("0"))
+                ),
                 "tenants": len(self._tenant_totals),
             }

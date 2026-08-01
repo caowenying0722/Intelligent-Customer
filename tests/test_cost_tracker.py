@@ -8,8 +8,13 @@ from model.cost import BudgetExceededError, CostTracker
 def test_cost_tracker_requires_explicit_usage_and_computes_cost():
     tracker = CostTracker()
     record = tracker.record(
-        tenant_id="a", provider="fake", model="m", input_tokens=1000,
-        output_tokens=500, input_cost_per_1k=Decimal("1"), output_cost_per_1k=Decimal("2"),
+        tenant_id="a",
+        provider="fake",
+        model="m",
+        input_tokens=1000,
+        output_tokens=500,
+        input_cost_per_1k=Decimal("1"),
+        output_cost_per_1k=Decimal("2"),
     )
     assert record.estimated_cost == Decimal("2.0")
     assert tracker.snapshot()["input_tokens"] == 1000
@@ -20,7 +25,9 @@ def test_cost_tracker_requires_explicit_usage_and_computes_cost():
 def test_cost_tracker_rejects_negative_tokens(kwargs):
     with pytest.raises(ValueError):
         CostTracker().record(
-            tenant_id="a", provider="fake", model="m",
+            tenant_id="a",
+            provider="fake",
+            model="m",
             input_tokens=kwargs.get("input_tokens", 0),
             output_tokens=kwargs.get("output_tokens", 0),
         )
@@ -29,11 +36,19 @@ def test_cost_tracker_rejects_negative_tokens(kwargs):
 def test_cost_tracker_enforces_tenant_budget():
     tracker = CostTracker(max_cost_per_tenant=Decimal("1"))
     tracker.record(
-        tenant_id="a", provider="fake", model="m", input_tokens=1000,
-        output_tokens=0, input_cost_per_1k=Decimal("1"),
+        tenant_id="a",
+        provider="fake",
+        model="m",
+        input_tokens=1000,
+        output_tokens=0,
+        input_cost_per_1k=Decimal("1"),
     )
     with pytest.raises(BudgetExceededError):
         tracker.record(
-            tenant_id="a", provider="fake", model="m", input_tokens=1,
-            output_tokens=0, input_cost_per_1k=Decimal("1"),
+            tenant_id="a",
+            provider="fake",
+            model="m",
+            input_tokens=1,
+            output_tokens=0,
+            input_cost_per_1k=Decimal("1"),
         )

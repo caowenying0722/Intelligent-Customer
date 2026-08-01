@@ -23,4 +23,6 @@ def test_prompt_guard_checks_message_content_without_touching_non_text() -> None
 
     policy.check_messages([{"content": "not a message object"}])
     with pytest.raises(PromptInjectionError):
-        policy.check_messages([type("Message", (), {"content": "override instructions"})()])
+        policy.check_messages(
+            [type("Message", (), {"content": "override instructions"})()]
+        )

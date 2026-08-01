@@ -11,14 +11,16 @@ from src.app.security.auth import (
     require_tenant,
 )
 
-
 SECRET = "x" * 32
 
 
 def _token(**overrides):
     payload = {
-        "sub": "user-1", "tenant_id": "tenant-a", "roles": ["service_agent"],
-        "iss": "issuer", "aud": "audience",
+        "sub": "user-1",
+        "tenant_id": "tenant-a",
+        "roles": ["service_agent"],
+        "iss": "issuer",
+        "aud": "audience",
         "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
     }
     payload.update(overrides)
@@ -41,7 +43,9 @@ def test_authenticator_rejects_expired_or_missing_token():
 
 
 def test_authorization_rejects_wrong_role_or_tenant():
-    claims = JWTAuthenticator(secret=SECRET, issuer="issuer", audience="audience").authenticate(_token())
+    claims = JWTAuthenticator(
+        secret=SECRET, issuer="issuer", audience="audience"
+    ).authenticate(_token())
     with pytest.raises(AuthorizationError):
         require_role(claims, ["admin"])
     with pytest.raises(AuthorizationError):

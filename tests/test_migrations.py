@@ -46,9 +46,7 @@ def test_migration_upgrade_and_downgrade_on_empty_sqlite_database() -> None:
             "WHERE tenant_id = 'tenant-a' AND status = 'completed' "
             "ORDER BY created_at DESC LIMIT 10"
         ).all()
-    assert "ix_agent_runs_tenant_status_created" in " ".join(
-        str(row) for row in plan
-    )
+    assert "ix_agent_runs_tenant_status_created" in " ".join(str(row) for row in plan)
     command.downgrade(config, "base")
     assert set(inspect(engine).get_table_names()) == {"alembic_version"}
     repository = SqlAlchemyConversationRepository(f"sqlite:///{database.as_posix()}")

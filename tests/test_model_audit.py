@@ -4,7 +4,11 @@ from model.contracts import ModelRequest
 
 def test_request_fingerprint_is_deterministic_but_not_prompt():
     request = ModelRequest(
-        tenant_id="tenant-a", provider="fake", model="m", prompt="secret prompt", request_id="r1"
+        tenant_id="tenant-a",
+        provider="fake",
+        model="m",
+        prompt="secret prompt",
+        request_id="r1",
     )
     assert request_fingerprint(request) == request_fingerprint(request)
     assert "secret prompt" not in request_fingerprint(request)

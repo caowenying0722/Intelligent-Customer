@@ -1,7 +1,7 @@
 """persist bounded payload for recoverable task types"""
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0010_add_ingestion_job_payload"
 down_revision = "0009_add_ingestion_job_task_type"

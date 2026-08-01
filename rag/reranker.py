@@ -30,7 +30,7 @@ class CrossEncoderRerankerAdapter:
         self,
         scorer: Callable[[str, list[Document]], list[float]] | None = None,
         *,
-        fallback: "LightweightEvidenceReranker | None" = None,
+        fallback: LightweightEvidenceReranker | None = None,
         max_candidates: int = 32,
         timeout_seconds: float = 2.0,
     ):
@@ -62,7 +62,7 @@ class CrossEncoderRerankerAdapter:
                 zip(scores, candidates), key=lambda item: item[0], reverse=True
             )
             return [document for _, document in ranked[:top_k]]
-        except Exception:
+        except Exception:  # noqa: BLE001 - scorer failures use deterministic fallback.
             future.cancel()
             return self._fallback(query, candidates, top_k)
         finally:

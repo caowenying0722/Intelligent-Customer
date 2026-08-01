@@ -25,7 +25,8 @@ def test_document_rebuild_cancel_delete_end_to_end() -> None:
     app = create_app(
         ingestion_service=service,
         ingestion_operation=lambda path, upload, record: (
-            upload_started.set(), release_upload.wait(1)
+            upload_started.set(),
+            release_upload.wait(1),
         ),
         index_rebuild_operation=lambda version: None,
     )
@@ -73,10 +74,13 @@ def test_document_rebuild_cancel_delete_end_to_end() -> None:
             )
             assert deleted.status_code == 200
             assert deleted.json()["status"] == "deleted"
-            assert client.get(
-                f"/api/v1/documents/{document_id}",
-                headers={"x-tenant-id": "tenant-b"},
-            ).status_code == 404
+            assert (
+                client.get(
+                    f"/api/v1/documents/{document_id}",
+                    headers={"x-tenant-id": "tenant-b"},
+                ).status_code
+                == 404
+            )
             assert UUID(document_id)
     finally:
         release_upload.set()

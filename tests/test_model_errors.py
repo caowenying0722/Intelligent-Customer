@@ -10,7 +10,11 @@ from model.gateway import ModelGatewayError
         ("model request exceeded configured timeout", ModelErrorCode.TIMEOUT, True),
         ("model gateway rate limit reached", ModelErrorCode.RATE_LIMITED, True),
         ("model cost budget exceeded", ModelErrorCode.BUDGET_EXCEEDED, False),
-        ("model response schema validation failed", ModelErrorCode.MALFORMED_OUTPUT, False),
+        (
+            "model response schema validation failed",
+            ModelErrorCode.MALFORMED_OUTPUT,
+            False,
+        ),
     ],
 )
 def test_gateway_error_maps_to_stable_contract(message, code, retryable):

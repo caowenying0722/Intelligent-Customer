@@ -12,11 +12,11 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 
 from model.anthropic_compatible import AnthropicCompatibleChatModel
-from model.runtime_config import ModelRuntimeConfig
-from model.gateway import ModelGateway
 from model.cache import ModelCache
-from model.redis_cache import RedisCacheAdapter
+from model.gateway import ModelGateway
 from model.quota import TenantQuota
+from model.redis_cache import RedisCacheAdapter
+from model.runtime_config import ModelRuntimeConfig
 from utils.settings import Settings, get_settings
 
 
@@ -195,7 +195,9 @@ def build_chat_gateway(
             if redis_client is not None
             else ModelCache.from_settings(selected_settings)
         )
-    quota = TenantQuota.from_settings(selected_settings) if settings is not None else None
+    quota = (
+        TenantQuota.from_settings(selected_settings) if settings is not None else None
+    )
     return ModelGateway(
         {provider: selected.invoke},
         timeout_seconds=config.request_timeout_seconds,

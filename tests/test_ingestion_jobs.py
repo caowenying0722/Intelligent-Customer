@@ -33,7 +33,12 @@ def test_ingestion_jobs_are_tenant_scoped_and_idempotent() -> None:
         )
         assert duplicate.job_id == first.job_id
         assert manager.get(tenant_id="tenant-b", job_id=first.job_id) is None
-        assert _wait_for(manager, "tenant-a", first.job_id, IngestionJobStatus.COMPLETED).result == "ok"
+        assert (
+            _wait_for(
+                manager, "tenant-a", first.job_id, IngestionJobStatus.COMPLETED
+            ).result
+            == "ok"
+        )
     finally:
         manager.close()
 
@@ -49,8 +54,15 @@ def test_ingestion_job_failure_and_timeout_are_recorded() -> None:
             idempotency_key="slow",
             operation=lambda: time.sleep(0.05),
         )
-        assert _wait_for(manager, "tenant-a", failed.job_id, IngestionJobStatus.FAILED).error
-        assert "timeout" in (_wait_for(manager, "tenant-a", timed.job_id, IngestionJobStatus.FAILED).error or "")
+        assert _wait_for(
+            manager, "tenant-a", failed.job_id, IngestionJobStatus.FAILED
+        ).error
+        assert "timeout" in (
+            _wait_for(
+                manager, "tenant-a", timed.job_id, IngestionJobStatus.FAILED
+            ).error
+            or ""
+        )
     finally:
         manager.close()
 
@@ -70,7 +82,10 @@ def test_queued_ingestion_job_can_be_cancelled() -> None:
             tenant_id="tenant-a", idempotency_key="queued", operation=lambda: None
         )
         assert manager.cancel(tenant_id="tenant-a", job_id=queued.job_id) is True
-        assert manager.get(tenant_id="tenant-a", job_id=queued.job_id).status == IngestionJobStatus.CANCELLED
+        assert (
+            manager.get(tenant_id="tenant-a", job_id=queued.job_id).status
+            == IngestionJobStatus.CANCELLED
+        )
         release.set()
     finally:
         manager.close()
@@ -86,9 +101,12 @@ def test_ingestion_manager_validates_limits() -> None:
 
 
 def test_ingestion_retries_retryable_errors_with_bounded_attempts() -> None:
-    manager = IngestionJobManager(max_workers=1, max_attempts=3, retry_backoff_seconds=0)
+    manager = IngestionJobManager(
+        max_workers=1, max_attempts=3, retry_backoff_seconds=0
+    )
     attempts = 0
     try:
+
         def operation():
             nonlocal attempts
             attempts += 1
@@ -96,8 +114,12 @@ def test_ingestion_retries_retryable_errors_with_bounded_attempts() -> None:
                 raise RetryableIngestionError("temporary")
             return "ok"
 
-        job = manager.submit(tenant_id="tenant-a", idempotency_key="retry", operation=operation)
-        completed = _wait_for(manager, "tenant-a", job.job_id, IngestionJobStatus.COMPLETED)
+        job = manager.submit(
+            tenant_id="tenant-a", idempotency_key="retry", operation=operation
+        )
+        completed = _wait_for(
+            manager, "tenant-a", job.job_id, IngestionJobStatus.COMPLETED
+        )
         assert attempts == 3
         assert completed.attempt == 3
     finally:
@@ -110,7 +132,8 @@ def test_running_job_cancel_is_request_and_progress_is_bounded() -> None:
     release = threading.Event()
     try:
         job = manager.submit(
-            tenant_id="tenant-a", idempotency_key="running-cancel",
+            tenant_id="tenant-a",
+            idempotency_key="running-cancel",
             operation=lambda: (started.set(), release.wait(1)),
         )
         assert started.wait(1)
@@ -120,30 +143,43 @@ def test_running_job_cancel_is_request_and_progress_is_bounded() -> None:
         assert current.progress == 40
         assert current.cancel_requested is True
         with pytest.raises(ValueError):
-            manager.update_progress(tenant_id="tenant-a", job_id=job.job_id, progress=101)
+            manager.update_progress(
+                tenant_id="tenant-a", job_id=job.job_id, progress=101
+            )
         release.set()
     finally:
         manager.close()
 
 
 def test_ingestion_does_not_retry_permanent_errors_and_exhaustion_fails() -> None:
-    manager = IngestionJobManager(max_workers=1, max_attempts=2, retry_backoff_seconds=0)
+    manager = IngestionJobManager(
+        max_workers=1, max_attempts=2, retry_backoff_seconds=0
+    )
     attempts = 0
     try:
+
         def permanent():
             nonlocal attempts
             attempts += 1
             raise PermanentIngestionError("bad format")
 
-        first = manager.submit(tenant_id="tenant-a", idempotency_key="permanent", operation=permanent)
-        assert _wait_for(manager, "tenant-a", first.job_id, IngestionJobStatus.FAILED).error
+        first = manager.submit(
+            tenant_id="tenant-a", idempotency_key="permanent", operation=permanent
+        )
+        assert _wait_for(
+            manager, "tenant-a", first.job_id, IngestionJobStatus.FAILED
+        ).error
         assert attempts == 1
 
         def transient():
             raise RetryableIngestionError("still unavailable")
 
-        second = manager.submit(tenant_id="tenant-a", idempotency_key="exhaust", operation=transient)
-        failed = _wait_for(manager, "tenant-a", second.job_id, IngestionJobStatus.FAILED)
+        second = manager.submit(
+            tenant_id="tenant-a", idempotency_key="exhaust", operation=transient
+        )
+        failed = _wait_for(
+            manager, "tenant-a", second.job_id, IngestionJobStatus.FAILED
+        )
         assert failed.attempt == 2
     finally:
         manager.close()

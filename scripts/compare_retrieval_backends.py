@@ -7,8 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evaluation.retrieval_comparison import compare_rankings
 from evaluation.regression_report import repository_snapshot
+from evaluation.retrieval_comparison import compare_rankings
 
 
 def run(input_path: str, output_path: str) -> Path:
@@ -25,7 +25,9 @@ def run(input_path: str, output_path: str) -> Path:
     }
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    destination.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return destination
 
 

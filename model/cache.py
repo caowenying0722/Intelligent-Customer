@@ -11,7 +11,7 @@ from typing import Any
 
 class ModelCache:
     @classmethod
-    def from_settings(cls, settings: Any) -> "ModelCache":
+    def from_settings(cls, settings: Any) -> ModelCache:
         return cls(
             max_entries=settings.model_cache_max_entries,
             ttl_seconds=settings.model_cache_ttl_seconds,
@@ -38,7 +38,9 @@ class ModelCache:
         self._misses = 0
 
     @staticmethod
-    def key(*, tenant_id: str, model: str, prompt: str, prompt_version: str = "v1") -> str:
+    def key(
+        *, tenant_id: str, model: str, prompt: str, prompt_version: str = "v1"
+    ) -> str:
         if not tenant_id.strip() or not model.strip():
             raise ValueError("tenant_id and model must not be empty")
         digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
@@ -66,7 +68,11 @@ class ModelCache:
             self._items.move_to_end(key)
             if self.max_entries_per_tenant is not None:
                 tenant = key.split(":", 1)[0]
-                tenant_keys = [item_key for item_key in self._items if item_key.split(":", 1)[0] == tenant]
+                tenant_keys = [
+                    item_key
+                    for item_key in self._items
+                    if item_key.split(":", 1)[0] == tenant
+                ]
                 while len(tenant_keys) > self.max_entries_per_tenant:
                     oldest = tenant_keys.pop(0)
                     self._items.pop(oldest, None)

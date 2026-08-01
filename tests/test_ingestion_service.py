@@ -14,7 +14,10 @@ def _wait(manager, tenant_id, job_id):
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
         job = manager.get(tenant_id=tenant_id, job_id=job_id)
-        if job and job.status in {IngestionJobStatus.COMPLETED, IngestionJobStatus.FAILED}:
+        if job and job.status in {
+            IngestionJobStatus.COMPLETED,
+            IngestionJobStatus.FAILED,
+        }:
             return job
         time.sleep(0.01)
     raise AssertionError("job did not finish")
@@ -34,7 +37,9 @@ def test_document_ingestion_service_runs_validation_storage_and_job() -> None:
             content_type="text/plain",
             operation=lambda path, upload: observed.append(path.read_bytes()),
         )
-        assert _wait(jobs, "tenant-a", job.job_id).status == IngestionJobStatus.COMPLETED
+        assert (
+            _wait(jobs, "tenant-a", job.job_id).status == IngestionJobStatus.COMPLETED
+        )
         assert observed == [b"payload"]
         assert len(list(root.iterdir())) == 1
     finally:
@@ -48,12 +53,20 @@ def test_document_ingestion_idempotency_prevents_second_file() -> None:
     service = DocumentIngestionService(SecureUploadStorage(root), jobs)
     try:
         first = service.submit(
-            tenant_id="tenant-a", idempotency_key="same", filename="a.txt", content=b"a",
-            content_type="text/plain", operation=lambda path, upload: None,
+            tenant_id="tenant-a",
+            idempotency_key="same",
+            filename="a.txt",
+            content=b"a",
+            content_type="text/plain",
+            operation=lambda path, upload: None,
         )
         duplicate = service.submit(
-            tenant_id="tenant-a", idempotency_key="same", filename="b.txt", content=b"b",
-            content_type="text/plain", operation=lambda path, upload: None,
+            tenant_id="tenant-a",
+            idempotency_key="same",
+            filename="b.txt",
+            content=b"b",
+            content_type="text/plain",
+            operation=lambda path, upload: None,
         )
         assert duplicate.job_id == first.job_id
         assert len(list(root.iterdir())) == 1
@@ -69,8 +82,12 @@ def test_document_ingestion_rejects_invalid_upload_without_writing() -> None:
     try:
         with pytest.raises(ValueError):
             service.submit(
-                tenant_id="tenant-a", idempotency_key="bad", filename="../x.txt",
-                content=b"x", content_type="text/plain", operation=lambda p, u: None,
+                tenant_id="tenant-a",
+                idempotency_key="bad",
+                filename="../x.txt",
+                content=b"x",
+                content_type="text/plain",
+                operation=lambda p, u: None,
             )
         assert list(root.iterdir()) == []
     finally:

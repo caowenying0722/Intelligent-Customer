@@ -31,9 +31,9 @@ def test_cross_encoder_timeout_has_explicit_deterministic_fallback() -> None:
         time.sleep(0.05)
         return [1.0] * len(docs)
 
-    result = CrossEncoderRerankerAdapter(
-        slow_scorer, timeout_seconds=0.001
-    ).rerank("first", _docs(), top_k=1)
+    result = CrossEncoderRerankerAdapter(slow_scorer, timeout_seconds=0.001).rerank(
+        "first", _docs(), top_k=1
+    )
     assert len(result) == 1
     assert result[0].metadata["rerank_degraded"] is True
 

@@ -6,8 +6,12 @@ from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from model.factory import get_embedding_model
-from rag.simple_bm25 import RRFHybridRetriever, SimpleBM25Retriever, WeightedHybridRetriever
 from rag.retrieval_types import build_chroma_scope_filter
+from rag.simple_bm25 import (
+    RRFHybridRetriever,
+    SimpleBM25Retriever,
+    WeightedHybridRetriever,
+)
 from rag.tokenization import cjk_bm25_tokenizer
 from utils.config_handler import chroma_conf
 from utils.file_handler import (
@@ -69,9 +73,7 @@ class VectorStoreService:
         search_kwargs: dict[str, object] = {"k": retrieval_k}
         if scope_filter is not None:
             search_kwargs["filter"] = scope_filter
-        vector_retriever = self.vector_store.as_retriever(
-            search_kwargs=search_kwargs
-        )
+        vector_retriever = self.vector_store.as_retriever(search_kwargs=search_kwargs)
 
         if chroma_conf.get("retrieval_type") == "hybrid":
             all_docs = self._get_all_documents(

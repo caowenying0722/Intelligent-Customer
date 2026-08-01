@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
-import re
 from typing import Any
 
 from evaluation.dataset import file_sha256, load_jsonl_dataset, resolve_project_path
