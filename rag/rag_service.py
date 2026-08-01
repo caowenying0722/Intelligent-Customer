@@ -84,6 +84,22 @@ class RagSummarizeService:
         self.retriever = self.vector_store.get_retriever()
         self._documents_loaded = True
 
+    def check_ready(self) -> bool:
+        """Return readiness without waiting for document loading."""
+
+        with self._document_load_lock:
+            if self._documents_loaded:
+                return True
+            future = self._document_load_future
+        if future is None or not future.done():
+            return False
+        try:
+            future.result(timeout=0)
+        except Exception:  # noqa: BLE001 - readiness fails closed.
+            return False
+        with self._document_load_lock:
+            return self._documents_loaded
+
     def ensure_documents_loaded(self) -> None:
         future = self.start_document_loading()
         if future is None:

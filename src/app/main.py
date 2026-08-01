@@ -44,6 +44,7 @@ def create_app(
     chat_service: ChatApplicationService | None = None,
     chat_agent: ChatAgent | None = None,
     database_url: str | None = None,
+    rag_service: object | None = None,
     lifecycle_resources: tuple[object, ...] = (),
     ingestion_service: DocumentIngestionService | None = None,
     ingestion_operation: Callable | None = None,
@@ -71,6 +72,10 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        if rag_service is not None:
+            start_loading = getattr(rag_service, "start_document_loading", None)
+            if callable(start_loading):
+                start_loading()
         if (
             ingestion_service is not None
             and ingestion_service.job_store is not None
@@ -108,12 +113,30 @@ def create_app(
     if ingestion_service is None and database_url:
         ingestion_service = build_document_ingestion_service(database_url=database_url)
         lifecycle_resources = (*lifecycle_resources, ingestion_service)
+    if rag_service is not None:
+        lifecycle_resources = (*lifecycle_resources, rag_service)
     lifecycle_resources = (api_tracer, *lifecycle_resources)
 
+    readiness_checks: list[ReadinessCheck] = []
+    if readiness_check is not None:
+        readiness_checks.append(readiness_check)
     if readiness_check is None and chat_service is not None:
         candidate = getattr(chat_service.conversation_repository, "check_ready", None)
         if callable(candidate):
-            readiness_check = candidate
+            readiness_checks.append(candidate)
+    if rag_service is not None:
+        candidate = getattr(rag_service, "check_ready", None)
+        if callable(candidate):
+            readiness_checks.append(candidate)
+
+    def combined_readiness() -> bool:
+        for check in readiness_checks:
+            try:
+                if not check():
+                    return False
+            except Exception:  # noqa: BLE001 - readiness fails closed.
+                return False
+        return True
 
     app = FastAPI(
         title="Intelligent Customer Service", version="0.1.0", lifespan=lifespan
@@ -230,7 +253,7 @@ def create_app(
 
     @app.get("/health/ready", response_model=None)
     async def readiness() -> dict[str, str] | Response:
-        if not (readiness_check or (lambda: True))():
+        if not combined_readiness():
             return JSONResponse(status_code=503, content={"status": "not_ready"})
         return {"status": "ready"}
 

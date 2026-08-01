@@ -44,6 +44,34 @@ def test_default_readiness_is_ready() -> None:
     assert response.headers["x-request-id"]
 
 
+def test_rag_readiness_starts_loading_without_blocking_and_fails_closed() -> None:
+    class FakeRag:
+        def __init__(self) -> None:
+            self.started = False
+            self.ready = False
+            self.closed = False
+
+        def start_document_loading(self) -> None:
+            self.started = True
+
+        def check_ready(self) -> bool:
+            return self.ready
+
+        def close(self) -> None:
+            self.closed = True
+
+    rag = FakeRag()
+    with TestClient(create_app(rag_service=rag)) as client:
+        not_ready = client.get("/health/ready")
+        rag.ready = True
+        ready = client.get("/health/ready")
+
+    assert rag.started
+    assert rag.closed
+    assert not_ready.status_code == 503
+    assert ready.status_code == 200
+
+
 class FakeAgent:
     def run(self, message: str) -> str:
         return f"echo:{message}"

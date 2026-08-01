@@ -134,6 +134,34 @@ class RagServiceInitializationTest(unittest.TestCase):
         vector_store.release.set()
         service.close()
 
+    def test_readiness_is_non_blocking_and_turns_ready_after_loading(self) -> None:
+        vector_store = BlockingVectorStore()
+        service = self.build_service(vector_store)
+
+        self.assertFalse(service.check_ready())
+        future = service.start_document_loading()
+        self.assertFalse(service.check_ready())
+        vector_store.release.set()
+        assert future is not None
+        future.result(timeout=1)
+
+        self.assertTrue(service.check_ready())
+        service.close()
+
+    def test_readiness_fails_closed_when_loading_errors(self) -> None:
+        class FailingVectorStore(FakeVectorStore):
+            def load_document(self) -> None:
+                raise RuntimeError("private loading detail")
+
+        service = self.build_service(FailingVectorStore())
+        future = service.start_document_loading()
+        assert future is not None
+        with self.assertRaisesRegex(RuntimeError, "private loading detail"):
+            future.result(timeout=1)
+
+        self.assertFalse(service.check_ready())
+        service.close()
+
 
 if __name__ == "__main__":
     unittest.main()
