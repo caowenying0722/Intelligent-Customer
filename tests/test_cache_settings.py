@@ -1,6 +1,7 @@
 from model.cache import ModelCache
 from model.redis_cache import RedisCacheAdapter
 from utils.settings import Settings
+from model.quota import TenantQuota
 
 
 class Client:
@@ -26,3 +27,11 @@ def test_cache_adapters_use_settings():
     assert memory.max_entries_per_tenant == 2
     assert redis.namespace == "tenant-models"
     assert redis.ttl_seconds == 12
+
+
+def test_quota_uses_settings_when_enabled():
+    settings = Settings.model_validate({"model_quota_max_calls": 2, "model_quota_window_seconds": 10})
+    quota = TenantQuota.from_settings(settings)
+    assert quota is not None
+    assert quota.max_calls == 2
+    assert quota.window_seconds == 10

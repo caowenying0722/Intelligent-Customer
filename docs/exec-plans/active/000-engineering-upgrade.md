@@ -771,5 +771,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 6 第九个目标完成：ChatApplicationService 在 Gateway 配置 cache 时使用 `invoke_cached()`，按 tenant/model/prompt-version 隔离；无 cache 保持普通调用路径，跨租户测试通过。
 - 阶段 6 第十个目标完成：Chat 缓存命中指标接入 `/metrics`，provider_calls 不因命中增加；请求 idempotency_key 仍由会话仓储拒绝重复业务运行，组合测试通过。
 - 阶段 6 第十一个目标完成：新增 tenant-scoped `TenantQuota`，在 Gateway provider 调用前执行有限窗口配额；缓存命中不消耗 quota，超额请求安全拒绝并通过测试。
+- 阶段 6 第十二个目标完成：Settings 增加租户 quota calls/window；`TenantQuota.from_settings()` 与 `build_chat_gateway(settings=...)` 自动注入可选配额，未配置时保持禁用。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

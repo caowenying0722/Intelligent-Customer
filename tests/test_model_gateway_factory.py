@@ -25,3 +25,11 @@ def test_factory_injects_configured_memory_cache():
     assert gateway.invoke_cached(
         provider="fake", model="m", tenant_id="t", prompt="p", request="p"
     ) == {"echo": "p"}
+
+
+def test_factory_injects_configured_tenant_quota():
+    gateway = build_chat_gateway(
+        FakeModel(), provider="fake",
+        settings=Settings.model_validate({"model_quota_max_calls": 1}),
+    )
+    assert gateway.quota is not None

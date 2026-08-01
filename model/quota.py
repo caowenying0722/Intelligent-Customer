@@ -8,6 +8,15 @@ from collections import defaultdict, deque
 
 
 class TenantQuota:
+    @classmethod
+    def from_settings(cls, settings):
+        if settings.model_quota_max_calls is None:
+            return None
+        return cls(
+            max_calls=settings.model_quota_max_calls,
+            window_seconds=settings.model_quota_window_seconds,
+        )
+
     def __init__(self, *, max_calls: int, window_seconds: float = 60.0) -> None:
         if max_calls < 1 or window_seconds <= 0:
             raise ValueError("quota limits must be positive")
