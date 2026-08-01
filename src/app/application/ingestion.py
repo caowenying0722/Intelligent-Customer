@@ -15,6 +15,8 @@ from uuid import UUID, uuid4
 
 from opentelemetry import context as otel_context
 
+from src.app.observability.metrics import WorkerMetrics
+
 
 class IngestionJobStatus(str, Enum):
     QUEUED = "queued"
@@ -66,6 +68,7 @@ class IngestionJobManager:
         max_attempts: int = 3,
         retry_backoff_seconds: float = 0.1,
         tracer: Any | None = None,
+        metrics: WorkerMetrics | None = None,
     ):
         if max_workers < 1:
             raise ValueError("max_workers must be positive")
@@ -82,6 +85,7 @@ class IngestionJobManager:
         self._max_attempts = max_attempts
         self._retry_backoff_seconds = retry_backoff_seconds
         self.tracer = tracer
+        self.metrics = metrics or WorkerMetrics()
         self._lock = threading.Lock()
         self._jobs: dict[UUID, IngestionJob] = {}
         self._futures: dict[UUID, Future[Any]] = {}
@@ -117,9 +121,20 @@ class IngestionJobManager:
             )
             self._jobs[job.job_id] = job
             self._idempotency[key] = job.job_id
-            self._futures[job.job_id] = self._executor.submit(
-                self._run, job.job_id, operation, otel_context.get_current()
-            )
+            self.metrics.submitted()
+            try:
+                self._futures[job.job_id] = self._executor.submit(
+                    self._run,
+                    job.job_id,
+                    operation,
+                    otel_context.get_current(),
+                    time.monotonic(),
+                )
+            except Exception:
+                self.metrics.submission_failed()
+                del self._jobs[job.job_id]
+                del self._idempotency[key]
+                raise
             return job
 
     def get(self, *, tenant_id: str, job_id: UUID) -> IngestionJob | None:
@@ -146,6 +161,7 @@ class IngestionJobManager:
                 self._jobs[job_id] = self._replace(
                     job, status=IngestionJobStatus.CANCELLED
                 )
+                self.metrics.cancelled_queued()
                 return True
             if job.status == IngestionJobStatus.RUNNING:
                 self._jobs[job_id] = self._replace(job, cancel_requested=True)
@@ -178,10 +194,34 @@ class IngestionJobManager:
         here prevents the application lifespan from disposing that repository
         while a worker thread is still using it.
         """
+        with self._lock:
+            queued = [
+                (job_id, future)
+                for job_id, future in self._futures.items()
+                if self._jobs.get(job_id, None)
+                and self._jobs[job_id].status == IngestionJobStatus.QUEUED
+            ]
+        for job_id, future in queued:
+            if future.cancel():
+                with self._lock:
+                    job = self._jobs.get(job_id)
+                    if job is not None and job.status == IngestionJobStatus.QUEUED:
+                        self._jobs[job_id] = self._replace(
+                            job, status=IngestionJobStatus.CANCELLED
+                        )
+                        self.metrics.cancelled_queued()
         self._executor.shutdown(wait=True, cancel_futures=True)
 
-    def _run(self, job_id: UUID, operation: Callable[[], Any], parent_context) -> None:
+    def _run(
+        self,
+        job_id: UUID,
+        operation: Callable[[], Any],
+        parent_context,
+        submitted_at: float,
+    ) -> None:
         context_token = otel_context.attach(parent_context)
+        self.metrics.started(time.monotonic() - submitted_at)
+        processing_started = time.monotonic()
         span_context = (
             self.tracer.start_span("worker.ingestion")
             if self.tracer is not None
@@ -191,6 +231,9 @@ class IngestionJobManager:
             with span_context:
                 self._run_job(job_id, operation)
         finally:
+            current = self.get(tenant_id=self._jobs[job_id].tenant_id, job_id=job_id)
+            status = current.status.value if current is not None else "failed"
+            self.metrics.finished(status, time.monotonic() - processing_started)
             otel_context.detach(context_token)
 
     def _run_job(self, job_id: UUID, operation: Callable[[], Any]) -> None:
@@ -213,6 +256,7 @@ class IngestionJobManager:
                 except RetryableIngestionError:
                     if attempt >= self._max_attempts:
                         raise
+                    self.metrics.retry()
                     delay = min(
                         self._retry_backoff_seconds * (2 ** (attempt - 1)),
                         self._timeout_seconds / 4,

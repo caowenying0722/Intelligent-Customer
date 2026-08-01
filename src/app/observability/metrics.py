@@ -11,6 +11,20 @@ from typing import Any, cast
 
 MAX_PROVIDER_SERIES = 32
 HTTP_DURATION_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)
+WORKER_DURATION_BUCKETS = (
+    0.01,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+    30.0,
+    60.0,
+    300.0,
+)
 
 
 def metrics_token_matches(expected: str | None, supplied: str | None) -> bool:
@@ -76,6 +90,113 @@ class HttpMetrics:
             }
 
 
+class WorkerMetrics:
+    """Bounded process-local ingestion worker metrics without identity labels."""
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._queue_depth = 0
+        self._active = 0
+        self._submitted = 0
+        self._completed = 0
+        self._failed = 0
+        self._cancelled = 0
+        self._retries = 0
+        self._queue_wait_sum = 0.0
+        self._queue_wait_count = 0
+        self._queue_wait_buckets = {bucket: 0 for bucket in WORKER_DURATION_BUCKETS}
+        self._processing_sum = 0.0
+        self._processing_count = 0
+        self._processing_buckets = {bucket: 0 for bucket in WORKER_DURATION_BUCKETS}
+
+    def submitted(self) -> None:
+        with self._lock:
+            self._queue_depth += 1
+            self._submitted += 1
+
+    def submission_failed(self) -> None:
+        with self._lock:
+            self._queue_depth = max(0, self._queue_depth - 1)
+
+    def started(self, queue_wait_seconds: float) -> None:
+        with self._lock:
+            self._queue_depth = max(0, self._queue_depth - 1)
+            self._active += 1
+            self._record_duration(
+                queue_wait_seconds,
+                target_sum="queue_wait_sum",
+                target_count="queue_wait_count",
+                target_buckets=self._queue_wait_buckets,
+            )
+
+    def retry(self) -> None:
+        with self._lock:
+            self._retries += 1
+
+    def finished(self, status: str, processing_seconds: float) -> None:
+        with self._lock:
+            self._active = max(0, self._active - 1)
+            if status == "completed":
+                self._completed += 1
+            elif status == "cancelled":
+                self._cancelled += 1
+            else:
+                self._failed += 1
+            self._record_duration(
+                processing_seconds,
+                target_sum="processing_sum",
+                target_count="processing_count",
+                target_buckets=self._processing_buckets,
+            )
+
+    def cancelled_queued(self) -> None:
+        with self._lock:
+            self._queue_depth = max(0, self._queue_depth - 1)
+            self._cancelled += 1
+
+    def snapshot(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "queue_depth": self._queue_depth,
+                "active": self._active,
+                "submitted": self._submitted,
+                "completed": self._completed,
+                "failed": self._failed,
+                "cancelled": self._cancelled,
+                "retries": self._retries,
+                "queue_wait_sum_seconds": self._queue_wait_sum,
+                "queue_wait_count": self._queue_wait_count,
+                "queue_wait_buckets": dict(self._queue_wait_buckets),
+                "processing_sum_seconds": self._processing_sum,
+                "processing_count": self._processing_count,
+                "processing_buckets": dict(self._processing_buckets),
+            }
+
+    def _record_duration(
+        self,
+        duration: float,
+        *,
+        target_sum: str,
+        target_count: str,
+        target_buckets: dict[float, int],
+    ) -> None:
+        bounded = max(0.0, duration)
+        setattr(self, f"_{target_sum}", getattr(self, f"_{target_sum}") + bounded)
+        setattr(
+            self,
+            f"_{target_count}",
+            getattr(self, f"_{target_count}") + 1,
+        )
+        for bucket in WORKER_DURATION_BUCKETS:
+            if bounded <= bucket:
+                target_buckets[bucket] += 1
+
+
+def empty_worker_snapshot() -> dict[str, object]:
+    """Return a stable zero snapshot when no ingestion worker is configured."""
+    return WorkerMetrics().snapshot()
+
+
 def empty_gateway_snapshot() -> dict[str, object]:
     """Return the stable zero snapshot used when no model gateway is configured."""
     return {
@@ -129,6 +250,7 @@ def render_prometheus(
     gateway_snapshot: Mapping[str, object],
     health_snapshot: Mapping[str, object],
     http_snapshot: Mapping[str, object] | None = None,
+    worker_snapshot: Mapping[str, object] | None = None,
 ) -> str:
     """Render aggregate metrics without tenant, user, request, or prompt labels."""
     lines = [
@@ -261,6 +383,82 @@ def render_prometheus(
             ]
         )
 
+    if worker_snapshot is not None:
+        lines.extend(
+            [
+                "# HELP worker_queue_depth Current queued ingestion jobs.",
+                "# TYPE worker_queue_depth gauge",
+                _line("worker_queue_depth", worker_snapshot.get("queue_depth", 0)),
+                "# HELP worker_active_jobs Current running ingestion jobs.",
+                "# TYPE worker_active_jobs gauge",
+                _line("worker_active_jobs", worker_snapshot.get("active", 0)),
+                "# HELP worker_jobs_submitted_total Ingestion jobs submitted.",
+                "# TYPE worker_jobs_submitted_total counter",
+                _line(
+                    "worker_jobs_submitted_total", worker_snapshot.get("submitted", 0)
+                ),
+                "# HELP worker_jobs_completed_total Ingestion jobs completed.",
+                "# TYPE worker_jobs_completed_total counter",
+                _line(
+                    "worker_jobs_completed_total", worker_snapshot.get("completed", 0)
+                ),
+                "# HELP worker_jobs_failed_total Ingestion jobs failed.",
+                "# TYPE worker_jobs_failed_total counter",
+                _line("worker_jobs_failed_total", worker_snapshot.get("failed", 0)),
+                "# HELP worker_jobs_cancelled_total Ingestion jobs cancelled.",
+                "# TYPE worker_jobs_cancelled_total counter",
+                _line(
+                    "worker_jobs_cancelled_total", worker_snapshot.get("cancelled", 0)
+                ),
+                "# HELP worker_retries_total Ingestion job retries.",
+                "# TYPE worker_retries_total counter",
+                _line("worker_retries_total", worker_snapshot.get("retries", 0)),
+                "# HELP worker_queue_wait_seconds Ingestion queue wait duration.",
+                "# TYPE worker_queue_wait_seconds histogram",
+            ]
+        )
+        queue_wait_buckets = cast(
+            Mapping[float, object], _mapping(worker_snapshot.get("queue_wait_buckets"))
+        )
+        for bucket in WORKER_DURATION_BUCKETS:
+            lines.append(
+                f'worker_queue_wait_seconds_bucket{{le="{bucket:g}"}} '
+                f"{_metric_number(queue_wait_buckets.get(bucket, 0))}"
+            )
+        queue_wait_count = worker_snapshot.get("queue_wait_count", 0)
+        lines.extend(
+            [
+                f'worker_queue_wait_seconds_bucket{{le="+Inf"}} '
+                f"{_metric_number(queue_wait_count)}",
+                _line(
+                    "worker_queue_wait_seconds_sum",
+                    worker_snapshot.get("queue_wait_sum_seconds", 0),
+                ),
+                _line("worker_queue_wait_seconds_count", queue_wait_count),
+                "# HELP worker_processing_seconds Ingestion processing duration.",
+                "# TYPE worker_processing_seconds histogram",
+            ]
+        )
+        processing_buckets = cast(
+            Mapping[float, object], _mapping(worker_snapshot.get("processing_buckets"))
+        )
+        for bucket in WORKER_DURATION_BUCKETS:
+            lines.append(
+                f'worker_processing_seconds_bucket{{le="{bucket:g}"}} '
+                f"{_metric_number(processing_buckets.get(bucket, 0))}"
+            )
+        processing_count = worker_snapshot.get("processing_count", 0)
+        lines.extend(
+            [
+                f'worker_processing_seconds_bucket{{le="+Inf"}} '
+                f"{_metric_number(processing_count)}",
+                _line(
+                    "worker_processing_seconds_sum",
+                    worker_snapshot.get("processing_sum_seconds", 0),
+                ),
+                _line("worker_processing_seconds_count", processing_count),
+            ]
+        )
     lines.extend(
         [
             "# HELP model_gateway_circuit_open Whether the model gateway circuit is open.",

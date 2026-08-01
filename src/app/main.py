@@ -19,6 +19,7 @@ from src.app.infrastructure.factory import (
 from src.app.observability.metrics import (
     HttpMetrics,
     empty_gateway_snapshot,
+    empty_worker_snapshot,
     metrics_token_matches,
     render_prometheus,
 )
@@ -116,6 +117,12 @@ def create_app(
     )
     app.state.http_metrics = http_metrics
     app.state.trace_exporter = api_tracer.exporter
+    worker_metrics = (
+        getattr(ingestion_service.jobs, "metrics", None)
+        if ingestion_service is not None
+        else None
+    )
+    app.state.worker_metrics = worker_metrics
     if chat_service is not None:
         chat_service.tracer = api_tracer
     if ingestion_service is not None:
@@ -228,11 +235,21 @@ def create_app(
                     "healthy": False,
                 },
                 "http": http_metrics.snapshot(),
+                "worker": (
+                    worker_metrics.snapshot()
+                    if worker_metrics is not None
+                    else empty_worker_snapshot()
+                ),
             }
         return {
             "model_gateway": gateway.audit_snapshot(),
             "model_gateway_health": gateway.health_snapshot(),
             "http": http_metrics.snapshot(),
+            "worker": (
+                worker_metrics.snapshot()
+                if worker_metrics is not None
+                else empty_worker_snapshot()
+            ),
         }
 
     @app.get(
@@ -254,9 +271,17 @@ def create_app(
         else:
             gateway_snapshot = gateway.audit_snapshot()
             health_snapshot = gateway.health_snapshot()
+        worker_snapshot = (
+            worker_metrics.snapshot()
+            if worker_metrics is not None
+            else empty_worker_snapshot()
+        )
         return PlainTextResponse(
             render_prometheus(
-                gateway_snapshot, health_snapshot, http_metrics.snapshot()
+                gateway_snapshot,
+                health_snapshot,
+                http_metrics.snapshot(),
+                worker_snapshot,
             ),
             media_type="text/plain; version=0.0.4",
         )

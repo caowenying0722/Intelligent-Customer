@@ -6,8 +6,8 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：316 passed，25 subtests | 默认不调用付费模型 |
-| `coverage run -m pytest -q && coverage report` | 通过：316 passed，25 subtests；总覆盖率 59%，门槛 41% | 当前本地基线 |
+| `python -m pytest -q` | 通过：320 passed，25 subtests | 默认不调用付费模型 |
+| `coverage run -m pytest -q && coverage report` | 通过：320 passed，25 subtests；总覆盖率 59%，门槛 41% | 当前本地基线 |
 | `python -m ruff format --check .` | 通过 | 215 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：95 个源码文件 | 测试动态 mock 不纳入源码类型门禁 |
@@ -19,6 +19,7 @@
 | Collector/Prometheus/Grafana isolated health smoke | 通过：3 个 HTTP 200 | 三个镜像已拉取并以 `--no-deps` 启动；未包含 API，因此不是端到端 scrape/OTLP smoke |
 | `/metrics/prometheus` 集成测试 | 通过：8 个测试 | 有界 HTTP/模型网关聚合指标，生产 token 保护，无 tenant/user/request/prompt 内容 |
 | W3C/HTTP/Agent/LLM/SSE/RAG/Tool/Worker/OTLP config smoke | 通过：14 个测试 | 当前进程线程池捕获 parent context；生产拒绝明文 OTLP，未执行真实 Collector 网络调用 |
+| Worker Prometheus 聚合指标 | 通过：4 个测试 | 队列/活动/等待/处理/重试/终态聚合，无 job/tenant 标签 |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 
