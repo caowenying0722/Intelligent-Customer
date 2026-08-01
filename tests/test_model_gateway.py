@@ -44,3 +44,34 @@ def test_gateway_times_out_and_caps_retries():
 def test_gateway_rejects_unknown_provider():
     with pytest.raises(ModelGatewayError, match="not configured"):
         ModelGateway({}).invoke(provider="missing", request={})
+
+
+def test_gateway_opens_circuit_after_consecutive_failures():
+    def provider(_):
+        raise PermanentModelError("down")
+
+    gateway = ModelGateway({"fake": provider}, failure_threshold=2, cooldown_seconds=1)
+    for _ in range(2):
+        with pytest.raises(ModelGatewayError, match="rejected"):
+            gateway.invoke(provider="fake", request={})
+    with pytest.raises(ModelGatewayError, match="circuit is open"):
+        gateway.invoke(provider="fake", request={})
+    assert gateway.stats == {"calls": 2, "failures": 2}
+
+
+def test_gateway_success_resets_consecutive_failures():
+    state = {"fail": True}
+
+    def provider(_):
+        if state["fail"]:
+            raise PermanentModelError("down")
+        return "ok"
+
+    gateway = ModelGateway({"fake": provider}, failure_threshold=2)
+    with pytest.raises(ModelGatewayError):
+        gateway.invoke(provider="fake", request={})
+    state["fail"] = False
+    assert gateway.invoke(provider="fake", request={}) == "ok"
+    state["fail"] = True
+    with pytest.raises(ModelGatewayError, match="rejected"):
+        gateway.invoke(provider="fake", request={})
