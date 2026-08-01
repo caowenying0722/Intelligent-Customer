@@ -7,6 +7,7 @@ from collections.abc import Callable
 from langchain_core.documents import Document
 
 from rag.rrf import reciprocal_rank_fusion
+from rag.retrieval_types import RetrievalResult
 
 
 def _safe_divide(numerator: float, denominator: float) -> float:
@@ -135,3 +136,20 @@ class RRFHybridRetriever:
             self.keyword_retriever.invoke(query),
         ]
         return reciprocal_rank_fusion(rankings, k=self.fusion_k, limit=self.k)
+
+    def invoke_results(
+        self, query: str, *, tenant_id: str, index_version: str
+    ) -> list[RetrievalResult]:
+        """Return the same fusion output with an explicit tenant/version contract."""
+        documents = self.invoke(query)
+        results: list[RetrievalResult] = []
+        for rank, document in enumerate(documents, start=1):
+            results.append(
+                RetrievalResult.from_document(
+                    document,
+                    tenant_id=tenant_id,
+                    index_version=index_version,
+                    final_rank=rank,
+                )
+            )
+        return results
