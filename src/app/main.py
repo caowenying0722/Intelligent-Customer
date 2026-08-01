@@ -63,7 +63,9 @@ def create_app(
                 },
             )
         try:
-            answer = await chat_service.chat(payload.message)
+            answer, conversation_id = await chat_service.chat(
+                payload.message, payload.conversation_id
+            )
         except Exception as exc:  # noqa: BLE001 - stable boundary, no traceback.
             status_code = 504 if "timed out" in str(exc) else 400
             code = "chat_timeout" if status_code == 504 else "chat_failed"
@@ -75,7 +77,11 @@ def create_app(
                     "request_id": request.state.request_id,
                 },
             )
-        return ChatResponse(request_id=request.state.request_id, answer=answer)
+        return ChatResponse(
+            request_id=request.state.request_id,
+            answer=answer,
+            conversation_id=str(conversation_id),
+        )
 
     @app.post("/api/v1/chat/stream")
     async def chat_stream(request: Request, payload: ChatRequest):

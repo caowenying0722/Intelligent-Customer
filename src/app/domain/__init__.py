@@ -1,0 +1,1 @@
+"""Domain protocols and entities."""

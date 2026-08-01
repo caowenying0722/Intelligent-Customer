@@ -1,4 +1,5 @@
 import asyncio
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 
@@ -60,7 +61,31 @@ def test_chat_route_uses_injected_agent_and_stable_response() -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {"request_id": "req-chat", "answer": "echo:你好"}
+    body = response.json()
+    assert body["request_id"] == "req-chat"
+    assert body["answer"] == "echo:你好"
+    assert body["conversation_id"]
+
+
+def test_chat_route_reuses_conversation_id() -> None:
+    service = ChatApplicationService(FakeAgent())
+    client = TestClient(create_app(chat_service=service))
+
+    first = client.post("/api/v1/chat", json={"message": "one"}).json()
+    second = client.post(
+        "/api/v1/chat",
+        json={"message": "two", "conversation_id": first["conversation_id"]},
+    )
+
+    assert second.status_code == 200
+    conversation = service.conversation_repository.get(UUID(first["conversation_id"]))
+    assert conversation is not None
+    assert [message.content for message in conversation.messages] == [
+        "one",
+        "echo:one",
+        "two",
+        "echo:two",
+    ]
 
 
 def test_chat_route_rejects_extra_fields_without_calling_agent() -> None:
