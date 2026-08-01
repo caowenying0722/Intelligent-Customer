@@ -826,5 +826,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第五个目标完成：GitHub Actions 在依赖审计前加入真实 `docker build --tag intelligent-customer-api:ci .` 步骤，并以 workflow 回归测试锁定命令；本机 Docker build 仍因 Docker Hub 网络阻塞，未伪称 CI 结果。
 - 阶段 11 第六个目标完成：新增事故处置与备份恢复边界手册，明确 health/readiness、回滚、敏感信息保护、当前内存会话限制和 PostgreSQL 恢复尚未自动化；文档回归测试通过。
 - 阶段 11 第七个目标完成：新增独立的 `/metrics/prometheus` 文本指标出口，复用网关聚合快照，限制 provider series 为 32 且不输出 tenant/user/conversation/request/prompt 标签；新增 3 个集成测试和指标运维文档。全量 `294 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
+- 阶段 11 第八个目标完成：为 API 增加无路径标签的 HTTP 请求/错误/活动数/固定延迟桶/SSE 断开聚合指标，复用同一 Prometheus 文本出口；全量 `296 passed`、25 subtests，覆盖率 58%，Ruff/Mypy/secret scan、dataset、deterministic、red-team、load smoke 和 Compose config 均通过。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

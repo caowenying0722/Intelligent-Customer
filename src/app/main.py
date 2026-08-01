@@ -16,7 +16,11 @@ from src.app.infrastructure.factory import (
     build_conversation_repository,
     build_document_ingestion_service,
 )
-from src.app.observability.metrics import empty_gateway_snapshot, render_prometheus
+from src.app.observability.metrics import (
+    HttpMetrics,
+    empty_gateway_snapshot,
+    render_prometheus,
+)
 from src.app.security.audit import AuditSink
 from src.app.security.auth import JWTAuthenticator
 from utils.settings import get_settings
@@ -43,6 +47,7 @@ def create_app(
         model_health_token = settings.model_health_token_value
     if settings.application_env == "production" and not model_health_token:
         raise ValueError("MODEL_HEALTH_TOKEN is required in production")
+    http_metrics = HttpMetrics()
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -90,6 +95,27 @@ def create_app(
     app = FastAPI(
         title="Intelligent Customer Service", version="0.1.0", lifespan=lifespan
     )
+    app.state.http_metrics = http_metrics
+
+    @app.middleware("http")
+    async def http_metrics_middleware(request: Request, call_next):
+        started = http_metrics.begin()
+        status_code = 500
+        client_disconnected = False
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        except Exception as exc:
+            client_disconnected = exc.__class__.__name__ == "ClientDisconnect"
+            raise
+        finally:
+            http_metrics.end(
+                started,
+                status_code=status_code,
+                path=request.url.path,
+                client_disconnected=client_disconnected,
+            )
 
     def error_payload(request: Request, code: str, message: str) -> dict[str, str]:
         return {
@@ -154,10 +180,12 @@ def create_app(
                     "circuit_open": False,
                     "healthy": False,
                 },
+                "http": http_metrics.snapshot(),
             }
         return {
             "model_gateway": gateway.audit_snapshot(),
             "model_gateway_health": gateway.health_snapshot(),
+            "http": http_metrics.snapshot(),
         }
 
     @app.get("/metrics/prometheus", response_class=PlainTextResponse)
@@ -174,7 +202,9 @@ def create_app(
             gateway_snapshot = gateway.audit_snapshot()
             health_snapshot = gateway.health_snapshot()
         return PlainTextResponse(
-            render_prometheus(gateway_snapshot, health_snapshot),
+            render_prometheus(
+                gateway_snapshot, health_snapshot, http_metrics.snapshot()
+            ),
             media_type="text/plain; version=0.0.4",
         )
 

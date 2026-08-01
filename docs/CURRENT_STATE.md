@@ -96,7 +96,7 @@ flowchart LR
 | JWT / RBAC | 未实现 | 无认证授权层 |
 | 多租户隔离 | 未实现 | 数据、向量、缓存和工具均无 tenant context |
 | OpenTelemetry | 未实现 | 无 tracing 依赖或 instrumentation |
-| Prometheus / metrics endpoint | 部分实现 | `/metrics/prometheus` 暴露有界模型网关聚合指标；尚无 RAG/工具耗时与 OTel trace |
+| Prometheus / metrics endpoint | 部分实现 | `/metrics/prometheus` 暴露有界 HTTP/模型网关聚合指标；尚无 RAG/工具耗时与 OTel trace |
 | Docker Compose | 未实现 | 无 Docker/Compose 文件 |
 | CI | 未实现 | 无 `.github/workflows` |
 | 压测 | 未实现 | 无 Locust/k6 场景 |

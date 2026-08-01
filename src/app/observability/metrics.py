@@ -4,9 +4,68 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from math import isfinite
-from typing import Any
+from threading import Lock
+from time import perf_counter
+from typing import Any, cast
 
 MAX_PROVIDER_SERIES = 32
+HTTP_DURATION_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)
+
+
+class HttpMetrics:
+    """Bounded process-local HTTP counters; no request or identity data is retained."""
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._requests = 0
+        self._errors = 0
+        self._active = 0
+        self._duration_sum = 0.0
+        self._duration_count = 0
+        self._duration_buckets = {bucket: 0 for bucket in HTTP_DURATION_BUCKETS}
+        self._responses = {"2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0}
+        self._sse_disconnects = 0
+
+    def begin(self) -> float:
+        with self._lock:
+            self._active += 1
+        return perf_counter()
+
+    def end(
+        self,
+        started: float,
+        *,
+        status_code: int,
+        path: str,
+        client_disconnected: bool = False,
+    ) -> None:
+        duration = max(0.0, perf_counter() - started)
+        status_class = f"{status_code // 100}xx"
+        with self._lock:
+            self._requests += 1
+            self._errors += int(status_code >= 400)
+            self._active = max(0, self._active - 1)
+            self._duration_sum += duration
+            self._duration_count += 1
+            self._responses[status_class] = self._responses.get(status_class, 0) + 1
+            for bucket in HTTP_DURATION_BUCKETS:
+                if duration <= bucket:
+                    self._duration_buckets[bucket] += 1
+            if client_disconnected and path.endswith("/stream"):
+                self._sse_disconnects += 1
+
+    def snapshot(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "requests": self._requests,
+                "errors": self._errors,
+                "active": self._active,
+                "duration_sum_seconds": self._duration_sum,
+                "duration_count": self._duration_count,
+                "duration_buckets": dict(self._duration_buckets),
+                "responses": dict(self._responses),
+                "sse_disconnects": self._sse_disconnects,
+            }
 
 
 def empty_gateway_snapshot() -> dict[str, object]:
@@ -26,6 +85,13 @@ def _metric_number(value: Any) -> str:
         number = float(value)
         if isfinite(number):
             return str(value)
+    if isinstance(value, str):
+        try:
+            number = float(value)
+        except ValueError:
+            return "0"
+        if isfinite(number):
+            return value
     return "0"
 
 
@@ -52,7 +118,9 @@ def _provider_lines(name: str, values: object) -> list[str]:
 
 
 def render_prometheus(
-    gateway_snapshot: Mapping[str, object], health_snapshot: Mapping[str, object]
+    gateway_snapshot: Mapping[str, object],
+    health_snapshot: Mapping[str, object],
+    http_snapshot: Mapping[str, object] | None = None,
 ) -> str:
     """Render aggregate metrics without tenant, user, request, or prompt labels."""
     lines = [
@@ -129,6 +197,62 @@ def render_prometheus(
         if isinstance(configured_providers, (list, tuple, set, frozenset))
         else 0
     )
+    if http_snapshot is not None:
+        lines.extend(
+            [
+                "# HELP http_requests_total Total HTTP requests.",
+                "# TYPE http_requests_total counter",
+                _line("http_requests_total", http_snapshot.get("requests", 0)),
+                "# HELP http_errors_total HTTP responses with status 400 or higher.",
+                "# TYPE http_errors_total counter",
+                _line("http_errors_total", http_snapshot.get("errors", 0)),
+                "# HELP http_active_requests Current in-flight HTTP requests.",
+                "# TYPE http_active_requests gauge",
+                _line("http_active_requests", http_snapshot.get("active", 0)),
+                "# HELP http_request_duration_seconds HTTP request duration histogram.",
+                "# TYPE http_request_duration_seconds histogram",
+            ]
+        )
+        duration_buckets = cast(
+            Mapping[float, object], _mapping(http_snapshot.get("duration_buckets"))
+        )
+        for bucket in HTTP_DURATION_BUCKETS:
+            count = duration_buckets.get(bucket, 0)
+            lines.append(
+                f'http_request_duration_seconds_bucket{{le="{bucket:g}"}} '
+                f"{_metric_number(count)}"
+            )
+        duration_count = http_snapshot.get("duration_count", 0)
+        lines.extend(
+            [
+                f'http_request_duration_seconds_bucket{{le="+Inf"}} '
+                f"{_metric_number(duration_count)}",
+                _line(
+                    "http_request_duration_seconds_sum",
+                    http_snapshot.get("duration_sum_seconds", 0),
+                ),
+                _line("http_request_duration_seconds_count", duration_count),
+                "# HELP http_responses_total HTTP responses grouped by fixed status class.",
+                "# TYPE http_responses_total counter",
+            ]
+        )
+        responses = _mapping(http_snapshot.get("responses"))
+        for status_class in ("2xx", "3xx", "4xx", "5xx"):
+            lines.append(
+                f'http_responses_total{{status_class="{status_class}"}} '
+                f"{_metric_number(responses.get(status_class, 0))}"
+            )
+        lines.extend(
+            [
+                "# HELP http_sse_disconnects_total SSE client disconnects observed.",
+                "# TYPE http_sse_disconnects_total counter",
+                _line(
+                    "http_sse_disconnects_total",
+                    http_snapshot.get("sse_disconnects", 0),
+                ),
+            ]
+        )
+
     lines.extend(
         [
             "# HELP model_gateway_circuit_open Whether the model gateway circuit is open.",
