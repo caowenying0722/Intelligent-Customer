@@ -824,5 +824,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第三个目标完成：新增真实 `docs/RELEASE_READINESS.md`，逐项记录 289 tests、58% coverage、Ruff/Mypy、secret/pip check、Compose config、red-team/load smoke，以及依赖漏洞、Python 版本和 Docker Hub build 阻塞；不伪造发布结论。
 - 阶段 11 第四个目标完成：Dockerfile 改用仓库 Python 3.10 生成的 `requirements.lock` 安装依赖，并通过配置测试验证不会回退到未锁定的 requirements.txt；Docker registry 阻塞仍保持明确记录。
 - 阶段 11 第五个目标完成：GitHub Actions 在依赖审计前加入真实 `docker build --tag intelligent-customer-api:ci .` 步骤，并以 workflow 回归测试锁定命令；本机 Docker build 仍因 Docker Hub 网络阻塞，未伪称 CI 结果。
+- 阶段 11 第六个目标完成：新增事故处置与备份恢复边界手册，明确 health/readiness、回滚、敏感信息保护、当前内存会话限制和 PostgreSQL 恢复尚未自动化；文档回归测试通过。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
