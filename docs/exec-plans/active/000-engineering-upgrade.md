@@ -722,5 +722,6 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 4 第六个目标完成：`submit_document()` 将 metadata 状态与 job 联动，注册后进入 indexing，成功为 active，异常为 failed；同租户同 hash 复用记录且不重复落盘/建 job。
 - 阶段 4 第七个目标完成：Alembic 0008 新增 documents/ingestion_jobs 持久化表、tenant/hash 与 tenant/idempotency 唯一索引及状态查询索引；SQLite migration smoke 验证 upgrade/head/readiness/downgrade。
 - 阶段 4 第八个目标完成：新增 SQLAlchemy ingestion repository，支持 document/job tenant 查询、content hash/幂等去重、状态更新和独立 repository 跨实例恢复；应用 service 仍通过接口接入，避免绑定具体数据库 session。
+- 阶段 4 第九个目标完成：组合根支持内存或显式 `DATABASE_URL` 的 document ingestion service；SQL-backed service 将文档/job 状态写入 repository，并通过两个 service/repository 实例验证重启后查询恢复。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

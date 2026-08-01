@@ -8,8 +8,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
-from src.app.application.ingestion import IngestionJob, IngestionJobManager
+from src.app.application.ingestion import (
+    IngestionJob,
+    IngestionJobManager,
+    IngestionJobStatus,
+)
 from src.app.application.document_metadata import (
     DocumentMetadataRegistry,
     DocumentRecord,
@@ -31,11 +36,13 @@ class DocumentIngestionService:
         self,
         storage: SecureUploadStorage,
         jobs: IngestionJobManager,
-        metadata: DocumentMetadataRegistry | None = None,
+        metadata: Any | None = None,
+        job_store: Any | None = None,
     ) -> None:
         self.storage = storage
         self.jobs = jobs
         self.metadata = metadata
+        self.job_store = job_store
         self._lock = threading.Lock()
 
     def submit(
@@ -66,6 +73,11 @@ class DocumentIngestionService:
             except Exception:
                 self.storage.remove(upload.storage_name)
                 raise
+
+    def close(self) -> None:
+        self.jobs.close()
+        if self.job_store is not None and hasattr(self.job_store, "close"):
+            self.job_store.close()
 
     def submit_document(
         self,
@@ -110,6 +122,14 @@ class DocumentIngestionService:
                 document_id=record.document_id,
                 status=DocumentStatus.INDEXING,
             )
+            if self.job_store is not None:
+                self.job_store.update_document_status(
+                    tenant_id=tenant_id,
+                    document_id=record.document_id,
+                    status=DocumentStatus.INDEXING,
+                )
+
+            job_holder: dict[str, UUID] = {}
 
             def run() -> Any:
                 try:
@@ -120,12 +140,37 @@ class DocumentIngestionService:
                         document_id=record.document_id,
                         status=DocumentStatus.FAILED,
                     )
+                    if self.job_store is not None:
+                        self.job_store.update_document_status(
+                            tenant_id=tenant_id,
+                            document_id=record.document_id,
+                            status=DocumentStatus.FAILED,
+                        )
+                        if job_holder.get("id") is not None:
+                            self.job_store.update_job_status(
+                                tenant_id=tenant_id,
+                                job_id=job_holder["id"],
+                                status=IngestionJobStatus.FAILED,
+                                error=str(exc),
+                            )
                     raise
                 self.metadata.update_status(
                     tenant_id=tenant_id,
                     document_id=record.document_id,
                     status=DocumentStatus.ACTIVE,
                 )
+                if self.job_store is not None:
+                    self.job_store.update_document_status(
+                        tenant_id=tenant_id,
+                        document_id=record.document_id,
+                        status=DocumentStatus.ACTIVE,
+                    )
+                    if job_holder.get("id") is not None:
+                        self.job_store.update_job_status(
+                            tenant_id=tenant_id,
+                            job_id=job_holder["id"],
+                            status=IngestionJobStatus.COMPLETED,
+                        )
                 return result
 
             try:
@@ -134,6 +179,20 @@ class DocumentIngestionService:
                     idempotency_key=idempotency_key,
                     operation=run,
                 )
+                job_holder["id"] = job.job_id
+                if self.job_store is not None:
+                    self.job_store.create_job(job=job, document_id=record.document_id)
+                    current = self.jobs.get(tenant_id=tenant_id, job_id=job.job_id)
+                    if current is not None and current.status in {
+                        IngestionJobStatus.COMPLETED,
+                        IngestionJobStatus.FAILED,
+                    }:
+                        self.job_store.update_job_status(
+                            tenant_id=tenant_id,
+                            job_id=job.job_id,
+                            status=current.status,
+                            error=current.error,
+                        )
             except Exception:
                 self.storage.remove(upload.storage_name)
                 self.metadata.update_status(

@@ -9,8 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.app.application.document_metadata import DocumentRecord, DocumentStatus
+from src.app.application.document_metadata import (
+    DocumentMetadataRegistry,
+    DocumentRecord,
+    DocumentStatus,
+)
 from src.app.application.ingestion import IngestionJob, IngestionJobStatus
+from src.app.application.uploads import ValidatedUpload
 from src.app.infrastructure.postgres import DocumentRow, IngestionJobRow
 from src.app.infrastructure.postgres import SqlAlchemyConversationRepository
 
@@ -69,6 +74,31 @@ class SqlAlchemyIngestionRepository:
             )
             return self._document(row) if row else None
 
+    def get_by_hash(self, *, tenant_id: str, content_hash: str) -> DocumentRecord | None:
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(DocumentRow).where(
+                    DocumentRow.tenant_id == tenant_id,
+                    DocumentRow.content_hash == content_hash,
+                )
+            )
+            return self._document(row) if row else None
+
+    def register(
+        self, *, tenant_id: str, upload: ValidatedUpload, parser_version: str,
+        chunker_version: str, embedding_model: str, embedding_dimension: int,
+        index_version: str,
+    ) -> tuple[DocumentRecord, bool]:
+        existing = self.get_by_hash(tenant_id=tenant_id, content_hash=upload.sha256)
+        if existing is not None:
+            return existing, False
+        record, _ = DocumentMetadataRegistry().register(
+            tenant_id=tenant_id, upload=upload, parser_version=parser_version,
+            chunker_version=chunker_version, embedding_model=embedding_model,
+            embedding_dimension=embedding_dimension, index_version=index_version,
+        )
+        return self.create_document(record), True
+
     def update_document_status(
         self, *, tenant_id: str, document_id: UUID, status: DocumentStatus
     ) -> DocumentRecord:
@@ -84,6 +114,13 @@ class SqlAlchemyIngestionRepository:
             row.status = status.value
             session.commit()
             return self._document(row)
+
+    def update_status(
+        self, *, tenant_id: str, document_id: UUID, status: DocumentStatus
+    ) -> DocumentRecord:
+        return self.update_document_status(
+            tenant_id=tenant_id, document_id=document_id, status=status
+        )
 
     def create_job(
         self, *, job: IngestionJob, document_id: UUID
