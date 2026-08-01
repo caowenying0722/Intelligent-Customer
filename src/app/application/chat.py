@@ -222,27 +222,49 @@ class ChatApplicationService:
                 "chat execution failed", model_error=model_error
             ) from exc
 
-    async def stream(self, message: str) -> list[str]:
-        """Return bounded fake/provider chunks for the transport SSE adapter."""
+    async def stream(
+        self,
+        message: str,
+        conversation_id: str | None = None,
+        tenant_id: str = "local",
+        user_id: str = "local",
+    ) -> list[str]:
+        """Return bounded chunks and optionally persist an existing conversation."""
+        resolved_id: UUID | None = None
+        history: list[tuple[str, str]] = []
+        history_prompt = message
+        if conversation_id is not None:
+            resolved_id = self._conversation_id(tenant_id, conversation_id, user_id)
+            self.conversation_repository.append(tenant_id, resolved_id, "user", message)
+            history = self._history(tenant_id, resolved_id)
+            history_prompt = self._history_prompt(history, message)
+        history_runner = getattr(self.agent, "stream_with_history", None)
         try:
             if self._async_stream_runner is not None:
                 chunks = await self._await_with_span(
-                    self._async_stream_runner(self.agent, message), "agent.stream"
+                    self._async_stream_runner(self.agent, history_prompt),
+                    "agent.stream",
                 )
             elif self.stream_gateway is not None:
                 chunks = await self._await_with_span(
                     asyncio.to_thread(
                         self.stream_gateway.invoke,
                         provider=self.model_provider,
-                        request=message,
+                        request=history_prompt,
                     ),
                     "agent.stream",
                 )
                 if isinstance(chunks, str):
                     chunks = [chunks]
+            elif callable(history_runner) and history:
+                chunks = await self._await_with_span(
+                    asyncio.to_thread(history_runner, message, history),
+                    "agent.stream",
+                )
             else:
                 chunks = await self._await_with_span(
-                    asyncio.to_thread(self.agent.stream, message), "agent.stream"
+                    asyncio.to_thread(self.agent.stream, message),
+                    "agent.stream",
                 )
         except asyncio.CancelledError:
             raise
@@ -255,6 +277,10 @@ class ChatApplicationService:
             raise ChatApplicationError(
                 "chat execution failed", model_error=model_error
             ) from exc
+        if resolved_id is not None:
+            self.conversation_repository.append(
+                tenant_id, resolved_id, "assistant", "".join(map(str, chunks))
+            )
         return chunks
 
     async def _await_with_span(self, operation: Awaitable[Any], name: str) -> Any:

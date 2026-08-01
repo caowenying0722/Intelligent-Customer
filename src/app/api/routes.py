@@ -487,7 +487,12 @@ def build_router(
                 yield f"data: {json.dumps({'type': 'error', 'code': 'chat_unavailable', 'request_id': request_id})}\n\n"
                 return
             try:
-                chunks = await chat_service.stream(payload.message)
+                chunks = await chat_service.stream(
+                    payload.message,
+                    payload.conversation_id,
+                    request_tenant_id(request),
+                    request.headers.get("x-user-id", "local"),
+                )
                 for chunk in chunks:
                     if await request.is_disconnected():
                         return

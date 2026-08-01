@@ -6,8 +6,8 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：343 passed，26 subtests | 默认不调用付费模型 |
-| `coverage run -m pytest -q && coverage report` | 通过：343 passed，26 subtests；总覆盖率 63%，门槛 41% | 当前本地基线 |
+| `python -m pytest -q` | 通过：344 passed，26 subtests | 默认不调用付费模型 |
+| `coverage run -m pytest -q && coverage report` | 通过：344 passed，26 subtests；总覆盖率 62%，门槛 41% | 当前本地基线 |
 | `python -m ruff format --check .` | 通过 | 233 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 | 测试动态 mock 不纳入源码类型门禁 |
@@ -25,7 +25,7 @@
 | 模型供应商错误脱敏 | 通过：2 个测试 | 错误只保留状态码/白名单 request ID；成功响应不保存 raw 正文 |
 | 重排评测泄漏回归 | 通过：2 个测试 | 来源文件名不参与评分、来源多样性选择或重复判定 |
 | 引用支持代理回归 | 通过：2 个测试 | 分离编号 validity 与 lexical support；不宣称 entailment 或人工事实标签 |
-| 非流式 Chat 历史上下文 | 通过：1 个测试 | history-aware Agent 收到同 tenant 最近消息；旧单消息 Agent 保持兼容，SSE 尚未接入 |
+| Chat 历史上下文 | 通过：2 个测试 | 非流式/SSE history-aware Agent 收到同 tenant 最近消息；带 conversation_id 的 SSE 完成后写回消息 |
 | Chat timeout/cancellation regression | 通过：2 个测试 | fake Agent 验证同步线程超时边界和异步 SSE runner 取消传播 |
 | SSE disconnect regression | 通过：1 个测试 | 真实 APIRoute body-iterator 在 metadata 后断开，不发送 token/completed/error |
 | REQUEST_TIMEOUT_SECONDS wiring | 通过：1 个测试 | auto-built Chat service 读取配置并保持 504/chat_timeout contract |

@@ -119,6 +119,40 @@ def test_history_aware_agent_receives_prior_messages() -> None:
     assert agent.calls == [("two", [("user", "one"), ("assistant", "echo:one")])]
 
 
+def test_sse_history_aware_agent_receives_and_persists_prior_messages() -> None:
+    class HistoryStreamAgent(FakeAgent):
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, list[tuple[str, str]]]] = []
+
+        def stream_with_history(
+            self, message: str, history: list[tuple[str, str]]
+        ) -> list[str]:
+            self.calls.append((message, history))
+            return ["streamed"]
+
+    agent = HistoryStreamAgent()
+    service = ChatApplicationService(agent)
+    client = TestClient(create_app(chat_service=service))
+
+    first = client.post("/api/v1/chat", json={"message": "one"}).json()
+    streamed = client.post(
+        "/api/v1/chat/stream",
+        json={"message": "two", "conversation_id": first["conversation_id"]},
+    )
+
+    assert streamed.status_code == 200
+    assert '"type": "token"' in streamed.text
+    assert agent.calls == [("two", [("user", "one"), ("assistant", "echo:one")])]
+    conversation = service.conversation_repository.get(
+        "local", UUID(first["conversation_id"])
+    )
+    assert conversation is not None
+    assert [message.content for message in conversation.messages][-2:] == [
+        "two",
+        "streamed",
+    ]
+
+
 def test_conversation_query_returns_messages_and_stable_404() -> None:
     service = ChatApplicationService(FakeAgent())
     client = TestClient(create_app(chat_service=service))
