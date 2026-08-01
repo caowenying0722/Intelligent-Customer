@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import requests
@@ -15,6 +15,10 @@ from langchain_core.messages import (
 )
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.utils.function_calling import convert_to_openai_tool
+
+
+class AnthropicCompatibleProviderError(RuntimeError):
+    """Safe provider failure without response-body or credential details."""
 
 
 class AnthropicCompatibleChatModel(BaseChatModel):
@@ -37,6 +41,34 @@ class AnthropicCompatibleChatModel(BaseChatModel):
         if base.endswith("/v1"):
             return f"{base}/messages"
         return f"{base}/v1/messages"
+
+    @staticmethod
+    def _safe_request_id(response: Any) -> str | None:
+        headers = getattr(response, "headers", None)
+        if not isinstance(headers, Mapping):
+            return None
+        for header_name in ("request-id", "x-request-id", "x-amzn-requestid"):
+            value = headers.get(header_name)
+            if not isinstance(value, str):
+                continue
+            candidate = value.strip()
+            if 1 <= len(candidate) <= 128 and all(
+                character.isalnum() or character in ".:_-" for character in candidate
+            ):
+                return candidate
+        return None
+
+    @classmethod
+    def _provider_error(cls, response: Any) -> AnthropicCompatibleProviderError:
+        status_code = getattr(response, "status_code", 0)
+        if not isinstance(status_code, int):
+            status_code = 0
+        request_id = cls._safe_request_id(response)
+        suffix = f", request_id={request_id}" if request_id else ""
+        return AnthropicCompatibleProviderError(
+            "Anthropic-compatible provider request failed "
+            f"(status={status_code}{suffix})"
+        )
 
     @staticmethod
     def _content_to_text(content: Any) -> str:
@@ -244,19 +276,32 @@ class AnthropicCompatibleChatModel(BaseChatModel):
             "x-api-key": self.api_key,
             "authorization": f"Bearer {self.api_key}",
         }
-        response = requests.post(
-            self._messages_url(),
-            headers=headers,
-            json=payload,
-            timeout=self.timeout,
-            verify=self.verify,
-        )
-        if response.status_code >= 400:
-            raise RuntimeError(
-                f"Anthropic-compatible chat request failed: {response.status_code} {response.text}"
+        try:
+            response = requests.post(
+                self._messages_url(),
+                headers=headers,
+                json=payload,
+                timeout=self.timeout,
+                verify=self.verify,
             )
+        except requests.RequestException:
+            raise AnthropicCompatibleProviderError(
+                "Anthropic-compatible provider transport failed"
+            ) from None
+        if response.status_code >= 400:
+            raise self._provider_error(response)
 
-        data = response.json()
+        try:
+            raw_data = response.json()
+        except ValueError:
+            raise AnthropicCompatibleProviderError(
+                "Anthropic-compatible provider returned invalid JSON"
+            ) from None
+        if not isinstance(raw_data, dict):
+            raise AnthropicCompatibleProviderError(
+                "Anthropic-compatible provider returned an invalid response"
+            )
+        data = raw_data
         text, tool_calls = self._extract_response(data)
         additional_kwargs: dict[str, Any] = {}
         if isinstance(data.get("content"), list):
@@ -271,5 +316,5 @@ class AnthropicCompatibleChatModel(BaseChatModel):
                     )
                 )
             ],
-            llm_output={"model": self.model_name, "raw": data},
+            llm_output={"model": self.model_name},
         )

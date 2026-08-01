@@ -4,7 +4,10 @@ from unittest.mock import Mock, patch
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.tools import tool
 
-from model.anthropic_compatible import AnthropicCompatibleChatModel
+from model.anthropic_compatible import (
+    AnthropicCompatibleChatModel,
+    AnthropicCompatibleProviderError,
+)
 
 
 @tool
@@ -83,6 +86,47 @@ class AnthropicCompatibleChatModelTest(unittest.TestCase):
         self.assertEqual(messages[1]["content"][0]["type"], "tool_use")
         self.assertEqual(messages[2]["content"][0]["type"], "tool_result")
         self.assertEqual(messages[2]["content"][0]["tool_use_id"], "toolu_123")
+
+    def test_provider_error_does_not_expose_response_body(self) -> None:
+        response = Mock()
+        response.status_code = 429
+        response.text = "sensitive provider response with prompt"
+        response.headers = {"request-id": "req_123"}
+
+        with patch("model.anthropic_compatible.requests.post", return_value=response):
+            with self.assertRaises(AnthropicCompatibleProviderError) as raised:
+                self.model.invoke([HumanMessage(content="hello")])
+
+        message = str(raised.exception)
+        self.assertIn("status=429", message)
+        self.assertIn("request_id=req_123", message)
+        self.assertNotIn("sensitive provider response", message)
+
+    def test_invalid_json_and_success_metadata_do_not_store_raw_response(self) -> None:
+        invalid_response = Mock()
+        invalid_response.status_code = 200
+        invalid_response.text = "secret body"
+        invalid_response.json.side_effect = ValueError("secret body")
+        with patch(
+            "model.anthropic_compatible.requests.post", return_value=invalid_response
+        ):
+            with self.assertRaises(AnthropicCompatibleProviderError) as raised:
+                self.model.invoke([HumanMessage(content="hello")])
+        self.assertNotIn("secret body", str(raised.exception))
+
+        success_response = Mock()
+        success_response.status_code = 200
+        success_response.json.return_value = {
+            "content": [{"type": "text", "text": "answer"}],
+            "secret": "must not be retained",
+        }
+        with patch(
+            "model.anthropic_compatible.requests.post", return_value=success_response
+        ):
+            result = self.model._generate([HumanMessage(content="hello")])
+
+        self.assertNotIn("raw", result.llm_output or {})
+        self.assertNotIn("must not be retained", str(result.llm_output))
 
 
 if __name__ == "__main__":
