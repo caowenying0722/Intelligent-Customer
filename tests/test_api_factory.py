@@ -45,6 +45,9 @@ class FakeAgent:
     def run(self, message: str) -> str:
         return f"echo:{message}"
 
+    def stream(self, message: str) -> list[str]:
+        return ["echo:", message]
+
 
 def test_chat_route_uses_injected_agent_and_stable_response() -> None:
     service = ChatApplicationService(FakeAgent())
@@ -82,3 +85,15 @@ def test_chat_route_maps_timeout_without_traceback() -> None:
     assert response.status_code == 504
     assert response.json()["code"] == "chat_timeout"
     assert "Traceback" not in response.text
+
+
+def test_chat_sse_emits_metadata_tokens_and_single_completed_event() -> None:
+    client = TestClient(create_app(chat_service=ChatApplicationService(FakeAgent())))
+
+    response = client.post("/api/v1/chat/stream", json={"message": "你好"})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert response.text.count('"type": "metadata"') == 1
+    assert response.text.count('"type": "token"') == 2
+    assert response.text.count('"type": "completed"') == 1

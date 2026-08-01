@@ -4,11 +4,12 @@ The factory deliberately accepts readiness dependencies instead of constructing
 models, vector stores, or network clients during import or test startup.
 """
 
+import json
 from collections.abc import Callable
 from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.app.application.chat import ChatApplicationService
 from src.app.schemas import ChatRequest, ChatResponse, ErrorResponse
@@ -75,6 +76,24 @@ def create_app(
                 },
             )
         return ChatResponse(request_id=request.state.request_id, answer=answer)
+
+    @app.post("/api/v1/chat/stream")
+    async def chat_stream(request: Request, payload: ChatRequest):
+        async def events():
+            request_id = request.state.request_id
+            yield f"data: {json.dumps({'type': 'metadata', 'request_id': request_id}, ensure_ascii=False)}\n\n"
+            if chat_service is None:
+                yield f"data: {json.dumps({'type': 'error', 'code': 'chat_unavailable', 'request_id': request_id})}\n\n"
+                return
+            try:
+                chunks = await chat_service.stream(payload.message)
+                for chunk in chunks:
+                    yield f"data: {json.dumps({'type': 'token', 'text': chunk}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'completed', 'request_id': request_id})}\n\n"
+            except Exception as exc:  # noqa: BLE001 - stable SSE error envelope.
+                yield f"data: {json.dumps({'type': 'error', 'code': 'chat_failed', 'message': str(exc), 'request_id': request_id})}\n\n"
+
+        return StreamingResponse(events(), media_type="text/event-stream")
 
     return app
 

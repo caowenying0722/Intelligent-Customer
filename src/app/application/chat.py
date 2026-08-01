@@ -8,6 +8,8 @@ from typing import Protocol
 class ChatAgent(Protocol):
     def run(self, message: str) -> str: ...
 
+    def stream(self, message: str) -> list[str]: ...
+
 
 class ChatApplicationError(RuntimeError):
     """Safe application-level error that can be mapped to a stable API code."""
@@ -34,6 +36,19 @@ class ChatApplicationService:
             else:
                 result = asyncio.to_thread(self.agent.run, message)
             return await asyncio.wait_for(result, timeout=self.timeout_seconds)
+        except (TimeoutError, asyncio.TimeoutError) as exc:
+            raise ChatApplicationError("chat execution timed out") from exc
+        except Exception as exc:  # noqa: BLE001 - map provider details to safe error.
+            raise ChatApplicationError("chat execution failed") from exc
+
+    async def stream(self, message: str) -> list[str]:
+        """Return bounded fake/provider chunks for the transport SSE adapter."""
+        try:
+            chunks = await asyncio.wait_for(
+                asyncio.to_thread(self.agent.stream, message),
+                timeout=self.timeout_seconds,
+            )
+            return chunks
         except (TimeoutError, asyncio.TimeoutError) as exc:
             raise ChatApplicationError("chat execution timed out") from exc
         except Exception as exc:  # noqa: BLE001 - map provider details to safe error.

@@ -21,5 +21,6 @@ app = create_app()
 - `ChatApplicationService` 通过注入的 Agent 执行，并用 `asyncio.wait_for` 设置服务级 timeout。
 - Agent 异常只映射为稳定的 `chat_failed`/`chat_timeout` 错误，不返回堆栈或供应商原始响应。
 - 默认应用未注入 Agent 时返回 `503 chat_unavailable`。
+- `POST /api/v1/chat/stream` 返回 `text/event-stream`，事件顺序为 `metadata`、零个或多个 `token`、最多一个 `completed`；失败使用 `error` envelope。
 
 SSE、取消传播和持久化会话将在后续独立目标中加入。
