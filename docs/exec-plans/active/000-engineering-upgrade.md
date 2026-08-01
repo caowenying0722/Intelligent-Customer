@@ -814,5 +814,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 10 第八个目标完成：修复 API ingestion 的两处真实 Mypy 错误，明确 metadata store Protocol 并收窄取消分支 UUID；定向 `src/app` Mypy 通过，避免 CI 未覆盖的类型回归继续积累。
 - 阶段 10 第九个目标完成：CI Mypy 目标纳入 `src/app`，并将文档/入口验证范围扩展到应用边界；本机完整 Mypy 受 `.local_deps` 的 Python 3.12-only NumPy stub 与 Python 3.10 配置冲突阻塞，已明确记录而未伪称通过。
 - 阶段 10 第十个目标完成：修复 Python 3.10 不支持 `enum.StrEnum` 的剩余模型/入库枚举，并将 retrieval comparison/metrics 参数改为协变 `Mapping`；降低类型门禁的真实兼容错误，未掩盖测试 mock 类型问题。
+- 阶段 10 第十一个目标完成：收窄 ModelGateway cache backend Protocol、放宽 SQL ingestion 状态值为可规范化枚举，并明确 Chroma kwargs 类型；全量源码 Mypy 从 7 个错误降至仅测试/第三方 stub 兼容问题。
+- 阶段 10 第十二个目标完成：CI 类型门禁改为覆盖 90 个生产源码/入口模块，源码 Mypy 实测通过；测试中的动态 mock 类型仍由 pytest 行为回归覆盖，并在 workflow 中显式说明范围。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。

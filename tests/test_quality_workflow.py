@@ -9,3 +9,7 @@ def test_quality_workflow_validates_manifest_and_prepares_artifacts() -> None:
     assert "python scripts/run_deterministic_regression.py" in workflow
     assert "python -m evaluation.quality_gate" in workflow
     assert "--config config/evaluation_quality_gate.yml" in workflow
+    assert (
+        "python -m mypy agent rag model evaluation utils scripts src/app app.py"
+        in workflow
+    )

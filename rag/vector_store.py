@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -52,7 +53,7 @@ class VectorStoreService:
         scope_filter = build_chroma_scope_filter(
             tenant_id=tenant_id, index_version=index_version
         )
-        get_kwargs: dict[str, object] = {"include": ["documents", "metadatas"]}
+        get_kwargs: dict[str, Any] = {"include": ["documents", "metadatas"]}
         if scope_filter is not None:
             get_kwargs["where"] = scope_filter
         chroma_data = self.vector_store.get(**get_kwargs)

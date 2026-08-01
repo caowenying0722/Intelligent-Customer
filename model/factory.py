@@ -13,7 +13,7 @@ from langchain_openai import ChatOpenAI
 
 from model.anthropic_compatible import AnthropicCompatibleChatModel
 from model.cache import ModelCache
-from model.gateway import ModelGateway
+from model.gateway import CacheBackend, ModelGateway
 from model.quota import TenantQuota
 from model.redis_cache import RedisCacheAdapter
 from model.runtime_config import ModelRuntimeConfig
@@ -176,7 +176,7 @@ def build_chat_gateway(
     runtime: ModelRuntimeConfig | None = None,
     settings: Settings | None = None,
     max_concurrency: int = 8,
-    cache: object | None = None,
+    cache: CacheBackend | None = None,
     redis_client: object | None = None,
 ) -> ModelGateway:
     """Adapt an explicitly selected chat model behind the bounded gateway."""

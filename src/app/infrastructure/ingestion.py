@@ -120,7 +120,11 @@ class SqlAlchemyIngestionRepository:
         return self.create_document(record), True
 
     def update_document_status(
-        self, *, tenant_id: str, document_id: UUID, status: DocumentStatus
+        self,
+        *,
+        tenant_id: str,
+        document_id: UUID,
+        status: DocumentStatus | str,
     ) -> DocumentRecord:
         with Session(self.engine) as session:
             row = session.scalar(
@@ -131,12 +135,16 @@ class SqlAlchemyIngestionRepository:
             )
             if row is None:
                 raise KeyError("document not found")
-            row.status = status.value
+            row.status = DocumentStatus(status).value
             session.commit()
             return self._document(row)
 
     def update_status(
-        self, *, tenant_id: str, document_id: UUID, status: DocumentStatus
+        self,
+        *,
+        tenant_id: str,
+        document_id: UUID,
+        status: DocumentStatus | str,
     ) -> DocumentRecord:
         return self.update_document_status(
             tenant_id=tenant_id, document_id=document_id, status=status

@@ -7,16 +7,28 @@ import time
 from collections import deque
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import Any, Protocol
 
 from model.audit import request_fingerprint, start_trace
-from model.cache import ModelCache
 from model.contracts import ModelRequest, ModelResponse, ModelUsage
 from model.cost import BudgetExceededError, CostTracker, UsageRecord
 from model.errors import ModelError, ModelErrorCode
 from model.idempotency import IdempotencyConflictError, IdempotencyStore
 from model.quota import TenantQuota
 from model.structured import validate_structured
+
+
+class CacheBackend(Protocol):
+    @staticmethod
+    def key(
+        *, tenant_id: str, model: str, prompt: str, prompt_version: str = "v1"
+    ) -> str: ...
+
+    def get(self, key: str) -> Any | None: ...
+
+    def set(self, key: str, value: Any) -> object: ...
+
+    def stats(self) -> dict[str, int]: ...
 
 
 class ModelGatewayError(RuntimeError):
@@ -66,7 +78,7 @@ class ModelGateway:
         failure_threshold: int = 5,
         cooldown_seconds: float = 30.0,
         rate_limit_per_second: int | None = None,
-        cache: ModelCache | None = None,
+        cache: CacheBackend | None = None,
         quota: TenantQuota | None = None,
         cost_tracker: CostTracker | None = None,
         idempotency_store: IdempotencyStore | None = None,
