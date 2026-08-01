@@ -106,3 +106,36 @@ def test_document_delete_is_tenant_scoped_and_removes_file() -> None:
     finally:
         service.close()
         shutil.rmtree(storage_root, ignore_errors=True)
+
+
+def test_index_rebuild_is_bounded_and_idempotent() -> None:
+    jobs = IngestionJobManager(max_workers=1)
+    service = DocumentIngestionService(
+        SecureUploadStorage(Path("output") / f"api-rebuild-{uuid4().hex}"),
+        jobs,
+        DocumentMetadataRegistry(),
+    )
+    calls = []
+    app = create_app(
+        ingestion_service=service,
+        index_rebuild_operation=lambda version: calls.append(version),
+    )
+    try:
+        with TestClient(app) as client:
+            missing = client.post("/api/v1/indexes/rebuild", json={"index_version": "v1"})
+            assert missing.status_code == 422
+            first = client.post(
+                "/api/v1/indexes/rebuild",
+                headers={"x-tenant-id": "tenant-a", "idempotency-key": "rebuild-1"},
+                json={"index_version": "v1"},
+            )
+            second = client.post(
+                "/api/v1/indexes/rebuild",
+                headers={"x-tenant-id": "tenant-a", "idempotency-key": "rebuild-1"},
+                json={"index_version": "v1"},
+            )
+            assert first.status_code == second.status_code == 200
+            assert first.json()["job_id"] == second.json()["job_id"]
+            assert first.json()["tenant_id"] == "tenant-a"
+    finally:
+        service.close()

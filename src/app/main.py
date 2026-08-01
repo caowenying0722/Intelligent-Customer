@@ -28,6 +28,7 @@ def create_app(
     lifecycle_resources: tuple[object, ...] = (),
     ingestion_service: DocumentIngestionService | None = None,
     ingestion_operation: Callable | None = None,
+    index_rebuild_operation: Callable | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -118,7 +119,7 @@ def create_app(
 
     if ingestion_service is not None and ingestion_service not in lifecycle_resources:
         lifecycle_resources = (*lifecycle_resources, ingestion_service)
-    app.include_router(build_router(chat_service, ingestion_service, ingestion_operation))
+    app.include_router(build_router(chat_service, ingestion_service, ingestion_operation, index_rebuild_operation))
     return app
 
 

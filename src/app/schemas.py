@@ -82,6 +82,13 @@ class DocumentUploadResponse(BaseModel):
     created: bool
 
 
+class IndexRebuildRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    index_version: str = Field(min_length=1, max_length=128)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
+
+
 class DocumentStatusResponse(BaseModel):
     document_id: str
     tenant_id: str

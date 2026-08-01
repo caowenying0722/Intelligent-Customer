@@ -30,6 +30,7 @@ from src.app.schemas import (
     DocumentUploadResponse,
     DocumentStatusResponse,
     IngestionJobResponse,
+    IndexRebuildRequest,
 )
 
 
@@ -37,8 +38,34 @@ def build_router(
     chat_service: ChatApplicationService | None,
     ingestion_service: DocumentIngestionService | None = None,
     ingestion_operation: Callable | None = None,
+    index_rebuild_operation: Callable | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
+
+    @router.post("/indexes/rebuild", response_model=IngestionJobResponse)
+    async def rebuild_index(request: Request, payload: IndexRebuildRequest):
+        if ingestion_service is None or index_rebuild_operation is None:
+            return JSONResponse(status_code=503, content={"code": "index_rebuild_unavailable", "message": "index rebuild processor is not configured", "request_id": request.state.request_id})
+        tenant_id = request.headers.get("x-tenant-id", "local")
+        idempotency_key = request.headers.get("idempotency-key") or payload.idempotency_key or ""
+        if not idempotency_key:
+            return JSONResponse(status_code=422, content={"code": "missing_idempotency_key", "message": "idempotency key is required", "request_id": request.state.request_id})
+        try:
+            job = ingestion_service.jobs.submit(
+                tenant_id=tenant_id,
+                idempotency_key=idempotency_key,
+                operation=lambda: index_rebuild_operation(payload.index_version),
+            )
+        except ValueError as exc:
+            return JSONResponse(status_code=422, content={"code": "invalid_rebuild", "message": str(exc), "request_id": request.state.request_id})
+        return IngestionJobResponse(
+            job_id=str(job.job_id), tenant_id=job.tenant_id, status=job.status.value,
+            error=job.error, created_at=job.created_at.isoformat(),
+            started_at=job.started_at.isoformat() if job.started_at else None,
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+            progress=job.progress, attempt=job.attempt, max_attempts=job.max_attempts,
+            cancel_requested=job.cancel_requested,
+        )
 
     @router.post("/documents", response_model=DocumentUploadResponse)
     async def upload_document(request: Request, payload: DocumentUploadRequest):
