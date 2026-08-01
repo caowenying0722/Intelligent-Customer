@@ -19,4 +19,4 @@ def test_dockerfile_uses_python_310_non_root_and_healthcheck() -> None:
     assert "python:3.10-slim" in dockerfile
     assert "USER app" in dockerfile
     assert "HEALTHCHECK" in dockerfile
-    assert "pip install -r requirements.txt" in dockerfile
+    assert "pip install -r requirements.lock" in dockerfile

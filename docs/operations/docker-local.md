@@ -2,6 +2,8 @@
 
 当前 Compose 基线只容器化 FastAPI API，使用 Python 3.10 slim、非 root 用户和 `/health/live` healthcheck；它不包含 PostgreSQL、Redis、Qdrant、Worker 或可观测性后端，不应被描述为完整生产编排。
 
+镜像从仓库内由 Python 3.10 生成的 `requirements.lock` 安装依赖，避免 Docker 构建时重新解析未锁定版本。
+
 校验配置：
 
 ```bash

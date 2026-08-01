@@ -8,9 +8,9 @@ WORKDIR /app
 
 RUN groupadd --system app && useradd --system --gid app --home-dir /app app
 
-COPY requirements.txt ./requirements.txt
+COPY requirements.lock ./requirements.lock
 RUN python -m pip install --upgrade pip \
-    && python -m pip install -r requirements.txt
+    && python -m pip install -r requirements.lock
 
 COPY . .
 RUN chown -R app:app /app

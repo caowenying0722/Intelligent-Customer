@@ -13,7 +13,7 @@
 | `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：92 个源码文件 | 测试动态 mock 不纳入源码类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
 | `python -m pip check` | 通过 | 依赖元数据无破损 |
-| `docker compose config --quiet` | 通过 | API 单服务 Compose 配置有效 |
+| `docker compose config --quiet` | 通过 | API 单服务 Compose 配置有效，镜像使用 `requirements.lock` |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 
