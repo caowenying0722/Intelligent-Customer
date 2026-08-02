@@ -4,7 +4,7 @@
 
 本页记录 2026-08-02 对 `main` 分支工作区的实测结果。工作区仍保留用户未提交修改：`README.md` 被修改、两份 `docs/rag_quality_*.md` 被删除，`AGENT.md`、`todo.md` 未跟踪。本轮不覆盖或恢复这些内容；本页只描述已提交代码和实际执行结果。
 
-当前项目是 Streamlit 演示客户端加 FastAPI API-first 服务、LangGraph Agent、SQLite 本地 baseline/Qdrant Hybrid RAG、PostgreSQL/Alembic 持久化和可观测性栈。Compose 中 PostgreSQL、迁移、Qdrant、精简 API、Collector、Prometheus 和 Grafana 已完成真实启动与端到端验收；`workers` profile 的 Redis 7.4/Celery 独立 worker 也已真实启动并连接。默认依赖的 ChromaDB/RAGAS/DiskCache 漏洞已通过移除默认安装和替换本地 baseline 收口；生产 trace backend、完整 worker 业务 handler、容量上限仍待完成。
+当前项目是 Streamlit 演示客户端加 FastAPI API-first 服务、LangGraph Agent、SQLite 本地 baseline/Qdrant Hybrid RAG、PostgreSQL/Alembic 持久化和可观测性栈。Compose 中 PostgreSQL、迁移、Qdrant、精简 API、Collector、Prometheus、Grafana 和带 Badger 持久卷的 Jaeger 已完成真实启动与端到端验收；`workers` profile 的 Redis 7.4/Celery 独立 worker 也已真实启动并连接。默认依赖的 ChromaDB/RAGAS/DiskCache 漏洞已通过移除默认安装和替换本地 baseline 收口；完整 worker 业务 handler、容量上限和受管 trace backend 仍待完成。
 
 ## 运行环境与依赖
 
@@ -100,9 +100,9 @@ flowchart LR
 | Qdrant / hybrid filter | 已实现当前阶段 | Compose Qdrant 1.18.3 healthy；真实 dense+sparse/RRF 查询强制 tenant/index 并覆盖 document/product/language/effective-date filter；SQLite/BM25 baseline 保留 |
 | LangGraph checkpoint | 已实现当前阶段 | `PostgresSaver` 由应用生命周期管理，tenant/conversation 映射为稳定 thread ID；持久化中断、审批恢复和重启恢复均有 fake/真实 PostgreSQL 测试 |
 | 用户/会话持久化 | 部分实现 | FastAPI 可选 SQLAlchemy 会话和入库 job 持久化；Streamlit 默认仍为进程内 session |
-| JWT / RBAC | 部分实现 | `JWTAuthenticator`、稳定 401/403、tenant 一致性和安全审计已测试；审批/完整角色策略仍有限 |
+| JWT / RBAC | 已实现当前边界 | 生产组合根从 `JWT_SECRET/JWT_ISSUER/JWT_AUDIENCE` 自动接入；tenant 一致性、审计和稳定 401/403 已测试；文档/索引/取消/run 变更限定 operator/admin，审批限定 approver/admin |
 | 多租户隔离 | 部分实现 | API conversation/document/job/retrieval 路径有 tenant filter；Streamlit/本地工具和跨服务部署仍非完整隔离 |
-| OpenTelemetry | 部分实现 | W3C `traceparent`、HTTP/Agent/LLM/RAG dense/sparse/fusion/rerank/工具/Worker span 与 timeout-bounded OTLP gRPC 已接线；真实 Collector 收到 trace batches。生产 trace backend 仍未实现 |
+| OpenTelemetry | 已实现本地持久化 backend 边界 | W3C `traceparent`、HTTP/Agent/LLM/RAG dense/sparse/fusion/rerank/工具/Worker span 与 timeout-bounded OTLP gRPC 已接线；Collector → Jaeger Badger trace 查询已实测；生产仍需受管 backend/retention |
 | Prometheus / metrics endpoint | 已实现当前阶段 | `/metrics` 与 `/metrics/prometheus` 暴露有界 HTTP/模型/RAG/工具/Worker 聚合指标；真实 Prometheus target 为 up，Grafana health 正常；进程重启会归零 |
 | Docker Compose | 已实现当前里程碑 | PostgreSQL、migration、Qdrant、精简 API 和 `observability` profile 已配置；API、live/ready/OpenAPI、Prometheus scrape、Collector trace、Grafana health 均真实验证 |
 | CI | 已实现当前里程碑 | 远端旧 run `30733015390` 的功能质量门禁通过；本轮默认依赖安全审计已通过，新的依赖/代码变更待下一次远端 run 验收 |
@@ -114,9 +114,9 @@ flowchart LR
 
 | 命令 | 实际结果 |
 |---|---|
-| `python -m pytest -q --basetemp output/pytest-full-celery` | 通过：420 passed，6 skipped，26 subtests；当前 shell 为 Python 3.13 |
+| `python -m pytest -q --basetemp output/pytest-full-target3` | 通过：422 passed，6 skipped，26 subtests；当前 shell 为 Python 3.13 |
 | 容器集成测试 | 通过：5 passed | Python 3.10 API 镜像连接真实 PostgreSQL 16/Qdrant 1.18.3，验证恢复、并发 claim 和 hybrid 隔离 |
-| `python -m ruff format --check .` | 通过：277 个 Python 文件已格式化 |
+| `python -m ruff format --check .` | 通过：278 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
 | `python -m mypy agent rag model evaluation utils scripts src app.py` | 通过：113 个源码文件 |
 | `python -m mypy tests` | 通过：118 个测试源码文件 |
@@ -214,7 +214,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 ## 测试、可观测性、部署和数据状态
 
 - 测试：当前 shell pytest 为 402 passed、6 skipped、26 subtests，分支覆盖率 64%；Python 3.10.20 锁定环境为 403 passed、5 skipped、26 subtests，并对真实 PostgreSQL/Qdrant 执行 5 个集成测试。真实付费 provider 和生产负载未验证。
-- 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；开发 Collector/backend 端到端传输已验证，生产 trace backend 仍未完成。
+- 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；开发 Collector → Jaeger Badger backend 端到端传输和 trace 查询已验证，生产仍需受管 retention/认证。
 - 部署：Compose PostgreSQL、Qdrant、migration、精简 API 和 observability profile 已真实 healthy，并完成 scrape/OTLP 验收；完整生产栈未完成。
 - 持久化：会话、Agent checkpoint、审批和入库任务已进入 PostgreSQL/Alembic；Qdrant 向量索引和 Chroma baseline 并存。备份恢复和多副本一致性仍未验证。
 

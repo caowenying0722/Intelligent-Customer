@@ -6,10 +6,10 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q --basetemp output/pytest-full-celery` | 通过：420 passed，6 skipped，26 subtests | 当前工作区 Python 3.13 本地回归；默认不调用付费模型 |
+| `python -m pytest -q --basetemp output/pytest-full-target3` | 通过：422 passed，6 skipped，26 subtests | 当前工作区 Python 3.13 本地回归；默认不调用付费模型 |
 | Python 3.10.20 锁定环境全量测试 | 待重新安装后复跑 | 当前 `ics` 环境存在历史 async-timeout/OTel 包冲突，不能冒充 clean-install 结果；锁文件已重新生成 |
 | 容器集成测试 | 通过：5 passed | Python 3.10 API 镜像连接 PostgreSQL 16/Qdrant 1.18.3 |
-| `python -m ruff format --check .` | 通过 | 277 个 Python 文件已格式化 |
+| `python -m ruff format --check .` | 通过 | 278 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
 | `python -m mypy agent rag model evaluation utils scripts src app.py` | 通过：113 个源码文件 | 生产源码类型门禁 |
 | `python -m mypy tests` | 通过：118 个测试源码文件 | 独立测试类型门禁 |
@@ -32,6 +32,7 @@
 | Worker Prometheus 聚合指标 | 通过：4 个测试 | 队列/活动/等待/处理/重试/终态聚合，无 job/tenant 标签 |
 | API 访问日志脱敏 | 通过：2 个测试 | 仅 method/status/duration/request_id/trace_id；不记录 Authorization/Cookie/query/prompt/正文 |
 | Prompt 输出安全边界 | 通过：2 个测试 | 只允许简短进度说明，不要求输出隐藏推理、系统提示或策略细节 |
+| JWT/RBAC/tenant boundary | 通过：定向 API 认证回归 | 生产组合根自动接入 JWT；跨租户请求 403；文档/索引/取消/run 变更需要 service_agent/admin，审批需要 approver/admin |
 | 模型供应商错误脱敏 | 通过：2 个测试 | 错误只保留状态码/白名单 request ID；成功响应不保存 raw 正文 |
 | 重排评测泄漏回归 | 通过：2 个测试 | 来源文件名不参与评分、来源多样性选择或重复判定 |
 | 引用支持代理回归 | 通过：2 个测试 | 分离编号 validity 与 lexical support；不宣称 entailment 或人工事实标签 |
@@ -59,7 +60,7 @@
 | PostgreSQL/container integration | 通过 | PostgreSQL healthy、migration exit 0、API healthy，live/ready/OpenAPI 200；真实 checkpoint/审批重启及 `SKIP LOCKED` 双 worker claim 测试通过 |
 | Qdrant hybrid integration | 通过 | Qdrant 1.18.3 healthy；真实 dense+sparse/RRF、tenant/index/version/business filter 集成测试通过；API readiness 200 |
 | 五路 retrieval ablation | 通过 | baseline/dense/sparse/RRF/RRF+reranker 使用 3 条冻结样本、model_calls=0 生成本地报告；只作为 proxy，不宣称生产提升 |
-| Observability stack E2E | 通过 | API/Collector/Prometheus/Grafana health 均 ok；Prometheus target up；Collector debug exporter 收到真实 API trace batches |
+| Observability stack E2E | 通过 | API/Collector/Prometheus/Grafana/Jaeger health 均 ok；Prometheus target up；Collector debug + Jaeger exporter 收到真实 API trace，Jaeger API 可按 `intelligent-customer-service` 查询 |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 | `python scripts/run_deterministic_regression.py --output output/ci/target73-deterministic.json` | 通过：3/3 样本，model_calls=0 | retrieval-regression-v1；recall@1=0.5、recall@3/5/10=1.0、MRR=1.0；artifact commit=`aac459e`、dirty=true |
@@ -77,11 +78,11 @@
 
 ## 已知未完成
 
-- Compose 当前包含 PostgreSQL、migration、Qdrant、精简 API、可选 observability profile，以及已实测的 workers profile；生产 trace backend 和业务 worker handler 仍是后续扩展。
+- Compose 当前包含 PostgreSQL、migration、Qdrant、精简 API、可选 observability profile（Jaeger Badger）以及已实测的 workers profile；受管 trace backend/retention 和业务 worker handler 仍是后续扩展。
 - CI 已在依赖漏洞审计前加入 Docker build 步骤；远端 run `30732643961` 已确认镜像构建、Compose、测试和 artifact 流程成功。
-- 已执行真实 Docker health、迁移、API readiness 和 PostgreSQL backup/restore；SSE 与独立后台 Worker 容器 smoke 尚未完成。
+- 已执行真实 Docker health、迁移、API readiness、PostgreSQL backup/restore、Redis/Celery worker smoke 和 Jaeger trace 查询；真实业务 worker handler、SSE 上游取消/背压仍未完成。
 - hidden evaluation、真实 provider 评测和生产网络压测未执行。
 
 ## 结论
 
-当前状态已具备可复现的本地容器栈、默认依赖安全门禁、备份恢复演练和可追溯 fake 容量基线，但不满足无条件生产发布。后续仍需 Redis/Celery、持久 trace backend、完整 RBAC/租户边界、clean Python 3.10 重装及真实流量/provider 验证。
+当前状态已具备可复现的本地容器栈、默认依赖安全门禁、备份恢复演练、可追溯 fake 容量基线、跨进程 worker、本地持久 trace backend 和生产 JWT/RBAC 边界，但不满足无条件生产发布。后续仍需受管 trace retention/认证、完整业务 worker handler、clean Python 3.10 重装及真实流量/provider 验证。

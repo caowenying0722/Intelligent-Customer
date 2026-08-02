@@ -128,6 +128,36 @@ def role_dependency(
     return dependency
 
 
+def role_guard(roles: set[str], audit_sink: AuditSink | None = None):
+    """Authorize a route after the router-level JWT dependency has run."""
+
+    sink = audit_sink or LoggingAuditSink()
+
+    async def dependency(request: Request) -> TokenClaims:
+        claims = getattr(request.state, "auth_claims", None)
+        if not isinstance(claims, TokenClaims):
+            raise HTTPException(status_code=401, detail="invalid access token")
+        try:
+            require_role(claims, roles)
+        except AuthorizationError as exc:
+            record_safely(
+                sink,
+                SecurityAuditEvent(
+                    event_type="authorization.failure",
+                    outcome="denied",
+                    request_id=getattr(request.state, "request_id", None),
+                    tenant_id=claims.tenant_id,
+                    subject_hash=actor_hash(claims.subject),
+                    roles=tuple(sorted(claims.roles)),
+                    reason="insufficient_role",
+                ),
+            )
+            raise HTTPException(status_code=403, detail="insufficient role") from exc
+        return claims
+
+    return dependency
+
+
 def tenant_dependency(
     authenticator: JWTAuthenticator,
     tenant_header: str = "x-tenant-id",

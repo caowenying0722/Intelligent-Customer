@@ -76,6 +76,8 @@ class SettingsTest(unittest.TestCase):
             Settings.model_validate({"ingestion_worker_backend": "celery"})
         with self.assertRaises(ValidationError):
             Settings.model_validate({"redis_url": "http://redis:6379"})
+        with self.assertRaisesRegex(ValidationError, "configured together"):
+            Settings.model_validate({"jwt_secret": "s" * 32})
 
     def test_legacy_provider_alias_and_json_origins_are_supported(self) -> None:
         env = {

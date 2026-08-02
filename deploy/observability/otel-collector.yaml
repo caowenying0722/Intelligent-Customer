@@ -11,10 +11,21 @@ extensions:
 exporters:
   debug:
     verbosity: basic
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+    timeout: 5s
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 30s
+    sending_queue:
+      enabled: true
+      queue_size: 128
 
 service:
   extensions: [health_check]
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [debug]
+      exporters: [debug, otlp/jaeger]

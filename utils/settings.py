@@ -97,6 +97,15 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("REDIS_URL", "CELERY_BROKER_URL"),
     )
+    jwt_secret: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("JWT_SECRET")
+    )
+    jwt_issuer: str | None = Field(
+        default=None, validation_alias=AliasChoices("JWT_ISSUER")
+    )
+    jwt_audience: str | None = Field(
+        default=None, validation_alias=AliasChoices("JWT_AUDIENCE")
+    )
     worker_queue: str = Field(default="ingestion", min_length=1, max_length=64)
     worker_task_timeout_seconds: float = Field(default=300.0, gt=0, le=3600)
     worker_lease_seconds: float = Field(default=360.0, gt=0, le=7200)
@@ -218,6 +227,17 @@ class Settings(BaseSettings):
             and not self.otel_exporter_endpoint.startswith("https://")
         ):
             raise ValueError("OTEL_EXPORTER_OTLP_ENDPOINT must use HTTPS in production")
+        jwt_values = (self.jwt_secret, self.jwt_issuer, self.jwt_audience)
+        if any(value is not None for value in jwt_values) and not all(
+            value is not None for value in jwt_values
+        ):
+            raise ValueError(
+                "JWT_SECRET, JWT_ISSUER and JWT_AUDIENCE must be configured together"
+            )
+        if any(value is not None and not str(value).strip() for value in jwt_values):
+            raise ValueError(
+                "JWT_SECRET, JWT_ISSUER and JWT_AUDIENCE must not be blank"
+            )
         if self.ingestion_worker_backend == "celery" and self.redis_url is None:
             raise ValueError(
                 "REDIS_URL is required when INGESTION_WORKER_BACKEND=celery"

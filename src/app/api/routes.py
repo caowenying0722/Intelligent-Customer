@@ -46,7 +46,7 @@ from src.app.schemas import (
 )
 from src.app.security.audit import AuditSink
 from src.app.security.auth import JWTAuthenticator
-from src.app.security.dependencies import auth_dependency, role_dependency
+from src.app.security.dependencies import auth_dependency, role_dependency, role_guard
 
 
 def build_router(
@@ -62,6 +62,11 @@ def build_router(
         dependencies=[Depends(auth_dependency(authenticator, audit_sink))]
         if authenticator
         else [],
+    )
+    operator_dependencies = (
+        [Depends(role_guard({"admin", "service_agent"}, audit_sink))]
+        if authenticator is not None
+        else []
     )
 
     def request_tenant_id(request: Request) -> str:
@@ -105,7 +110,11 @@ def build_router(
             answer=answer,
         )
 
-    @router.post("/indexes/rebuild", response_model=IngestionJobResponse)
+    @router.post(
+        "/indexes/rebuild",
+        response_model=IngestionJobResponse,
+        dependencies=operator_dependencies,
+    )
     async def rebuild_index(request: Request, payload: IndexRebuildRequest):
         if ingestion_service is None or index_rebuild_operation is None:
             return JSONResponse(
@@ -189,7 +198,11 @@ def build_router(
             )
         return ingestion_job_response(job)
 
-    @router.post("/documents", response_model=DocumentUploadResponse)
+    @router.post(
+        "/documents",
+        response_model=DocumentUploadResponse,
+        dependencies=operator_dependencies,
+    )
     async def upload_document(request: Request, payload: DocumentUploadRequest):
         if ingestion_service is None or ingestion_operation is None:
             return JSONResponse(
@@ -279,7 +292,11 @@ def build_router(
             index_version=document.index_version,
         )
 
-    @router.delete("/documents/{document_id}", response_model=DocumentStatusResponse)
+    @router.delete(
+        "/documents/{document_id}",
+        response_model=DocumentStatusResponse,
+        dependencies=operator_dependencies,
+    )
     async def delete_document(request: Request, document_id: str):
         if ingestion_service is None:
             return JSONResponse(
@@ -361,7 +378,11 @@ def build_router(
             cancel_requested=job.cancel_requested,
         )
 
-    @router.post("/jobs/{job_id}/cancel", response_model=IngestionJobResponse)
+    @router.post(
+        "/jobs/{job_id}/cancel",
+        response_model=IngestionJobResponse,
+        dependencies=operator_dependencies,
+    )
     async def cancel_ingestion_job(request: Request, job_id: str):
         if ingestion_service is None:
             return JSONResponse(
@@ -866,7 +887,11 @@ def build_router(
             offset=offset,
         )
 
-    @router.patch("/runs/{run_id}", response_model=AgentRunResponse)
+    @router.patch(
+        "/runs/{run_id}",
+        response_model=AgentRunResponse,
+        dependencies=operator_dependencies,
+    )
     async def update_run(request: Request, run_id: str, payload: RunUpdateRequest):
         if chat_service is None:
             return JSONResponse(

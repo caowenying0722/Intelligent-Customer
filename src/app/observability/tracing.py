@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from threading import Lock
 from typing import Any
 
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
@@ -120,7 +121,9 @@ class ApiTracer:
     ) -> None:
         self.exporter = BoundedSpanExporter(max_spans=max_spans)
         self.remote_exporter: SpanExporter | None = None
-        self.provider = TracerProvider()
+        self.provider = TracerProvider(
+            resource=Resource.create({"service.name": "intelligent-customer-service"})
+        )
         self.provider.add_span_processor(SimpleSpanProcessor(self.exporter))
         if otlp_endpoint is not None:
             from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (

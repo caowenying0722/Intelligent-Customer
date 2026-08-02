@@ -16,6 +16,7 @@ from src.app.infrastructure.factory import (
     build_conversation_repository,
 )
 from src.app.main import create_app
+from src.app.security.auth import JWTAuthenticator
 from utils.settings import Settings, get_settings
 
 
@@ -25,10 +26,31 @@ def build_server_app(
     *,
     settings: Settings | None = None,
     checkpoint_runtime: PostgresCheckpointRuntime | None = None,
+    authenticator: JWTAuthenticator | None = None,
 ) -> FastAPI:
     """Build the runnable API composition root without import-time model loading."""
 
     runtime_settings = settings or get_settings()
+    if authenticator is None and all(
+        value is not None
+        for value in (
+            runtime_settings.jwt_secret,
+            runtime_settings.jwt_issuer,
+            runtime_settings.jwt_audience,
+        )
+    ):
+        assert runtime_settings.jwt_secret is not None
+        assert runtime_settings.jwt_issuer is not None
+        assert runtime_settings.jwt_audience is not None
+        authenticator = JWTAuthenticator(
+            secret=runtime_settings.jwt_secret.get_secret_value(),
+            issuer=runtime_settings.jwt_issuer,
+            audience=runtime_settings.jwt_audience,
+        )
+    if runtime_settings.application_env == "production" and authenticator is None:
+        raise ValueError(
+            "JWT_SECRET, JWT_ISSUER and JWT_AUDIENCE are required in production"
+        )
     database_url = runtime_settings.database_url
     if checkpoint_runtime is None:
         checkpoint_runtime = build_checkpoint_runtime(
@@ -72,6 +94,7 @@ def build_server_app(
             qdrant_backend.check_ready if qdrant_backend is not None else None
         ),
         lifecycle_resources=resources,
+        authenticator=authenticator,
     )
 
 

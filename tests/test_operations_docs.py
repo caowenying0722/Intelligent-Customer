@@ -13,3 +13,4 @@ def test_operations_docs_are_explicit_about_current_limits() -> None:
     assert "RPO/RTO" in backup
     assert "acks_late" in worker
     assert "at-least-once" in worker
+    assert "JWT_SECRET" in incident

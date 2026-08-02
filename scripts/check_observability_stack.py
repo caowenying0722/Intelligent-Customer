@@ -1,4 +1,4 @@
-"""Check the running API, Collector, Prometheus target and Grafana health."""
+"""Check API, Collector, Prometheus, Grafana and persistent Jaeger health."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ def check(*, host: str = "127.0.0.1", timeout: float = 5.0) -> dict[str, str]:
     collector = _json(f"http://{host}:13133/", timeout)
     prometheus = _json(f"http://{host}:9090/api/v1/targets", timeout)
     grafana = _json(f"http://{host}:3000/api/health", timeout)
+    jaeger = _json(f"http://{host}:16686/api/services", timeout)
     active = prometheus.get("data", {}).get("activeTargets", [])
     if not any(
         isinstance(target, dict)
@@ -37,11 +38,14 @@ def check(*, host: str = "127.0.0.1", timeout: float = 5.0) -> dict[str, str]:
         raise RuntimeError("API or Collector is not ready")
     if grafana.get("database") != "ok":
         raise RuntimeError("Grafana database is not ready")
+    if not isinstance(jaeger.get("data"), list):
+        raise RuntimeError("Jaeger query API is not ready")
     return {
         "api": "ok",
         "collector": "ok",
         "prometheus": "ok",
         "grafana": "ok",
+        "jaeger": "ok",
     }
 
 

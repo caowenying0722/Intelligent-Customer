@@ -69,6 +69,11 @@ def test_observability_profile_is_explicit_and_configured_without_secrets() -> N
     services = compose["services"]
 
     assert services["otel-collector"]["profiles"] == ["observability"]
+    assert services["jaeger"]["profiles"] == ["observability"]
+    assert services["jaeger"]["volumes"] == ["jaeger-data:/badger"]
+    assert services["otel-collector"]["depends_on"]["jaeger"]["condition"] == (
+        "service_healthy"
+    )
     assert services["prometheus"]["profiles"] == ["observability"]
     assert services["grafana"]["profiles"] == ["observability"]
     assert services["prometheus"]["depends_on"]["api"]["condition"] == (
@@ -93,6 +98,9 @@ def test_observability_profile_is_explicit_and_configured_without_secrets() -> N
     ]
     assert "metrics_path: /metrics/prometheus" in prometheus
     assert "api:8000" in prometheus
+    assert "otlp/jaeger" in collector
+    assert "timeout: 5s" in collector
+    assert "queue_size: 128" in collector
 
 
 def test_worker_profile_is_optional_and_has_broker_health_gate() -> None:

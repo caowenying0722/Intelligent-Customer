@@ -42,6 +42,8 @@ def test_observability_check_requires_healthy_scrape_and_backends(monkeypatch) -
                     }
                 }
             )
+        if url.endswith(":16686/api/services"):
+            return Response({"data": []})
         return Response({"database": "ok"})
 
     monkeypatch.setattr("urllib.request.urlopen", urlopen)
@@ -50,6 +52,7 @@ def test_observability_check_requires_healthy_scrape_and_backends(monkeypatch) -
         "collector": "ok",
         "prometheus": "ok",
         "grafana": "ok",
+        "jaeger": "ok",
     }
 
 

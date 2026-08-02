@@ -7,6 +7,15 @@
 3. 保存 `x-request-id`、容器日志和最近一次 release tag，不要收集 Authorization、Cookie 或模型密钥。
 4. 如果仅本地 API 容器异常，执行 `docker compose restart api`；无法恢复时停止服务并回滚到上一个已验证 tag。
 
+## 认证或租户越权告警
+
+1. 保存 request ID、租户哈希和审计事件类型，不保存 Authorization、Cookie、JWT 原文或请求正文。
+2. 先确认生产 `JWT_SECRET`、issuer、audience 配置一致；轮换密钥时按租户/客户端窗口执行，
+   不把新密钥写入仓库或日志。
+3. `customer` 只能访问自身租户的读取/聊天边界；文档、索引、取消和 run 状态变更需要
+   `service_agent` 或 `admin`，审批决策需要 `approver` 或 `admin`。
+4. 发现跨租户 200 响应时立即停止写操作，保留 PostgreSQL 备份和审计记录，回滚到最近中文 tag。
+
 ## 模型或外部依赖异常
 
 - 不在请求进程中手工重试付费调用；Model Gateway 已有 timeout/retry/circuit 边界。

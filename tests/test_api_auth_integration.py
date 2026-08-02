@@ -91,3 +91,41 @@ def test_api_auth_and_audit_sink_work_together() -> None:
     assert events[-1].event_type == "auth.success"
     assert all("user@example.com" not in str(event.as_dict()) for event in events)
     assert all(token not in str(event.as_dict()) for event in events)
+
+
+def test_mutating_routes_require_operator_role() -> None:
+    secret = "z" * 32
+    auth = JWTAuthenticator(secret=secret, issuer="iss", audience="aud")
+    client = TestClient(create_app(authenticator=auth))
+
+    def make_token(roles: list[str]) -> str:
+        return jwt.encode(
+            {
+                "sub": "u",
+                "tenant_id": "tenant-a",
+                "roles": roles,
+                "iss": "iss",
+                "aud": "aud",
+                "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+            },
+            secret,
+            algorithm="HS256",
+        )
+
+    customer = {"Authorization": f"Bearer {make_token(['customer'])}"}
+    operator = {"Authorization": f"Bearer {make_token(['service_agent'])}"}
+    payload = {
+        "filename": "manual.txt",
+        "content_base64": "aGVsbG8=",
+        "content_type": "text/plain",
+        "idempotency_key": "auth-role-1",
+    }
+
+    assert (
+        client.post("/api/v1/documents", headers=customer, json=payload).status_code
+        == 403
+    )
+    assert (
+        client.post("/api/v1/documents", headers=operator, json=payload).status_code
+        == 503
+    )
