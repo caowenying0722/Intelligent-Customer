@@ -1,4 +1,5 @@
 -r requirements.txt
+-r requirements-api.txt
 
 # Development quality gates. Keep these exact so local and CI results use the same tools.
 pytest==9.1.1

@@ -943,3 +943,4 @@ Python 3.10 下 `concurrent.futures.TimeoutError` 与内置 `TimeoutError` 的�
 - 验收：带 Badger 持久卷的 Jaeger profile 真实 healthy，`/api/traces?service=intelligent-customer-service` 可查询 API span；日志/指标不含凭证和高基数身份；跨租户访问 403、角色边界 401/403；422 passed、278 files format、113/118 Mypy、pip-audit、secret scan、deterministic/quality gate/red-team/load、Compose/backup smoke 均已实际通过。Python 3.10 锁文件 clean-install dry-run 已通过，推送后仍需远程 CI 复核。
 - 限制：Jaeger 仅为本地/预发布 backend，生产仍需受管 retention、认证、HA/归档；完整业务 worker handler、真实 provider 和生产网络压测不在本次本地门禁结论中。
 - 回滚：关闭 trace profile，保留 Collector；权限策略以旧版本兼容 deny-by-default 回退，不删除审计和租户数据。
+- 远程门禁复核：run `30739101983` 的 artifact 确认集成测试收集阶段缺少 `uvicorn`（此前由已移除的 Chroma 间接带入）；已让 `requirements-dev.txt` 显式引用 `requirements-api.txt`，补齐 `uvicorn` 锁定、环境测试和 Qdrant readiness/诊断 artifact，修复提交 `95b3e34` 待远程复核。

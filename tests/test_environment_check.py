@@ -45,7 +45,7 @@ class EnvironmentCheckTest(unittest.TestCase):
             parse_pinned_requirements(PROJECT_ROOT / "requirements-dev.txt")
         )
 
-        self.assertEqual(len(pins), 33)
+        self.assertEqual(len(pins), 34)
         self.assertEqual(pins["fastapi"].version, "0.141.1")
         self.assertEqual(pins["pyjwt"].version, "2.13.0")
         self.assertEqual(pins["opentelemetry-api"].version, "1.44.0")
@@ -55,6 +55,7 @@ class EnvironmentCheckTest(unittest.TestCase):
         self.assertEqual(pins["opentelemetry-sdk"].version, "1.44.0")
         self.assertEqual(pins["sqlalchemy"].version, "2.0.51")
         self.assertEqual(pins["alembic"].version, "1.18.5")
+        self.assertEqual(pins["uvicorn"].version, "0.52.0")
         self.assertEqual(pins["langchain"].version, "1.3.9")
         self.assertEqual(pins["langchain-core"].version, "1.4.7")
         self.assertEqual(pins["langchain-community"].version, "0.3.31")

@@ -10,7 +10,7 @@
 
 - 初始审计 shell 的解释器为 Python 3.13.13；该环境混用全局 site-packages 与 `.local_deps/`，不作为受支持运行环境。
 - 受支持开发版本由 `.python-version` 固定为 Python 3.10.20；当前执行环境是 Python 3.13，`scripts/check_environment.py` 因版本不符而失败，不能把本机结果当作 Python 3.10 验收。
-- `requirements-dev.txt` 在运行依赖上固定 pytest、pytest-asyncio、Ruff、Mypy、types-PyYAML、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
+- `requirements-dev.txt` 同时引用 `requirements.txt` 与 `requirements-api.txt`，显式包含 API 组合根所需的 `uvicorn==0.52.0`，并固定 pytest、pytest-asyncio、Ruff、Mypy、types-PyYAML、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
 - `requirements.lock` 和 `requirements-dev.lock` 固定传递依赖，包含直接认证依赖 `PyJWT==2.13.0`；Python 3.10.20 锁定环境与远端 CI 已完成 clean-install/环境门禁验证。
 - 目标环境普通导入 `app` 不再加载 Agent、模型、RAG 或本地向量库；Streamlit 执行 `main()` 后才构建 Agent，RAG 服务可用单飞后台任务预加载 SQLite baseline，首次检索等待显式超时并传播失败。
 - 旧 `.local_deps/` 目录仍存在但已不再由评测/报告脚本自动插入 `sys.path`；初始行为曾覆盖目标环境中的正确二进制包并导致 RAGAS 导入失败。
@@ -105,7 +105,7 @@ flowchart LR
 | OpenTelemetry | 已实现本地持久化 backend 边界 | W3C `traceparent`、HTTP/Agent/LLM/RAG dense/sparse/fusion/rerank/工具/Worker span 与 timeout-bounded OTLP gRPC 已接线；Collector → Jaeger Badger trace 查询已实测；生产仍需受管 backend/retention |
 | Prometheus / metrics endpoint | 已实现当前阶段 | `/metrics` 与 `/metrics/prometheus` 暴露有界 HTTP/模型/RAG/工具/Worker 聚合指标；真实 Prometheus target 为 up，Grafana health 正常；进程重启会归零 |
 | Docker Compose | 已实现当前里程碑 | PostgreSQL、migration、Qdrant、精简 API 和 `observability` profile 已配置；API、live/ready/OpenAPI、Prometheus scrape、Collector trace、Grafana health 均真实验证 |
-| CI | 已实现当前里程碑 | 远端旧 run `30733015390` 的功能质量门禁通过；本轮默认依赖安全审计已通过，新的依赖/代码变更待下一次远端 run 验收 |
+| CI | 已实现当前里程碑 | 旧 run `30733015390` 的功能门禁通过；run `30739101983` 已定位为开发锁缺少 `uvicorn`，修复已推送，待新 run 验收 |
 | 压测 | 部分实现 | `scripts/run_load_smoke.py` 支持 fake API 10 请求/并发 2；不是生产压测，暂无 Locust/k6 |
 
 ## 当前复核基线（2026-08-02）
@@ -166,7 +166,7 @@ flowchart LR
 | 命令 | 结果 | 分类与说明 |
 |---|---|---|
 | `python scripts/check_environment.py --requirements requirements.txt` | 成功 | Python 3.10，20 个直接运行依赖精确匹配，`pip check` 成功 |
-| `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 28 个直接运行/开发依赖精确匹配 |
+| `python scripts/check_environment.py --requirements requirements-dev.txt` | 成功 | 34 个直接运行/开发依赖精确匹配，包含 API 入口 `uvicorn` |
 | `pip install --dry-run --ignore-installed -r requirements-dev.lock` | 成功 | Python 3.10 clean dry-run，锁定的传递依赖可解析 |
 | `python -m pytest -q` | 成功：165 passed，23 subtests | 包含依赖隔离、配置/路径、惰性初始化、RAG 显式加载/后台单飞/超时、冻结 regression schema、Recall@K/MRR/NDCG 确定性手算、regression report 版本/完整性/Git 元数据、quality gate 通过/失败/阈值校验、deterministic BM25 summary、Qdrant point 归一化与 baseline/candidate 对比、迁移 artifact/候选回退门禁、ingestion job 幂等/状态/取消/超时/retry、progress/attempt/cancel_requested API 与协作取消、上传文件名/MIME/大小/编码/PDF 签名校验、原子安全落盘/路径隔离、验证→落盘→job 串联、content hash 文档去重/版本元数据、metadata 状态与 job 联动、SQLAlchemy document/job repository 跨实例恢复、持久化组合根与 service 重启查询、文档/job API contract、DATABASE_URL API 跨实例恢复、持久化 job 取消/恢复/孤儿失败、RRF 手算/去重/稳定排序、RRF adapter 配置切换、统一 RetrievalResult tenant/index 契约、Cross-Encoder adapter 候选上限/超时/降级、Qdrant adapter scope/ready/timeout/batch/alias/rollback/cleanup smoke、FastAPI 健康边界/Chat API/SSE/内存会话/取消/生命周期/会话查询/统一错误/租户隔离、SQLAlchemy repository、Alembic migration、迁移索引与 EXPLAIN smoke、repository 组合根、数据库 URL/readiness、事务/并发、API 重启恢复、乐观版本冲突、API 冲突契约、数据库连接池配置、user/status/agent_runs schema、Agent run 生命周期、幂等键去重、Agent run 分页过滤、Agent 上限、模型适配器、PDF/UI、LangGraph/Chroma 兼容和子进程安全测试 |
 | `python -m ruff check .` | 成功 | 仓库 `pyproject.toml` 固定精确规则集，全仓零诊断 |

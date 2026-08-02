@@ -19,7 +19,7 @@
 | `python -m pip_audit -r requirements-worker.lock --format json` | 通过：No known vulnerabilities found | 可选 Celery/Redis worker lock；`pywin32` 使用 Windows marker，不进入 Linux worker image |
 | `python -m pip_audit -r requirements-api.lock` | 通过：No known vulnerabilities found | 精简 API 镜像锁独立审计；不代表完整离线 RAG 依赖无漏洞 |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 当前 shell 失败；Python 3.10.20 环境通过 | 当前 shell 是 Python 3.13；受支持 `ics` 环境精确依赖检查通过 |
-| GitHub Actions run `30733015390` | 旧提交功能门禁通过；完整依赖审计失败 | 该 run 对应移除漏洞依赖前的提交；本轮依赖和本地向量替换需推送后由新 run 验收 |
+| GitHub Actions run `30739101983` | 失败：集成测试收集阶段缺少 `uvicorn` | 诊断 artifact 已确认开发锁未显式包含 API 入口依赖；已补 `requirements-api.txt` 引用、锁和环境测试，待新 run 验收；旧 run `30733015390` 仅代表历史提交 |
 | `docker info` | 通过 | Docker Desktop Engine 已恢复，数据盘位于 D 盘 |
 | `docker compose config --quiet` | 通过 | PostgreSQL、migration、API 配置有效；API 镜像使用精简 `requirements-api.lock` |
 | `docker compose --profile observability config --quiet` | 通过 | 配置有效；Collector/Prometheus/Grafana 实际容器也已完成端到端健康验收 |

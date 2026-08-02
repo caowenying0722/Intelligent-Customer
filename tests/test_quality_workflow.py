@@ -13,8 +13,10 @@ def test_quality_workflow_validates_manifest_and_prepares_artifacts() -> None:
     assert "python -m pip install -r requirements-dev.lock" in workflow
     assert "docker compose up --wait -d postgres qdrant" in workflow
     assert "docker compose run --rm migrate" in workflow
+    assert "http://127.0.0.1:6333/readyz" in workflow
     assert "tests/test_postgres_checkpoint_integration.py" in workflow
     assert "tests/test_qdrant_integration.py" in workflow
+    assert "output/ci/postgres-qdrant-integration.log" in workflow
     assert "python scripts/run_retrieval_ablation.py" in workflow
     assert "python -m pip_audit -r requirements-api.lock" in workflow
     assert workflow.index("coverage run -m pytest -q") < workflow.index(

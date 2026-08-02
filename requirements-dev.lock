@@ -551,6 +551,8 @@ uuid-utils==0.17.0
     # via
     #   langchain-core
     #   langsmith
+uvicorn==0.52.0
+    # via -r requirements-api.txt
 watchdog==6.0.0
     # via streamlit
 websockets==15.0.1
