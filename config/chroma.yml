@@ -1,5 +1,5 @@
 collection_name : agent
-storage_mode : embedded       # 安全默认：仅本地嵌入式客户端，不暴露 Chroma HTTP API
+storage_mode : embedded       # 兼容旧配置名：本地 SQLite baseline，不暴露远程向量 API
 persist_directory : chroma_db
 k :  3
 candidate_k :  8

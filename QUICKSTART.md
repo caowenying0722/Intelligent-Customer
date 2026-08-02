@@ -50,13 +50,13 @@ AGENT_MAX_TOOL_CALLS=5
 - LangChain 1.3.9、LangChain Core 1.4.7 和相关组件
 - LangGraph 1.2.10（工作流编排）
 - Streamlit 1.54.0 + Pillow 12.3.0（Web UI 与图像处理）
-- ChromaDB 1.3.7（向量数据库）
+- SQLite 本地向量 baseline；生产多租户向量检索使用 Qdrant
 - Torch 2.13.0 和 Transformers 5.14.1（本地模型支持）
 - Sentence Transformers 5.2.0（文本嵌入）
 - PostgreSQL 16 + Qdrant 1.18.3（Compose 持久化与 Hybrid Retrieval）
 
 ### 依赖验证
-精简 API 锁当前通过 pip-audit；完整离线 RAG 依赖仍有 3 个上游无修复漏洞，详见 `docs/RELEASE_READINESS.md`，不得视为可无条件生产发布。
+默认运行依赖通过 pip-audit；可选 RAGAS 评测依赖需单独安装并完成数据出境确认，详见 `docs/security/dependency-audit.md`。
 
 ---
 
@@ -150,7 +150,7 @@ conda activate ics
 python -m streamlit run app.py
 ```
 
-普通 `python -c "import app"` 不会创建模型或访问 Chroma。Streamlit 首次会话才创建 Agent；首次使用知识库问答时会惰性初始化 RAG/Chroma，因此当前首次 RAG 请求仍可能比后续请求慢。
+普通 `python -c "import app"` 不会创建模型或访问本地向量库。Streamlit 首次会话才创建 Agent；首次使用知识库问答时会惰性初始化 RAG/SQLite，因此当前首次 RAG 请求仍可能比后续请求慢。
 
 ### 方式2：通过 PowerShell（推荐）
 ```powershell
@@ -255,7 +255,7 @@ python scripts/run_ragas_ablation.py --ack-external-judge --ragas-data-mode mini
 | `config/agent.yml` | Agent 行为配置 |
 | `config/evaluation.yml` | RAG 评测集、RAGAS 指标、数据模式和运行模式 |
 
-前四份业务 YAML 通过严格 Pydantic schema 和 `yaml.safe_load` 解析：未知字段、非法 URL、越界检索参数、缺失文件或无效目录会在加载时直接报错。Chroma、数据、MD5、Prompt 和报告 CSV 的相对路径始终以仓库根目录为基准，与启动命令的当前目录无关。
+前四份业务 YAML 通过严格 Pydantic schema 和 `yaml.safe_load` 解析：未知字段、非法 URL、越界检索参数、缺失文件或无效目录会在加载时直接报错。本地向量、数据、MD5、Prompt 和报告 CSV 的相对路径始终以仓库根目录为基准，与启动命令的当前目录无关。
 
 ### 当前 RAG 配置
 ```yaml
@@ -323,7 +323,7 @@ streamlit run app.py --server.port=8502
 ├─────────────────────────────────────────┤
 │  LLM (OpenAI/Anthropic-compatible)       │
 ├─────────────────────────────────────────┤
-│      Chroma Vector DB / Knowledge Base   │
+│      SQLite Vector Baseline / Knowledge Base │
 └─────────────────────────────────────────┘
 ```
 

@@ -6,19 +6,19 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：402 passed，6 skipped，26 subtests | 当前工作区 Python 3.13 本地回归；默认不调用付费模型 |
-| Python 3.10.20 锁定环境全量测试 | 通过：403 passed，5 skipped，26 subtests | `scripts/check_environment.py` 精确 37 个直接依赖通过；包含 `pytest-asyncio` 异步测试门禁 |
+| `python -m pytest -q --basetemp output/pytest-full-after-vector` | 通过：407 passed，6 skipped，26 subtests | 当前工作区 Python 3.13 本地回归；默认不调用付费模型 |
+| Python 3.10.20 锁定环境全量测试 | 待重新安装后复跑 | 当前 `ics` 环境存在历史 async-timeout/OTel 包冲突，不能冒充 clean-install 结果；锁文件已重新生成 |
 | 容器集成测试 | 通过：5 passed | Python 3.10 API 镜像连接 PostgreSQL 16/Qdrant 1.18.3 |
-| `python -m ruff format --check .` | 通过 | 265 个 Python 文件已格式化 |
+| `python -m ruff format --check .` | 通过 | 270 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
-| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：104 个源码文件 | 生产源码类型门禁 |
-| `python -m mypy tests` | 通过：116 个测试源码文件 | 独立测试类型门禁 |
+| `python -m mypy agent rag model evaluation utils scripts src app.py` | 通过：107 个源码文件 | 生产源码类型门禁 |
+| `python -m mypy tests` | 通过：117 个测试源码文件 | 独立测试类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
 | `python -m pip check` | 通过 | 依赖元数据无破损；PyJWT 2.13.0 已显式锁定 |
-| `python -m pip_audit -r requirements.txt` | 失败：3 个无修复漏洞 | `chromadb==1.3.7/PYSEC-2026-311`、`ragas==0.4.3/PYSEC-2026-3046`、`diskcache==5.6.3/PYSEC-2026-2447`；不使用 ignore |
+| `python -m pip_audit -r requirements.txt --format json` | 通过：No known vulnerabilities found | 默认依赖已移除 ChromaDB/LangChain-Chroma/RAGAS/Datasets，DiskCache 不再被安装；可选 RAGAS 需隔离审计 |
 | `python -m pip_audit -r requirements-api.lock` | 通过：No known vulnerabilities found | 精简 API 镜像锁独立审计；不代表完整离线 RAG 依赖无漏洞 |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 当前 shell 失败；Python 3.10.20 环境通过 | 当前 shell 是 Python 3.13；受支持 `ics` 环境精确依赖检查通过 |
-| GitHub Actions run `30732643961` | 功能门禁通过；完整依赖审计失败 | 集成、格式、Lint、两段 Mypy、403 全量测试、覆盖率、评测、红队、负载和 artifact 清理均通过；仅 3 个无修复漏洞使 workflow 保持 failure |
+| GitHub Actions run `30733015390` | 旧提交功能门禁通过；完整依赖审计失败 | 该 run 对应移除漏洞依赖前的提交；本轮依赖和本地向量替换需推送后由新 run 验收 |
 | `docker info` | 通过 | Docker Desktop Engine 已恢复，数据盘位于 D 盘 |
 | `docker compose config --quiet` | 通过 | PostgreSQL、migration、API 配置有效；API 镜像使用精简 `requirements-api.lock` |
 | `docker compose --profile observability config --quiet` | 通过 | 配置有效；Collector/Prometheus/Grafana 实际容器也已完成端到端健康验收 |
@@ -65,19 +65,21 @@
 | `python -m evaluation.quality_gate --summary output/ci/target73-deterministic.json --config config/evaluation_quality_gate.yml` | 通过 | 质量门禁实际消费 target73 artifact；不代表真实 provider 或生产质量 |
 | `python scripts/run_red_team_regression.py --output output/ci/target73-red-team.json` | 通过：4/4 拒绝、0 漏检 | red-team-prompt-injection-v1；model_calls=0 |
 | `python scripts/run_load_smoke.py --requests 10 --concurrency 2 --output output/ci/target73-load.json` | 通过：10 完成、0 错误 | fake 模式；error_rate=0、throughput_rps=305.25、p50=3.98ms、p95=16.11ms；仅本地 smoke，不作生产性能结论 |
+| PostgreSQL backup/restore drill | 通过：60 个 dump 对象、恢复库 Alembic head `0012_add_ingestion_job_leases`、11 个 public tables | 使用临时数据库，演练后已删除；不宣称备份 SLA |
+| fake capacity baseline | 通过：100 请求/并发 10、0 错误；548.62 req/s、p50 15.84 ms、p95 25.66 ms | 本地 fake ASGI smoke，不能替代生产压测 |
 
 ## 发布阻塞
 
-1. `pip-audit -r requirements.txt` 真实发现 3 个无修复版本漏洞：ChromaDB `CVE-2026-45829`、RAGAS `CVE-2026-6587`、DiskCache `CVE-2025-69872`。本轮已复核可见最新版本仍无 fix；CI 必须继续失败，不使用 ignore。
-2. 当前 shell 解释器是 Python 3.13，因此本机环境检查仍会拒绝；Python 3.10.20 锁定环境和远端 CI 已实际通过完整开发依赖门禁。
+1. 当前工作区已通过默认依赖安全门禁；可选 `requirements-ragas-lite.txt` 仍包含外发评测依赖，必须在隔离环境单独审计并获得数据出境确认。
+2. 当前 shell 解释器是 Python 3.13；声明的 Python 3.10.20 环境需要清理历史包后按新锁文件重装，再复跑环境门禁。
 
 ## 已知未完成
 
-- Compose 当前包含 PostgreSQL、migration、Qdrant、精简 API 和可选 OpenTelemetry Collector/Prometheus/Grafana profile，health/scrape/OTLP 已实测。Redis/独立 Worker 和生产 trace backend 不在当前四里程碑闭环中，仍是后续扩展。
+- Compose 当前包含 PostgreSQL、migration、Qdrant、精简 API 和可选 OpenTelemetry Collector/Prometheus/Grafana profile，health/scrape/OTLP 已实测。Redis/独立 Worker 和生产 trace backend 不在当前闭环中，仍是后续扩展。
 - CI 已在依赖漏洞审计前加入 Docker build 步骤；远端 run `30732643961` 已确认镜像构建、Compose、测试和 artifact 流程成功。
-- 已执行真实 Docker health、迁移和 API readiness；SSE 与独立后台 Worker 容器 smoke 尚未完成。
+- 已执行真实 Docker health、迁移、API readiness 和 PostgreSQL backup/restore；SSE 与独立后台 Worker 容器 smoke 尚未完成。
 - hidden evaluation、真实 provider 评测和生产网络压测未执行。
 
 ## 结论
 
-当前状态已具备可复现的本地容器栈和发布门禁，但不满足无条件生产发布。解除发布阻塞仍需要完整依赖漏洞有可接受修复/替换方案，并完成生产备份恢复、容量和真实流量验证；Python 3.10 CI 功能门禁已通过。
+当前状态已具备可复现的本地容器栈、默认依赖安全门禁、备份恢复演练和可追溯 fake 容量基线，但不满足无条件生产发布。后续仍需 Redis/Celery、持久 trace backend、完整 RBAC/租户边界、clean Python 3.10 重装及真实流量/provider 验证。

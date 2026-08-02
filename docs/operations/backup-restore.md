@@ -1,12 +1,37 @@
-# 备份与恢复边界
+# PostgreSQL 备份与恢复
 
-当前默认应用使用内存会话，进程重启会丢失该状态，因此不存在可宣称的默认会话备份能力。`DATABASE_URL` 配置后才会选择 SQLAlchemy repository；生产 PostgreSQL 的备份策略、对象存储和恢复演练尚未接入仓库自动化。
+仓库现在提供 `scripts/postgres_backup.py` 的受控 dump/verify/restore 边界。
+它不负责对象存储、加密密钥或保留策略；这些仍由部署平台提供。密码通过
+`PGPASSWORD` 传给 PostgreSQL 客户端，不进入命令行、日志或错误消息。
+未配置 `DATABASE_URL` 时，应用仍可能使用内存会话；这类内存会话不构成备份对象。
 
-在实现正式备份前：
+## 创建和验证归档
 
-1. 记录数据库 URL、Alembic revision 和 tenant 范围，但不要把凭证写入报告或日志；
-2. 使用 PostgreSQL 原生受控备份工具生成加密、带保留周期的备份；
-3. 在隔离环境执行 restore，再运行 migration/readiness/API 跨实例 smoke；
-4. 恢复失败时保持旧实例只读或停止写入，避免将不完整数据标记为 active。
+```bash
+python scripts/postgres_backup.py dump \
+  --database-url "$DATABASE_URL" \
+  --output output/backup/intelligent-customer.dump \
+  --timeout 300
+python scripts/postgres_backup.py verify \
+  --backup output/backup/intelligent-customer.dump
+```
 
-本文件不把 SQLite 测试迁移或内存 repository 当作生产备份证明。
+归档使用 PostgreSQL custom format，并带 `--no-owner --no-privileges`，便于在
+隔离目标恢复。输出目录不应提交 Git，应由加密对象存储和访问控制接管。
+
+## 恢复演练
+
+默认恢复不清理目标对象，适合空的临时数据库；只有明确指定
+`--allow-destructive-restore` 才会传递 `--clean --if-exists`：
+
+```bash
+python scripts/postgres_backup.py restore \
+  --database-url "$ISOLATED_DATABASE_URL" \
+  --backup output/backup/intelligent-customer.dump
+```
+
+恢复后必须按顺序执行 `alembic upgrade head`、`GET /health/ready`、API 跨实例
+会话/checkpoint 查询和租户隔离 smoke。恢复失败时保留旧实例，不切换 active 数据库。
+
+工具对 `pg_dump`/`pg_restore` 设置统一 wall-clock timeout；超时会返回安全错误并
+清理未完成 dump。它不把一次本地演练扩大为备份 SLA、RPO/RTO 或生产容量证明。

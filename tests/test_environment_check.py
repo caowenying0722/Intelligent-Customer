@@ -45,7 +45,7 @@ class EnvironmentCheckTest(unittest.TestCase):
             parse_pinned_requirements(PROJECT_ROOT / "requirements-dev.txt")
         )
 
-        self.assertEqual(len(pins), 37)
+        self.assertEqual(len(pins), 33)
         self.assertEqual(pins["fastapi"].version, "0.141.1")
         self.assertEqual(pins["pyjwt"].version, "2.13.0")
         self.assertEqual(pins["opentelemetry-api"].version, "1.44.0")
@@ -58,8 +58,6 @@ class EnvironmentCheckTest(unittest.TestCase):
         self.assertEqual(pins["langchain"].version, "1.3.9")
         self.assertEqual(pins["langchain-core"].version, "1.4.7")
         self.assertEqual(pins["langchain-community"].version, "0.3.31")
-        self.assertEqual(pins["langchain-chroma"].version, "1.1.0")
-        self.assertEqual(pins["chromadb"].version, "1.3.7")
         self.assertEqual(pins["langchain-text-splitters"].version, "1.1.2")
         self.assertEqual(pins["langgraph"].version, "1.2.10")
         self.assertEqual(pins["langgraph-checkpoint-postgres"].version, "3.1.1")

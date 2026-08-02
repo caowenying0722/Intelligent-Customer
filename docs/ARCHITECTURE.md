@@ -20,9 +20,9 @@ flowchart TD
     Tools --> RagTool[rag_summarize]
     Tools --> DemoTools[天气/随机用户/报告工具]
     RagTool --> RagService[RagSummarizeService]
-    RagService --> Chroma[本地 Chroma]
+    RagService --> LocalVector[本地 SQLite 向量 baseline]
     RagService --> BM25[自实现 BM25]
-    Chroma --> Fusion[按排名加权融合]
+    LocalVector --> Fusion[按排名加权融合]
     BM25 --> Fusion
     Fusion --> Heuristic[启发式重排]
     Heuristic --> Chat
@@ -35,11 +35,13 @@ flowchart TD
 当前边界的主要问题：
 
 - UI 直接创建并调用 Agent，没有 application service 或 transport-neutral schema。
-- `app`、模型工厂和工具模块已消除模型/RAG/Chroma 的 import-time 构造，并支持注入 fake model、工具、向量服务；默认实例通过有界缓存惰性创建。
+- `app`、模型工厂和工具模块已消除模型/RAG/本地向量库的 import-time 构造，并支持注入 fake model、工具、向量服务；默认实例通过有界缓存惰性创建。
 - 环境变量由集中 Settings 校验，四份业务 YAML 由严格 schema 安全解析；运行路径统一锚定项目根目录，旧 dict 消费接口暂时保留。
-- 首次 RAG 工具调用仍同步构造 Chroma、扫描和入库，尚无 lifespan/readiness 或后台任务边界。
+- 首次 RAG 工具调用仍可能等待有界的本地 SQLite 扫描和入库；服务层已有 lifespan/readiness
+  边界，但本地 baseline 不承担生产容量或多进程索引职责。
 - API 会话、LangGraph checkpoint、人工审批和入库任务 lease 已持久化到 PostgreSQL；默认 local Streamlit session 仍是进程内兼容模式。
-- 本地 Chroma/MD5/CSV 没有 tenant、事务或 migration。
+- 本地 SQLite/MD5/CSV 仅用于离线 baseline；生产 tenant、事务和 migration 由 PostgreSQL/Qdrant
+  路径承担。
 - Agent 图步骤与工具调用已有 Settings 驱动的代码级上限；同步调用仍没有统一 deadline/cancellation。
 - 评测和运行日志无法关联 commit、trace、请求或成本。
 
@@ -137,7 +139,7 @@ stateDiagram-v2
 - PostgreSQL 保存 tenant、用户、会话、消息、运行、工具执行、审批与知识版本；Alembic 是唯一 schema 迁移方式。
 - LangGraph 使用与当前实际依赖兼容的 PostgreSQL checkpointer，`thread_id` 与 tenant/conversation 显式绑定。
 - Redis 用于分布式缓存、配额、限流和 Celery broker；缓存键必须包含 tenant、prompt/model/index version 等隔离维度。
-- Qdrant 1.18.3 查询在 adapter 内强制 tenant 与 index version filter，并支持 document version、product model、language 和 effective date；Dense/Sparse 命名向量经参数化 RRF 融合，再由可关闭且显式降级的 Cross-Encoder adapter 重排。Chroma/BM25 继续作为 baseline。
+- Qdrant 1.18.3 查询在 adapter 内强制 tenant 与 index version filter，并支持 document version、product model、language 和 effective date；Dense/Sparse 命名向量经参数化 RRF 融合，再由可关闭且显式降级的 Cross-Encoder adapter 重排。SQLite/BM25 继续作为离线 baseline。
 - 文档入库由 Celery Worker 执行，输入校验、内容哈希、有限重试、可取消状态机和蓝绿 alias 切换均可独立测试。
 
 ### 模型网关
@@ -163,7 +165,7 @@ stateDiagram-v2
 | 2 | FastAPI、SSE、application service、内存会话接口 | Streamlit 可继续进程内，新增 HTTP 模式 | fake Agent API 测试覆盖超时、取消、错误和单次完成 |
 | 3 | PostgreSQL 会话和 Alembic | 内存 repository 仅用于测试/开发 | 重启恢复、跨 tenant 拒绝、migration 可重复 |
 | 4 | LangGraph checkpoint 与人工审批 | 原简单 Agent 作为受限 adapter | 可恢复 thread、步骤上限、审批后恢复和幂等测试通过 |
-| 5 | Qdrant hybrid、RRF、Cross-Encoder | Chroma/BM25 保留 baseline adapter | 无泄漏 regression set 的消融报告可复现 |
+| 5 | Qdrant hybrid、RRF、Cross-Encoder | SQLite/BM25 保留 baseline adapter | 无泄漏 regression set 的消融报告可复现 |
 | 6 | Celery 异步入库和蓝绿索引 | 本地同步入库仅作为开发迁移工具 | 请求不做长任务；重复投递和失败回滚可验证 |
 | 7 | Model Gateway、Redis 缓存/限流/降级 | 现有 provider adapter 被网关包裹 | 超时、429、fallback、quota、cache tenant 测试通过 |
 | 8 | OpenTelemetry 与 Prometheus/Grafana | 先埋接口层，再扩至 Worker | 请求可端到端追踪，指标可抓取且无高基数标签 |

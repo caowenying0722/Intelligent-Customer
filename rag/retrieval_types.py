@@ -12,7 +12,7 @@ from langchain_core.documents import Document
 def build_chroma_scope_filter(
     *, tenant_id: str | None = None, index_version: str | None = None
 ) -> dict[str, object] | None:
-    """Build a Chroma metadata filter without allowing a partial index scope."""
+    """Build a local/Qdrant-compatible metadata filter without partial scope."""
     if index_version and not tenant_id:
         raise ValueError("tenant_id is required when index_version is provided")
     if tenant_id and index_version:

@@ -11,8 +11,11 @@
 
 - 不在请求进程中手工重试付费调用；Model Gateway 已有 timeout/retry/circuit 边界。
 - 默认 deterministic smoke 不依赖外部模型；先运行测试和 health，再决定是否启用 live provider。
-- Chroma/RAGAS/DiskCache 当前存在已知安全 Blocker，禁止通过 ignore 规则绕过发布门禁。
+- 默认运行依赖已移除 Chroma/RAGAS/DiskCache；RAGAS 只能从隔离的可选依赖文件显式启用，
+  并需要数据出境确认。若发现旧 Chroma 数据目录，不要直接挂载到生产进程，按 ADR-0002
+  的隔离导出和重新 embedding 流程迁移。
 
 ## 发布回滚
 
-回滚代码版本和容器镜像到同一中文阶段 tag；不要删除数据库 tenant 字段或迁移历史。当前 Compose 仅包含 API，完整多服务回滚流程尚未实现。
+回滚代码版本和容器镜像到同一中文阶段 tag；不要删除数据库 tenant 字段或迁移历史。数据库
+恢复使用 `scripts/postgres_backup.py` 的 verify 后再执行，默认不会执行 destructive restore。

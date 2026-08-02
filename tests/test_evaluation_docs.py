@@ -11,11 +11,12 @@ def test_evaluation_runbook_matches_real_entrypoints() -> None:
     assert "RAGAS" in document
 
 
-def test_dependency_audit_records_known_blockers_without_suppressing_them() -> None:
+def test_dependency_audit_records_replacement_and_optional_risk() -> None:
     document = Path("docs/security/dependency-audit.md").read_text(encoding="utf-8")
 
     assert "pip_audit" in document
     assert "CVE-2026-45829" in document
     assert "CVE-2026-6587" in document
     assert "CVE-2025-69872" in document
-    assert "Blocker" in document
+    assert "No known vulnerabilities found" in document
+    assert "requirements-ragas-lite.txt" in document

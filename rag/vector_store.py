@@ -3,12 +3,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from model.factory import get_embedding_model
+from rag.local_vector_store import LocalVectorStore
 from rag.retrieval_types import build_chroma_scope_filter
 from rag.simple_bm25 import (
     RRFHybridRetriever,
@@ -51,8 +51,8 @@ def append_md5_record(path: str, md5_hex: str) -> None:
 class VectorStoreService:
     def __init__(self, embedding_model: Embeddings | None = None):
         if chroma_conf.get("storage_mode", "embedded") != "embedded":
-            raise RuntimeError("only embedded Chroma storage mode is supported")
-        self.vector_store = Chroma(
+            raise RuntimeError("only embedded local vector storage mode is supported")
+        self.vector_store = LocalVectorStore(
             collection_name=chroma_conf["collection_name"],
             embedding_function=(
                 embedding_model
@@ -72,17 +72,17 @@ class VectorStoreService:
     def _get_all_documents(
         self, *, tenant_id: str | None = None, index_version: str | None = None
     ) -> list[Document]:
-        """从 Chroma 向量库中获取所有已存储的文档，用于构建 BM25 检索器"""
+        """从本地向量库获取所有已存储的文档，用于构建 BM25 检索器。"""
         scope_filter = build_chroma_scope_filter(
             tenant_id=tenant_id, index_version=index_version
         )
         get_kwargs: dict[str, Any] = {"include": ["documents", "metadatas"]}
         if scope_filter is not None:
             get_kwargs["where"] = scope_filter
-        chroma_data = self.vector_store.get(**get_kwargs)
+        vector_data = self.vector_store.get(**get_kwargs)
         documents = []
         for content, metadata in zip(
-            chroma_data["documents"], chroma_data["metadatas"]
+            vector_data["documents"], vector_data["metadatas"]
         ):
             documents.append(Document(page_content=content, metadata=metadata))
         return documents

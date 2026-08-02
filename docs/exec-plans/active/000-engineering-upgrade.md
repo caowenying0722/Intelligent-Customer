@@ -1,8 +1,8 @@
 # 工程级 Agentic RAG 渐进升级执行计划
 
-- 状态：当前四里程碑闭环完成；后续扩展待排期
+- 状态：四里程碑闭环完成；生产化收口已完成，分布式任务与生产观测待实施
 - 建立日期：2026-08-01
-- 当前阶段：四里程碑交付已收口
+- 当前阶段：目标一（恢复、安全、容量基线）已完成，自动进入目标二
 - 依据：根目录 `AGENT.md`、`todo.md` 与真实代码审计
 - 当前约束：保留用户未提交修改；默认测试不调用付费模型；每阶段独立验收和回滚
 
@@ -917,3 +917,28 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 ### 里程碑四最终修正与远程验收
 
 Python 3.10 下 `concurrent.futures.TimeoutError` 与内置 `TimeoutError` 的兼容差异已在模型网关、索引重建和 Qdrant 边界统一处理；开发锁补齐 `pytest-asyncio` 与 `types-PyYAML`。远程 run `30732643961` 已验证功能质量门禁全部通过，唯一失败项是上述三个无修复漏洞的完整依赖审计；后续 Redis/Celery、生产 trace backend、备份恢复、容量和真实 provider 评测仍不属于本四里程碑交付范围。
+
+## 2026-08-02 后续大目标（不拆成细碎目标）
+
+### 目标一：生产化恢复、安全和容量基线（已完成）
+
+- 交付：`scripts/postgres_backup.py` 与 `PostgresBackupRunner`，支持超时、有界输出、密码脱敏、verify、非破坏性恢复和显式 destructive 开关；实际 PostgreSQL 16 临时库 dump/restore 演练通过。
+- 交付：本地 Chroma baseline 替换为标准库 SQLite，保留 `VectorStoreService` 兼容接口和 tenant/index scope；默认 requirements/lock 移除 ChromaDB、LangChain-Chroma、RAGAS、Datasets，DiskCache 不再进入默认安装。
+- 交付：fake 容量基线文档和 artifact；100 请求/并发 10、0 错误结果只用于回归，不作为生产 SLA。
+- 验收：407 passed、6 skipped、26 subtests；Ruff format/lint、两段 Mypy、compileall、secret scan、pip check、默认 pip-audit、deterministic regression、quality gate、red-team、Compose health 均已实际执行并通过；工作区 Python 3.10 环境因历史包冲突需 clean reinstall 后复跑。
+- 回滚：代码回滚到上一中文 tag；Qdrant 生产路径不依赖 SQLite baseline；数据库恢复先 verify，默认禁止 destructive restore。
+
+### 目标二：分布式任务和跨进程运行（下一目标）
+
+- 目标：增加可选 Compose profile 的 Redis/Celery broker/worker，复用现有 ingestion state machine；请求进程只创建持久化 job，不执行长任务。
+- 设计：task 使用持久化 idempotency key、PostgreSQL lease/fencing、有限重试/指数退避、soft/hard time limit 和取消检查；默认 Compose 不启动 Redis，离线测试使用 fake broker/Celery app。
+- 文件范围：`src/app/workers/`、`src/app/application/ingestion.py`、`compose.yaml`、可选 worker requirements/lock、worker contract tests、运维文档。
+- 风险：Celery delivery 是 at-least-once；不宣称 exactly-once。Redis 不可用时 readiness/入队失败必须可观察且不丢 job 记录。
+- 验收：静态 Compose config、fake task retry/timeout/idempotency/tenant 测试、真实 Redis/worker smoke（仅本地容器）和全量回归；中文 tag 推送后再进入目标三。
+- 回滚：停用 worker profile，API 回到现有受控进程内 worker；保留 job 状态和 PostgreSQL lease 字段。
+
+### 目标三：生产观测、权限边界和最终验收（后续）
+
+- 目标：增加持久化 trace backend（优先 Jaeger/Tempo 可选 profile），补齐 trace retention/health 检查；复核 API、Worker、RAG、缓存和任务的 RBAC/tenant-by-construction 负向测试。
+- 验收：trace 从 API/Worker 到 backend 可查询，日志/指标不含凭证和高基数身份；跨租户访问统一 401/403；Python 3.10 clean install、Compose 集成、备份恢复、评测和安全门禁全量通过。
+- 回滚：关闭 trace profile，保留 Collector；权限策略以旧版本兼容 deny-by-default 回退，不删除审计和租户数据。

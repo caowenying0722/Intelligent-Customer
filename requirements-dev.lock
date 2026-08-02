@@ -7,11 +7,7 @@
 aiohappyeyeballs==2.7.1
     # via aiohttp
 aiohttp==3.14.3
-    # via
-    #   fsspec
-    #   instructor
-    #   kubernetes
-    #   langchain-community
+    # via langchain-community
 aiosignal==1.4.0
     # via aiohttp
 alembic==1.18.5
@@ -30,9 +26,6 @@ anyio==4.14.2
     #   langsmith
     #   openai
     #   starlette
-    #   watchfiles
-appdirs==1.4.4
-    # via ragas
 ast-serialize==0.6.0
     # via mypy
 async-timeout==5.0.1
@@ -42,73 +35,47 @@ attrs==26.1.0
     #   aiohttp
     #   jsonschema
     #   referencing
-backoff==2.2.1
-    # via posthog
-bcrypt==5.0.0
-    # via chromadb
+backports-asyncio-runner==1.2.0
+    # via pytest-asyncio
 blinker==1.9.0
     # via streamlit
 boolean-py==5.0
     # via license-expression
-build==1.5.0
-    # via chromadb
 cachecontrol==0.14.4
-    # via pip-audit
+    # via
+    #   cachecontrol
+    #   pip-audit
 cachetools==6.2.6
     # via streamlit
 certifi==2026.7.22
     # via
     #   httpcore
     #   httpx
-    #   kubernetes
     #   requests
 charset-normalizer==3.4.9
     # via requests
-chromadb==1.3.7
-    # via
-    #   -r requirements.txt
-    #   langchain-chroma
 click==8.4.2
     # via
     #   huggingface-hub
     #   streamlit
-    #   uvicorn
 colorama==0.4.6
     # via
-    #   build
     #   click
     #   pytest
     #   tqdm
     #   typer
-coloredlogs==15.0.1
-    # via onnxruntime
 coverage==7.15.2
     # via -r requirements-dev.txt
 cyclonedx-python-lib==11.11.0
     # via pip-audit
 dataclasses-json==0.6.7
     # via langchain-community
-datasets==5.0.0
-    # via
-    #   -r requirements.txt
-    #   ragas
 defusedxml==0.7.1
     # via py-serializable
-dill==0.4.1
-    # via
-    #   datasets
-    #   multiprocess
-diskcache==5.6.3
-    # via ragas
 distro==1.9.0
     # via
     #   langsmith
     #   openai
-    #   posthog
-docstring-parser==0.18.0
-    # via instructor
-durationpy==0.10
-    # via kubernetes
 exceptiongroup==1.3.1
     # via
     #   anyio
@@ -118,18 +85,14 @@ fastapi==0.141.1
 filelock==3.32.2
     # via
     #   cachecontrol
-    #   datasets
     #   huggingface-hub
     #   torch
-flatbuffers==25.12.19
-    # via onnxruntime
 frozenlist==1.8.0
     # via
     #   aiohttp
     #   aiosignal
 fsspec==2026.4.0
     # via
-    #   datasets
     #   huggingface-hub
     #   torch
 gitdb==4.0.12
@@ -142,67 +105,51 @@ greenlet==3.5.4
     # via sqlalchemy
 grpcio==1.83.0
     # via
-    #   chromadb
     #   opentelemetry-exporter-otlp-proto-grpc
+    #   qdrant-client
 h11==0.16.0
-    # via
-    #   httpcore
-    #   uvicorn
+    # via httpcore
 h2==4.4.0
     # via httpx
-hpack==4.2.0
-    # via h2
 hf-xet==1.5.2
     # via huggingface-hub
+hpack==4.2.0
+    # via h2
 httpcore==1.0.9
     # via httpx
-httptools==0.8.0
-    # via uvicorn
-httpx[http2]==0.28.1
+httpx==0.28.1
     # via
     #   -r requirements.txt
-    #   chromadb
-    #   datasets
     #   huggingface-hub
     #   langgraph-sdk
     #   langsmith
     #   openai
     #   qdrant-client
-hyperframe==6.1.0
-    # via h2
 httpx-sse==0.4.3
     # via langchain-community
 huggingface-hub==1.26.0
     # via
-    #   datasets
     #   langchain-huggingface
     #   sentence-transformers
     #   tokenizers
     #   transformers
-humanfriendly==10.0
-    # via coloredlogs
+hyperframe==6.1.0
+    # via h2
 idna==3.18
     # via
     #   anyio
     #   httpx
     #   requests
     #   yarl
-importlib-resources==7.1.0
-    # via chromadb
 iniconfig==2.3.0
     # via pytest
-instructor==1.15.4
-    # via ragas
 jinja2==3.1.6
     # via
     #   altair
-    #   instructor
     #   pydeck
     #   torch
 jiter==0.14.0
-    # via
-    #   instructor
-    #   openai
+    # via openai
 joblib==1.5.3
     # via scikit-learn
 jsonpatch==1.33
@@ -210,29 +157,19 @@ jsonpatch==1.33
 jsonpointer==3.1.1
     # via jsonpatch
 jsonschema==4.26.0
-    # via
-    #   altair
-    #   chromadb
+    # via altair
 jsonschema-specifications==2025.9.1
     # via jsonschema
-kubernetes==36.0.0
-    # via chromadb
 langchain==1.3.9
     # via
     #   -r requirements.txt
     #   langchain-community
-    #   ragas
-langchain-chroma==1.1.0
-    # via -r requirements.txt
 langchain-community==0.3.31
-    # via
-    #   -r requirements.txt
-    #   ragas
+    # via -r requirements.txt
 langchain-core==1.4.7
     # via
     #   -r requirements.txt
     #   langchain
-    #   langchain-chroma
     #   langchain-community
     #   langchain-huggingface
     #   langchain-openai
@@ -241,13 +178,10 @@ langchain-core==1.4.7
     #   langgraph-checkpoint
     #   langgraph-prebuilt
     #   langgraph-sdk
-    #   ragas
 langchain-huggingface==1.2.2
     # via -r requirements.txt
 langchain-openai==1.1.14
-    # via
-    #   -r requirements.txt
-    #   ragas
+    # via -r requirements.txt
 langchain-protocol==0.0.18
     # via
     #   langchain-core
@@ -289,8 +223,6 @@ marshmallow==3.26.2
     # via dataclasses-json
 mdurl==0.1.2
     # via markdown-it-py
-mmh3==5.2.1
-    # via chromadb
 mpmath==1.3.0
     # via sympy
 msgpack==1.2.1
@@ -299,8 +231,6 @@ multidict==6.7.1
     # via
     #   aiohttp
     #   yarl
-multiprocess==0.70.19
-    # via datasets
 mypy==2.3.0
     # via -r requirements-dev.txt
 mypy-extensions==1.1.0
@@ -309,50 +239,31 @@ mypy-extensions==1.1.0
     #   typing-inspect
 narwhals==2.24.0
     # via altair
-nest-asyncio==1.6.0
-    # via ragas
 networkx==3.4.2
-    # via
-    #   ragas
-    #   torch
+    # via torch
 numpy==2.2.6
     # via
-    #   chromadb
-    #   datasets
-    #   langchain-chroma
     #   langchain-community
-    #   onnxruntime
     #   pandas
     #   pydeck
-    #   ragas
+    #   qdrant-client
     #   rank-bm25
     #   scikit-learn
-    #   scikit-network
     #   scipy
     #   streamlit
     #   transformers
-oauthlib==3.3.1
-    # via requests-oauthlib
-onnxruntime==1.23.2
-    # via chromadb
 openai==2.52.0
-    # via
-    #   instructor
-    #   langchain-openai
-    #   ragas
+    # via langchain-openai
 opentelemetry-api==1.44.0
     # via
     #   -r requirements.txt
-    #   chromadb
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
 opentelemetry-exporter-otlp-proto-common==1.44.0
     # via opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-exporter-otlp-proto-grpc==1.44.0
-    # via
-    #   -r requirements.txt
-    #   chromadb
+    # via -r requirements.txt
 opentelemetry-proto==1.44.0
     # via
     #   opentelemetry-exporter-otlp-proto-common
@@ -360,49 +271,37 @@ opentelemetry-proto==1.44.0
 opentelemetry-sdk==1.44.0
     # via
     #   -r requirements.txt
-    #   chromadb
     #   opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-semantic-conventions==0.65b0
     # via opentelemetry-sdk
 orjson==3.11.9
     # via
-    #   chromadb
     #   langgraph-checkpoint-postgres
     #   langgraph-sdk
     #   langsmith
 ormsgpack==1.12.2
     # via langgraph-checkpoint
-overrides==7.7.0
-    # via chromadb
 packageurl-python==0.17.6
     # via cyclonedx-python-lib
 packaging==26.2
     # via
     #   altair
-    #   build
-    #   datasets
     #   huggingface-hub
     #   langchain-core
     #   langsmith
     #   marshmallow
-    #   onnxruntime
     #   pip-audit
     #   pip-requirements-parser
     #   pytest
     #   streamlit
     #   transformers
-portalocker==3.2.0
-    # via qdrant-client
 pandas==2.3.3
-    # via
-    #   datasets
-    #   streamlit
+    # via streamlit
 pathspec==1.1.1
     # via mypy
 pillow==12.3.0
     # via
     #   -r requirements.txt
-    #   ragas
     #   streamlit
 pip-api==0.0.34
     # via pip-audit
@@ -414,8 +313,8 @@ platformdirs==4.11.0
     # via pip-audit
 pluggy==1.6.0
     # via pytest
-posthog==5.4.0
-    # via chromadb
+portalocker==3.2.0
+    # via qdrant-client
 propcache==0.5.2
     # via
     #   aiohttp
@@ -423,8 +322,8 @@ propcache==0.5.2
 protobuf==6.33.6
     # via
     #   googleapis-common-protos
-    #   onnxruntime
     #   opentelemetry-proto
+    #   qdrant-client
     #   streamlit
 psycopg==3.3.4
     # via
@@ -439,27 +338,19 @@ psycopg-pool==3.3.1
 py-serializable==2.1.0
     # via cyclonedx-python-lib
 pyarrow==25.0.0
-    # via
-    #   datasets
-    #   streamlit
-pybase64==1.4.3
-    # via chromadb
+    # via streamlit
 pydantic==2.13.4
     # via
-    #   chromadb
     #   fastapi
-    #   instructor
     #   langchain
     #   langchain-core
     #   langgraph
     #   langsmith
     #   openai
     #   pydantic-settings
-    #   ragas
+    #   qdrant-client
 pydantic-core==2.46.4
-    # via
-    #   instructor
-    #   pydantic
+    # via pydantic
 pydantic-settings==2.14.2
     # via
     #   -r requirements.txt
@@ -476,41 +367,28 @@ pyparsing==3.3.2
     # via pip-requirements-parser
 pypdf==6.14.2
     # via -r requirements.txt
-pypika==0.51.1
-    # via chromadb
-pyproject-hooks==1.2.0
-    # via build
-pyreadline3==3.5.6
-    # via humanfriendly
 pytest==9.1.1
-    # via -r requirements-dev.txt
+    # via
+    #   -r requirements-dev.txt
+    #   pytest-asyncio
 pytest-asyncio==1.4.0
     # via -r requirements-dev.txt
 python-dateutil==2.9.0.post0
-    # via
-    #   kubernetes
-    #   pandas
-    #   posthog
+    # via pandas
 python-dotenv==1.2.2
-    # via
-    #   pydantic-settings
-    #   uvicorn
+    # via pydantic-settings
 pytz==2026.3.post1
     # via pandas
+pywin32==312
+    # via portalocker
 pyyaml==6.0.2
     # via
     #   -r requirements.txt
-    #   chromadb
-    #   datasets
     #   huggingface-hub
-    #   kubernetes
     #   langchain-community
     #   langchain-core
     #   transformers
 qdrant-client==1.18.0
-    # via -r requirements.txt
-    #   uvicorn
-ragas==0.4.3
     # via -r requirements.txt
 rank-bm25==0.2.2
     # via -r requirements.txt
@@ -525,27 +403,17 @@ regex==2026.7.19
 requests==2.34.2
     # via
     #   cachecontrol
-    #   datasets
-    #   instructor
-    #   kubernetes
     #   langchain-community
     #   langsmith
     #   pip-audit
-    #   posthog
-    #   requests-oauthlib
     #   requests-toolbelt
     #   streamlit
     #   tiktoken
-requests-oauthlib==2.0.0
-    # via kubernetes
 requests-toolbelt==1.0.0
     # via langsmith
 rich==14.3.4
     # via
-    #   chromadb
-    #   instructor
     #   pip-audit
-    #   ragas
     #   typer
 rpds-py==0.30.0
     # via
@@ -557,22 +425,16 @@ safetensors==0.8.0
     # via transformers
 scikit-learn==1.7.2
     # via sentence-transformers
-scikit-network==0.33.5
-    # via ragas
 scipy==1.15.3
     # via
     #   scikit-learn
-    #   scikit-network
     #   sentence-transformers
 sentence-transformers==5.2.0
     # via -r requirements.txt
 shellingham==1.5.4
     # via typer
 six==1.17.0
-    # via
-    #   kubernetes
-    #   posthog
-    #   python-dateutil
+    # via python-dateutil
 smmap==5.0.3
     # via gitdb
 sniffio==1.3.1
@@ -591,25 +453,18 @@ starlette==1.3.1
 streamlit==1.54.0
     # via -r requirements.txt
 sympy==1.14.0
-    # via
-    #   onnxruntime
-    #   torch
+    # via torch
 tenacity==9.1.4
     # via
-    #   chromadb
-    #   instructor
     #   langchain-community
     #   langchain-core
     #   streamlit
 threadpoolctl==3.6.0
     # via scikit-learn
 tiktoken==0.13.0
-    # via
-    #   langchain-openai
-    #   ragas
+    # via langchain-openai
 tokenizers==0.22.2
     # via
-    #   chromadb
     #   langchain-huggingface
     #   transformers
 toml==0.10.2
@@ -617,7 +472,6 @@ toml==0.10.2
 tomli==2.4.1
     # via
     #   alembic
-    #   build
     #   mypy
     #   pip-audit
     #   pytest
@@ -629,11 +483,8 @@ tornado==6.5.7
     # via streamlit
 tqdm==4.70.0
     # via
-    #   chromadb
-    #   datasets
     #   huggingface-hub
     #   openai
-    #   ragas
     #   sentence-transformers
     #   transformers
 transformers==5.14.1
@@ -641,12 +492,8 @@ transformers==5.14.1
     #   -r requirements.txt
     #   sentence-transformers
 typer==0.27.0
-    # via
-    #   chromadb
-    #   instructor
-    #   ragas
-    #   transformers
-types-PyYAML==6.0.12.20260724
+    # via transformers
+types-pyyaml==6.0.12.20260724
     # via -r requirements-dev.txt
 typing-extensions==4.16.0
     # via
@@ -655,7 +502,6 @@ typing-extensions==4.16.0
     #   alembic
     #   altair
     #   anyio
-    #   chromadb
     #   cyclonedx-python-lib
     #   exceptiongroup
     #   fastapi
@@ -677,7 +523,7 @@ typing-extensions==4.16.0
     #   pydantic-core
     #   pyjwt
     #   pypdf
-    #   pypika
+    #   pytest-asyncio
     #   referencing
     #   sentence-transformers
     #   sqlalchemy
@@ -686,7 +532,6 @@ typing-extensions==4.16.0
     #   torch
     #   typing-inspect
     #   typing-inspection
-    #   uvicorn
 typing-inspect==0.9.0
     # via dataclasses-json
 typing-inspection==0.4.2
@@ -695,31 +540,25 @@ typing-inspection==0.4.2
     #   pydantic
     #   pydantic-settings
 tzdata==2026.3
-    # via pandas
+    # via
+    #   pandas
+    #   psycopg
 urllib3==2.7.0
     # via
-    #   kubernetes
+    #   qdrant-client
     #   requests
 uuid-utils==0.17.0
     # via
     #   langchain-core
     #   langsmith
-uvicorn==0.52.0
-    # via chromadb
 watchdog==6.0.0
     # via streamlit
-watchfiles==1.2.0
-    # via uvicorn
-websocket-client==1.9.0
-    # via kubernetes
 websockets==15.0.1
     # via
     #   langgraph-sdk
     #   langsmith
-    #   uvicorn
 xxhash==3.8.1
     # via
-    #   datasets
     #   langgraph
     #   langsmith
 yarl==1.24.5

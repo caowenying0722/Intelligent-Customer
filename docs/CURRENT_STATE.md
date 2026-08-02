@@ -4,7 +4,7 @@
 
 本页记录 2026-08-02 对 `main` 分支工作区的实测结果。工作区仍保留用户未提交修改：`README.md` 被修改、两份 `docs/rag_quality_*.md` 被删除，`AGENT.md`、`todo.md` 未跟踪。本轮不覆盖或恢复这些内容；本页只描述已提交代码和实际执行结果。
 
-当前项目是 Streamlit 演示客户端加 FastAPI API-first 服务、LangGraph Agent、Chroma baseline/Qdrant Hybrid RAG、PostgreSQL/Alembic 持久化和可观测性栈。Compose 中 PostgreSQL、迁移、Qdrant、精简 API、Collector、Prometheus 和 Grafana 已完成真实启动与端到端验收；会话、LangGraph checkpoint、人工审批和入库任务 lease/fencing 已持久化。它仍不是无条件生产栈：完整离线依赖漏洞、生产 trace backend、备份恢复和真实容量验证仍待解决。
+当前项目是 Streamlit 演示客户端加 FastAPI API-first 服务、LangGraph Agent、SQLite 本地 baseline/Qdrant Hybrid RAG、PostgreSQL/Alembic 持久化和可观测性栈。Compose 中 PostgreSQL、迁移、Qdrant、精简 API、Collector、Prometheus 和 Grafana 已完成真实启动与端到端验收；会话、LangGraph checkpoint、人工审批和入库任务 lease/fencing 已持久化。默认依赖的 ChromaDB/RAGAS/DiskCache 漏洞已通过移除默认安装和替换本地 baseline 收口；生产 trace backend、Redis/Celery 和容量上限仍待完成。
 
 ## 运行环境与依赖
 
@@ -12,10 +12,10 @@
 - 受支持开发版本由 `.python-version` 固定为 Python 3.10.20；当前执行环境是 Python 3.13，`scripts/check_environment.py` 因版本不符而失败，不能把本机结果当作 Python 3.10 验收。
 - `requirements-dev.txt` 在运行依赖上固定 pytest、pytest-asyncio、Ruff、Mypy、types-PyYAML、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
 - `requirements.lock` 和 `requirements-dev.lock` 固定传递依赖，包含直接认证依赖 `PyJWT==2.13.0`；Python 3.10.20 锁定环境与远端 CI 已完成 clean-install/环境门禁验证。
-- 目标环境普通导入 `app` 不再加载 Agent、模型、RAG 或 Chroma；Streamlit 执行 `main()` 后才构建 Agent，RAG 服务可用单飞后台任务预加载 Chroma，首次检索等待显式超时并传播失败。
+- 目标环境普通导入 `app` 不再加载 Agent、模型、RAG 或本地向量库；Streamlit 执行 `main()` 后才构建 Agent，RAG 服务可用单飞后台任务预加载 SQLite baseline，首次检索等待显式超时并传播失败。
 - 旧 `.local_deps/` 目录仍存在但已不再由评测/报告脚本自动插入 `sys.path`；初始行为曾覆盖目标环境中的正确二进制包并导致 RAGAS 导入失败。
 - Python 3.13 下环境检查失败；支持矩阵固定 Python 3.10，不能用本机解释器替代 CI 验收。
-- `pypdf`、Streamlit、Pillow、LangChain、LangGraph、LangChain-Chroma、ChromaDB、LangChain-OpenAI、LangChain-HuggingFace、Sentence Transformers 和 Transformers 已分批升级，并通过 PDF、UI、Agent 图编译、HuggingFace adapter 导入与临时 Chroma 写入/检索回归；pip-audit 从 84 条/13 包下降到 3 条/3 包。剩余漏洞不能用忽略规则伪装通过。
+- `pypdf`、Streamlit、Pillow、LangChain、LangGraph、LangChain-OpenAI、LangChain-HuggingFace、Sentence Transformers 和 Transformers 已固定；本地向量 baseline 已迁移到 SQLite，默认锁不再安装 ChromaDB、RAGAS、Datasets 或 DiskCache。`pip-audit -r requirements.txt` 实测无已知漏洞。
 
 ## 当前架构与核心调用链
 
@@ -31,7 +31,7 @@ flowchart LR
     LG --> TN[ToolNode]
     TN --> RT[RAG 工具]
     TN --> DT[天气/用户/报告 Demo 工具]
-    RT --> VS[Chroma 本地向量库]
+    RT --> VS[SQLite 本地向量 baseline]
     RT --> BM[自实现 BM25]
     VS --> HR[按排名加权融合]
     BM --> HR
@@ -49,7 +49,7 @@ flowchart LR
 1. `app.py` 把 Streamlit 执行封装在 `main()`；普通 Python import 不加载业务模块，Streamlit 首次 session 才创建 `ReactAgent`。
 2. `ReactAgent` 首次显式构造时通过缓存工厂创建聊天模型；测试可直接注入 fake model 和工具列表。
 3. 导入 `agent.tools.agent_tools` 不再加载 RAG 模块；首次调用 `rag_summarize` 才创建并缓存 `RagSummarizeService`。
-4. `RagSummarizeService.__init__` 不扫描文档或写入 Chroma；首次检索通过有界单飞后台加载任务执行，等待显式超时并传播失败。可注入 FastAPI 的 RAG 服务由 lifespan 启动后台加载，readiness 在加载中/失败时失败关闭；默认工具缓存仍是进程内本地索引。
+4. `RagSummarizeService.__init__` 不扫描文档或写入本地 SQLite；首次检索通过有界单飞后台加载任务执行，等待显式超时并传播失败。可注入 FastAPI 的 RAG 服务由 lifespan 启动后台加载，readiness 在加载中/失败时失败关闭；默认工具缓存仍是进程内本地索引。
 5. `ReactAgent` 创建 `agent -> tools -> agent` 的 LangGraph 循环；每次执行传入默认 10 的 `recursion_limit`，并累计限制默认最多 5 次工具调用。application service、Agent 节点和工具副作用前检查统一 deadline/cancellation guard；已经进入的同步外部调用仍只能依靠各自 timeout，Python 线程不能被安全强杀。
 6. 模型按工具调用结果继续循环。普通模型调用是同步 `invoke`；两类 provider 共享 120 秒默认超时，OpenAI-compatible 还显式设置最多 2 次 SDK 重试。
 7. FastAPI SSE 通过 `ChatApplicationService` 发送稳定的 metadata/token/completed/error 事件，metadata 返回 conversation ID，客户端断开和超时有测试；Streamlit 可通过 `STREAMLIT_MODE=http` 消费该 SSE 并复用会话 ID，默认仍是进程内兼容模式，不代表上游 token streaming。
@@ -58,7 +58,7 @@ flowchart LR
 ### RAG 链路
 
 1. 知识文件来自 `data/` 下的 TXT/PDF，运行时同步加载，处理过的文件哈希记录在 `md5.txt`。
-2. Dense 路径使用 Chroma + 延迟加载的本地 Hugging Face embedding。
+2. Dense 路径使用 SQLite 本地向量 baseline + 延迟加载的本地 Hugging Face embedding；生产多租户路径使用 Qdrant。
 3. Sparse 路径使用仓库自实现的 BM25 公式和中英文 tokenization。
 4. 当前“混合检索”按 `weight / rank` 合并两路结果，不是标准分数归一化，也不是带 `rrf_k` 的正式 RRF 实现。
 5. `LightweightEvidenceReranker` 依据原排名、内容 token/字符重合排序，不读取来源文件名或评测标签；离线 `source_recall` 仍只在评测阶段计算，不能反向影响排序。
@@ -69,8 +69,8 @@ flowchart LR
 - `utils.settings.Settings` 集中读取并校验应用环境、日志级别、模型 provider/密钥/传输、Agent 最大步骤/工具次数以及未来 API 的 host/port/CORS；密钥使用 `SecretStr`，生产环境拒绝通配 CORS。
 - `model.factory` 通过可注入的 `Settings` 构建 OpenAI-compatible 或仓库自定义 Anthropic-compatible 同步适配器；`MODEL_PROVIDER` 为规范变量，旧 `LLM__PROVIDER` 仍可兼容读取。
 - `model.factory` 暴露缓存的惰性访问函数，模块导入不再加载业务 YAML 或创建聊天/嵌入模型；`ReactAgent`、`RagSummarizeService` 和 `VectorStoreService` 均支持显式依赖注入。
-- RAG/Chroma/Prompt/Agent YAML 使用 `yaml.safe_load` 和禁止未知字段的 Pydantic schema；数值范围、URL、文件/目录及跨字段关系启动即校验，旧 dict 接口继续兼容。
-- YAML 中的 Chroma 持久化目录、数据、MD5、Prompt 和 CSV 路径统一相对项目根目录解析为绝对路径，不再依赖启动 cwd；配置仍在首次相关模块加载时读取，完整 composition-root 加载留到 FastAPI 阶段。
+- RAG/本地向量/Prompt/Agent YAML 使用 `yaml.safe_load` 和禁止未知字段的 Pydantic schema；数值范围、URL、文件/目录及跨字段关系启动即校验，旧 dict 接口继续兼容。
+- YAML 中的 SQLite 向量、数据、MD5、Prompt 和 CSV 路径统一相对项目根目录解析为绝对路径，不再依赖启动 cwd；配置仍在首次相关模块加载时读取，完整 composition-root 加载留到 FastAPI 阶段。
 - 模型请求默认验证 TLS；企业私有 CA 只能通过 `MODEL_CA_BUNDLE` 指向已有 PEM 文件，非法路径启动即失败，不提供关闭验证的开关。
 - 工具包括本地 RAG、静态天气、随机位置、随机用户 ID、当前月份和本地 CSV 报告数据；API 可注入 JWT authenticator/audit sink，开发模式仍允许显式 `x-tenant-id`，高风险工具审批和副作用幂等仍未完成。
 - `agent/tools/middleware.py` 已按锁定 LangGraph 版本接入 ReactAgent 的 ToolNode sync/async wrapper；日志只写工具名、参数键/类型和异常类型，仍不写原始参数或正文。
@@ -78,7 +78,7 @@ flowchart LR
 ### 评测链路
 
 1. `scripts/evaluate_rag.py` 读取 YAML 与 JSONL 数据集。
-2. 可选择 Chroma hybrid 或不依赖 embedding 的 BM25；答案可来自 LLM、参考答案或本地抽取器。
+2. 可选择 SQLite hybrid 或不依赖 embedding 的 BM25；答案可来自 LLM、参考答案或本地抽取器。
 3. 本地指标按来源标签（仅离线 `expected_sources`）或预期关键词判定相关性，并计算若干启发式/代理指标；这些标签不进入重排。
 4. RAGAS 默认关闭；显式启用时要求 `--ack-external-judge`，minimal 模式仍会向外部评审发送问题、回答和参考答案，需要业务数据出境审批。
 5. 结果写入被 `.gitignore` 排除的 `output/`，仍可能包含问题、答案、参考答案、召回全文、元数据和本机路径；不得把本地 artifact 当作可提交报告。
@@ -87,17 +87,17 @@ flowchart LR
 
 | 能力 | 当前状态 | 证据或说明 |
 |---|---|---|
-| Streamlit UI | 已实现且普通导入无业务资源副作用 | `app.py`；默认 local 兼容模式，也可通过 `STREAMLIT_MODE=http` 调用 FastAPI SSE；实际启动后首次 RAG 调用仍同步初始化 Chroma |
+| Streamlit UI | 已实现且普通导入无业务资源副作用 | `app.py`；默认 local 兼容模式，也可通过 `STREAMLIT_MODE=http` 调用 FastAPI SSE；实际启动后首次 RAG 调用仍可能初始化本地 SQLite |
 | 基础 LangGraph Agent | 已实现 Demo | `agent/react_agent.py` |
 | 工具调用 | 已实现有界 Demo | 每次 Agent 执行默认最多请求 5 次工具；无权限/幂等边界 |
-| Chroma 向量检索 | 已实现且依赖已安装 | RAG 服务支持单飞后台加载、显式超时和非阻塞 readiness；首次默认工具调用仍可能等待本地 Chroma |
+| SQLite 本地向量检索 | 已实现离线 baseline | `rag/local_vector_store.py` 提供持久化、scope filter、相似度检索和 LangChain retriever；生产多租户检索使用 Qdrant |
 | BM25 检索 | 已实现并可离线运行 | `rag/simple_bm25.py` |
 | 启发式重排 | 已实现无来源名特征的确定性 baseline | `rag/reranker.py`、`docs/evaluation/retrieval-leakage.md` |
 | RAG 回归样本 | 有 28 条主集和 6 条 focus 集，但未版本化/冻结 | `data/evaluation/*.jsonl` |
 | FastAPI / API v1 / SSE | 已实现聊天、基础 SSE、内存会话和启动生命周期边界 | `src/app/main.py` 提供应用工厂，`src/app/server.py:build_server_app()` 在显式 server 启动时延迟构造 Agent，并提供 request ID、liveness/readiness、可注入 RAG 的 lifespan 单飞加载、`POST /api/v1/chat`、SSE、可注入的进程内 conversation repository 和资源关闭；`python -m src.app.server` 可启动真实组合根 |
 | PostgreSQL / Alembic | 已实现当前阶段 | Compose PostgreSQL 16、一次性 Alembic migration、会话/文档/job/审批 repository、readiness、重启恢复和真实容器集成均已验证；当前 schema head 为 `0012_add_ingestion_job_leases` |
 | Redis / Celery | 未实现 | 当前有持久化任务状态机、进程内 worker 和跨 worker lease/fencing，但没有 Redis broker/Celery 独立 worker |
-| Qdrant / hybrid filter | 已实现当前阶段 | Compose Qdrant 1.18.3 healthy；真实 dense+sparse/RRF 查询强制 tenant/index 并覆盖 document/product/language/effective-date filter；Chroma/BM25 baseline 保留 |
+| Qdrant / hybrid filter | 已实现当前阶段 | Compose Qdrant 1.18.3 healthy；真实 dense+sparse/RRF 查询强制 tenant/index 并覆盖 document/product/language/effective-date filter；SQLite/BM25 baseline 保留 |
 | LangGraph checkpoint | 已实现当前阶段 | `PostgresSaver` 由应用生命周期管理，tenant/conversation 映射为稳定 thread ID；持久化中断、审批恢复和重启恢复均有 fake/真实 PostgreSQL 测试 |
 | 用户/会话持久化 | 部分实现 | FastAPI 可选 SQLAlchemy 会话和入库 job 持久化；Streamlit 默认仍为进程内 session |
 | JWT / RBAC | 部分实现 | `JWTAuthenticator`、稳定 401/403、tenant 一致性和安全审计已测试；审批/完整角色策略仍有限 |
@@ -105,7 +105,7 @@ flowchart LR
 | OpenTelemetry | 部分实现 | W3C `traceparent`、HTTP/Agent/LLM/RAG dense/sparse/fusion/rerank/工具/Worker span 与 timeout-bounded OTLP gRPC 已接线；真实 Collector 收到 trace batches。生产 trace backend 仍未实现 |
 | Prometheus / metrics endpoint | 已实现当前阶段 | `/metrics` 与 `/metrics/prometheus` 暴露有界 HTTP/模型/RAG/工具/Worker 聚合指标；真实 Prometheus target 为 up，Grafana health 正常；进程重启会归零 |
 | Docker Compose | 已实现当前里程碑 | PostgreSQL、migration、Qdrant、精简 API 和 `observability` profile 已配置；API、live/ready/OpenAPI、Prometheus scrape、Collector trace、Grafana health 均真实验证 |
-| CI | 已实现当前里程碑 | 远端 run `30732643961` 的功能质量门禁全部通过；完整离线依赖审计按策略保留 3 个漏洞阻断 |
+| CI | 已实现当前里程碑 | 远端旧 run `30733015390` 的功能质量门禁通过；本轮默认依赖安全审计已通过，新的依赖/代码变更待下一次远端 run 验收 |
 | 压测 | 部分实现 | `scripts/run_load_smoke.py` 支持 fake API 10 请求/并发 2；不是生产压测，暂无 Locust/k6 |
 
 ## 当前复核基线（2026-08-02）
@@ -114,12 +114,12 @@ flowchart LR
 
 | 命令 | 实际结果 |
 |---|---|
-| `python -m pytest -q` | 通过：402 passed，6 skipped，26 subtests；当前 shell 为 Python 3.13 |
+| `python -m pytest -q --basetemp output/pytest-full-after-vector` | 通过：407 passed，6 skipped，26 subtests；当前 shell 为 Python 3.13 |
 | 容器集成测试 | 通过：5 passed | Python 3.10 API 镜像连接真实 PostgreSQL 16/Qdrant 1.18.3，验证恢复、并发 claim 和 hybrid 隔离 |
-| `python -m ruff format --check .` | 通过：265 个 Python 文件已格式化 |
+| `python -m ruff format --check .` | 通过：270 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
-| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：104 个源码文件 |
-| `python -m mypy tests` | 通过：116 个测试源码文件 |
+| `python -m mypy agent rag model evaluation utils scripts src app.py` | 通过：107 个源码文件 |
+| `python -m mypy tests` | 通过：117 个测试源码文件 |
 | `python scripts/scan_secrets.py` | 通过：Secret scan OK |
 | `python -m pip check` | 通过：No broken requirements found |
 | 外部调用 timeout 定向审计 | 通过：51 passed，6 subtests；未发现需立即补齐的生产 timeout 缺口 |
@@ -129,7 +129,9 @@ flowchart LR
 | `python scripts/run_red_team_regression.py` | 通过：4/4 |
 | `python scripts/run_load_smoke.py --requests 10 --concurrency 2` | 通过：fake API smoke，错误率 0 |
 | `python -m evaluation.dataset_manifest` | 通过：28 samples，SHA-256 `e69c930f...f45b5c7` |
-| `python -m pip_audit -r requirements.txt --format json` | 失败：3 个无可用修复版本漏洞（ChromaDB/RAGAS/DiskCache）；未使用 ignore |
+| `python -m pip_audit -r requirements.txt --format json` | 通过：No known vulnerabilities found；默认依赖已移除 ChromaDB/RAGAS/DiskCache |
+| PostgreSQL backup/restore drill | 通过：60 个 dump 对象，恢复库 Alembic head `0012_add_ingestion_job_leases`，11 个 public tables |
+| fake capacity baseline | 通过：100 请求/并发 10，0 错误；吞吐 548.62 req/s，p50 15.84 ms，p95 25.66 ms | 仅本地 fake ASGI smoke，不是生产容量结论 |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 失败：当前 Python 3.13，不符合 Python 3.10 支持矩阵 |
 | `docker compose config --quiet` / observability config | 通过：静态配置 |
 | Observability stack E2E | 通过：API、Collector、Prometheus、Grafana 均 healthy；Prometheus target up，Collector 收到 API trace batches |
