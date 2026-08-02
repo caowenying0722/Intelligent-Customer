@@ -38,6 +38,8 @@ jobs:
           docker compose --profile observability config --quiet
       - name: Start integration data services
         run: docker compose up --wait -d postgres qdrant
+      - name: Apply database migrations
+        run: docker compose run --rm migrate
       - name: PostgreSQL and Qdrant integration tests
         env:
           TEST_POSTGRES_URL: postgresql+psycopg://app:development-only-change-me@127.0.0.1:5432/intelligent_customer

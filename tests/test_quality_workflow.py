@@ -12,6 +12,7 @@ def test_quality_workflow_validates_manifest_and_prepares_artifacts() -> None:
     assert "docker build --tag intelligent-customer-api:ci ." in workflow
     assert "python -m pip install -r requirements-dev.lock" in workflow
     assert "docker compose up --wait -d postgres qdrant" in workflow
+    assert "docker compose run --rm migrate" in workflow
     assert "tests/test_postgres_checkpoint_integration.py" in workflow
     assert "tests/test_qdrant_integration.py" in workflow
     assert "python scripts/run_retrieval_ablation.py" in workflow
