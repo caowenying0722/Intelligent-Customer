@@ -13,15 +13,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: requirements-dev.lock
       - name: Install locked development dependencies
-        run: python -m pip install -r requirements-dev.txt
+        run: python -m pip install -r requirements-dev.lock
       - name: Check dependency environment
         run: python scripts/check_environment.py --requirements requirements-dev.txt
       - name: Prepare CI artifact directory
@@ -30,10 +30,19 @@ jobs:
         run: docker build --tag intelligent-customer-api:ci .
       - name: Secret scan
         run: python scripts/scan_secrets.py
-      - name: Dependency audit (known vulnerabilities block release)
-        run: >-
-          python -m pip_audit -r requirements.txt
-          --format json --output output/ci/pip-audit.json
+      - name: Audit API runtime dependencies
+        run: python -m pip_audit -r requirements-api.lock
+      - name: Validate Compose configurations
+        run: |
+          docker compose config --quiet
+          docker compose --profile observability config --quiet
+      - name: Start integration data services
+        run: docker compose up --wait -d postgres qdrant
+      - name: PostgreSQL and Qdrant integration tests
+        env:
+          TEST_POSTGRES_URL: postgresql+psycopg://app:development-only-change-me@127.0.0.1:5432/intelligent_customer
+          TEST_QDRANT_URL: http://127.0.0.1:6333
+        run: python -m pytest -q tests/test_postgres_checkpoint_integration.py tests/test_qdrant_integration.py
       - name: Format check
         run: python -m ruff format --check .
       - name: Lint
@@ -50,6 +59,8 @@ jobs:
         run: python -m evaluation.dataset_manifest
       - name: Deterministic retrieval regression
         run: python scripts/run_deterministic_regression.py --output output/ci/deterministic-summary.json
+      - name: Five-way retrieval ablation
+        run: python scripts/run_retrieval_ablation.py --output output/ci/retrieval-ablation.json
       - name: Deterministic red-team regression
         run: python scripts/run_red_team_regression.py --output output/ci/red-team-summary.json
       - name: Fake API load smoke
@@ -59,14 +70,23 @@ jobs:
           python -m evaluation.quality_gate
           --summary output/ci/deterministic-summary.json
           --config config/evaluation_quality_gate.yml
+      - name: Full dependency audit (known upstream vulnerabilities block release)
+        if: always()
+        run: >-
+          python -m pip_audit -r requirements.txt
+          --format json --output output/ci/pip-audit.json
       - name: Upload deterministic report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: deterministic-retrieval-report
           path: |
             output/ci/deterministic-summary.json
             output/ci/red-team-summary.json
             output/ci/load-smoke.json
+            output/ci/retrieval-ablation.json
             output/ci/pip-audit.json
           if-no-files-found: warn
+      - name: Stop integration data services
+        if: always()
+        run: docker compose down --volumes

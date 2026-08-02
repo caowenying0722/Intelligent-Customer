@@ -909,3 +909,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 ## 2026-08-02 里程碑三：可观测性端到端
 
 本里程碑作为一个交付目标实施：复用现有脱敏 access log、W3C trace、HTTP/模型/RAG/工具/Worker 聚合指标，补齐 Qdrant hybrid dense/sparse/fusion/rerank spans 与 metrics；修复 distroless Collector 的错误 wget healthcheck；新增有 timeout、失败关闭的栈检查脚本。真实 Compose 已验证 Collector 收到 trace batch、Prometheus API target up、Grafana/Collector/API health 正常。Collector 仍为 debug exporter，生产 trace backend 留到最终部署阶段。
+
+## 2026-08-02 里程碑四：发布闭环
+
+本里程碑不增加无用途框架：统一 QUICKSTART/架构/当前状态/发布报告；CI 改为安装 Python 3.10 完整锁、构建精简 API、验证两套 Compose、启动真实 PostgreSQL/Qdrant 并运行集成测试、执行全量静态/测试/评测/消融，最后运行完整依赖审计并始终上传 artifact/清理服务。GitHub Actions 升级到 Node 24 对应 major。3 个上游无修复漏洞继续真实阻断无条件生产发布；本地容器闭环完成不等于生产容量、备份恢复或真实模型质量已验证。

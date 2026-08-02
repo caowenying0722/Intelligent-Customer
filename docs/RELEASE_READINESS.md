@@ -19,13 +19,13 @@
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 失败 | 当前解释器 Python 3.13，不符合仓库 Python 3.10 支持矩阵 |
 | `docker info` | 通过 | Docker Desktop Engine 已恢复，数据盘位于 D 盘 |
 | `docker compose config --quiet` | 通过 | PostgreSQL、migration、API 配置有效；API 镜像使用精简 `requirements-api.lock` |
-| `docker compose --profile observability config --quiet` | 通过 | 仅验证静态 profile 配置；Collector/Prometheus 镜像拉取与健康尚未在当前网络完成 |
-| Grafana dashboard/profile config | 通过：静态测试 | 已验证 PromQL、datasource 挂载和本地只读端口；镜像拉取与健康尚未在当前网络完成 |
+| `docker compose --profile observability config --quiet` | 通过 | 配置有效；Collector/Prometheus/Grafana 实际容器也已完成端到端健康验收 |
+| Grafana dashboard/profile config | 通过 | PromQL/datasource/只读端口静态测试通过，真实 `/api/health` 返回 database ok |
 | `python -m compileall -q agent evaluation model rag scripts src app.py` | 通过 | 近期 server/RAG metrics 改动无语法导入错误 |
 | `python -c "import app; ... build_server_app"` | 通过 | 普通 app import 不加载真实 Agent，server composition root 可导入 |
-| Collector/Prometheus/Grafana isolated health smoke | 通过：3 个 HTTP 200 | 三个镜像已拉取并以 `--no-deps` 启动；未包含 API，因此不是端到端 scrape/OTLP smoke |
+| Collector/Prometheus/Grafana health smoke | 通过：4 个组件均 ok | 包含 API、真实 scrape target 和 OTLP trace batch，不再只是隔离容器 smoke |
 | `/metrics/prometheus` 集成测试 | 通过：8 个测试 | 有界 HTTP/模型网关聚合指标，生产 token 保护，无 tenant/user/request/prompt 内容 |
-| W3C/HTTP/Agent/LLM/SSE/RAG/Tool/Worker/OTLP config smoke | 通过：14 个测试 | 当前进程线程池捕获 parent context；生产拒绝明文 OTLP，未执行真实 Collector 网络调用 |
+| W3C/HTTP/Agent/LLM/SSE/RAG/Tool/Worker/OTLP | 通过 | 当前进程线程池捕获 parent context；生产拒绝明文 OTLP；开发 Compose 已执行真实 Collector gRPC 传输 |
 | Worker Prometheus 聚合指标 | 通过：4 个测试 | 队列/活动/等待/处理/重试/终态聚合，无 job/tenant 标签 |
 | API 访问日志脱敏 | 通过：2 个测试 | 仅 method/status/duration/request_id/trace_id；不记录 Authorization/Cookie/query/prompt/正文 |
 | Prompt 输出安全边界 | 通过：2 个测试 | 只允许简短进度说明，不要求输出隐藏推理、系统提示或策略细节 |
@@ -51,8 +51,8 @@
 | Blue/Green validation timeout safety | 通过：1 个测试 | 未完成 candidate validation 时 active alias 保持不变 |
 | 持久化 rebuild idempotency reuse | 通过：1 个测试 | 已存在 tenant/idempotency key 时复用持久化 job，不重复调用 operation |
 | Persistent claim-before-worker | 通过：持久化 route 测试 | rebuild 先写唯一 job，再提交进程内 worker；进程崩溃后的 queued job 由 recovery 处理 |
-| Job claim/recovery audit | 通过：14 个定向测试 | queued 恢复、running orphan fail、取消、租户隔离和持久化幂等；heartbeat/lease fencing 未实现 |
-| Schema claim consistency | 通过：migration smoke + ORM/index assertions | 唯一索引列顺序/unique 与 0008→0010 nullable 迁移一致；SQLite 不替代 PostgreSQL 并发验收 |
+| Job claim/recovery audit | 通过 | queued 恢复、取消、租户隔离、持久化幂等、heartbeat/lease/fencing 与过期 reclaim 已测试 |
+| Schema claim consistency | 通过：migration + 真实 PostgreSQL | 当前 head `0012_add_ingestion_job_leases`，SQLite smoke 与 PostgreSQL 锁/并发集成均执行 |
 | PostgreSQL/container integration | 通过 | PostgreSQL healthy、migration exit 0、API healthy，live/ready/OpenAPI 200；真实 checkpoint/审批重启及 `SKIP LOCKED` 双 worker claim 测试通过 |
 | Qdrant hybrid integration | 通过 | Qdrant 1.18.3 healthy；真实 dense+sparse/RRF、tenant/index/version/business filter 集成测试通过；API readiness 200 |
 | 五路 retrieval ablation | 通过 | baseline/dense/sparse/RRF/RRF+reranker 使用 3 条冻结样本、model_calls=0 生成本地报告；只作为 proxy，不宣称生产提升 |
@@ -71,11 +71,11 @@
 
 ## 已知未完成
 
-- Compose 当前包含 PostgreSQL、migration、Qdrant、精简 API 和可选 OpenTelemetry Collector/Prometheus/Grafana profile；PostgreSQL/Qdrant/API health 已实测，端到端 scrape/OTLP、Redis/独立 Worker 和生产 trace backend 尚未完成。
+- Compose 当前包含 PostgreSQL、migration、Qdrant、精简 API 和可选 OpenTelemetry Collector/Prometheus/Grafana profile，health/scrape/OTLP 已实测。Redis/独立 Worker 和生产 trace backend 不在当前四里程碑闭环中，仍是后续扩展。
 - CI 已在依赖漏洞审计前加入 Docker build 步骤；远端 runner 的镜像构建结果仍待实际 workflow 运行确认。
 - 已执行真实 Docker health、迁移和 API readiness；SSE 与独立后台 Worker 容器 smoke 尚未完成。
 - hidden evaluation、真实 provider 评测和生产网络压测未执行。
 
 ## 结论
 
-当前状态适合继续开发和本地验证，不满足无条件生产发布。解除发布阻塞至少需要依赖漏洞有可接受修复/替换方案、Python 3.10 clean CI 通过，以及 Docker build/health smoke 在可用网络或镜像代理环境中成功。
+当前状态已具备可复现的本地容器栈和发布门禁，但不满足无条件生产发布。解除发布阻塞仍需要完整依赖漏洞有可接受修复/替换方案、远端 Python 3.10 CI 实际通过，并完成生产备份恢复、容量和真实流量验证。

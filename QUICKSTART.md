@@ -9,7 +9,7 @@ Conda 环境 `ics` 已成功创建并配置！
 ```bash
 conda create -n ics python=3.10.20 -y
 conda activate ics
-python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements-dev.lock
 python scripts/check_environment.py --requirements requirements-dev.txt
 ```
 
@@ -20,12 +20,13 @@ python scripts/check_environment.py --requirements requirements-dev.txt
 ```bash
 python -m ruff format --check .
 python -m ruff check .
-python -m mypy agent rag model evaluation utils scripts tests app.py
+python -m mypy agent rag model evaluation utils scripts src/app app.py
+python -m mypy tests
 python -m coverage run -m pytest -q
 python -m coverage report
 ```
 
-Coverage 当前只作为真实基线报告，不设置会诱导补写低价值测试或排除核心模块的虚假阈值。
+Coverage 当前保留 41% 的最低回归门禁；实际基线以 `docs/RELEASE_READINESS.md` 中最近一次实测为准。
 
 模型请求默认启用 TLS 证书验证，超时为 120 秒，OpenAI-compatible 最大重试次数为 2。企业私有 CA 应配置 PEM 文件，禁止通过关闭证书验证解决连接问题：
 
@@ -50,11 +51,12 @@ AGENT_MAX_TOOL_CALLS=5
 - LangGraph 1.2.10（工作流编排）
 - Streamlit 1.54.0 + Pillow 12.3.0（Web UI 与图像处理）
 - ChromaDB 1.3.7（向量数据库）
-- Torch 2.12.0 和 Transformers 5.14.1（本地模型支持）
+- Torch 2.13.0 和 Transformers 5.14.1（本地模型支持）
 - Sentence Transformers 5.2.0（文本嵌入）
+- PostgreSQL 16 + Qdrant 1.18.3（Compose 持久化与 Hybrid Retrieval）
 
 ### 依赖验证
-所有依赖已成功安装，无任何版本冲突（pip check: No broken requirements）
+精简 API 锁当前通过 pip-audit；完整离线 RAG 依赖仍有 3 个上游无修复漏洞，详见 `docs/RELEASE_READINESS.md`，不得视为可无条件生产发布。
 
 ---
 
@@ -123,6 +125,21 @@ python scripts/preflight_ragas.py
 ---
 
 ## 🚀 启动应用
+
+### 方式0：Compose API 栈
+
+```powershell
+docker compose up -d
+Invoke-RestMethod http://127.0.0.1:8000/health/ready
+```
+
+该命令启动 PostgreSQL、一次性 migration、Qdrant 和 FastAPI。可观测性 profile：
+
+```powershell
+$env:OTEL_EXPORTER_OTLP_ENDPOINT='http://otel-collector:4317'
+docker compose --profile observability up -d
+python scripts/check_observability_stack.py
+```
 
 ### 方式1：手动启动
 ```bash

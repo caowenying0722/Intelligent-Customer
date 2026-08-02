@@ -4,7 +4,7 @@
 
 本页记录 2026-08-02 对 `main` 分支工作区的实测结果。工作区仍保留用户未提交修改：`README.md` 被修改、两份 `docs/rag_quality_*.md` 被删除，`AGENT.md`、`todo.md` 未跟踪。本轮不覆盖或恢复这些内容；本页只描述已提交代码和实际执行结果。
 
-当前项目是 Streamlit 演示客户端加 FastAPI API-first 服务、LangGraph Agent、本地 RAG、PostgreSQL/Alembic 持久化和可观测性基线。Compose 中的 PostgreSQL、迁移任务和精简 API 镜像已完成真实启动验收；会话、LangGraph checkpoint、人工审批和入库任务 lease/fencing 已持久化。它仍不是完整生产栈：Qdrant hybrid、真实 OTLP backend、外部依赖漏洞和完整发布环境仍待完成。
+当前项目是 Streamlit 演示客户端加 FastAPI API-first 服务、LangGraph Agent、Chroma baseline/Qdrant Hybrid RAG、PostgreSQL/Alembic 持久化和可观测性栈。Compose 中 PostgreSQL、迁移、Qdrant、精简 API、Collector、Prometheus 和 Grafana 已完成真实启动与端到端验收；会话、LangGraph checkpoint、人工审批和入库任务 lease/fencing 已持久化。它仍不是无条件生产栈：完整离线依赖漏洞、生产 trace backend、备份恢复和真实容量验证仍待解决。
 
 ## 运行环境与依赖
 
@@ -50,7 +50,7 @@ flowchart LR
 2. `ReactAgent` 首次显式构造时通过缓存工厂创建聊天模型；测试可直接注入 fake model 和工具列表。
 3. 导入 `agent.tools.agent_tools` 不再加载 RAG 模块；首次调用 `rag_summarize` 才创建并缓存 `RagSummarizeService`。
 4. `RagSummarizeService.__init__` 不扫描文档或写入 Chroma；首次检索通过有界单飞后台加载任务执行，等待显式超时并传播失败。可注入 FastAPI 的 RAG 服务由 lifespan 启动后台加载，readiness 在加载中/失败时失败关闭；默认工具缓存仍是进程内本地索引。
-5. `ReactAgent` 创建 `agent -> tools -> agent` 的 LangGraph 循环；每次执行传入默认 10 的 `recursion_limit`，并累计限制默认最多 5 次工具调用。超限批次不会执行，递归上限异常转换为固定终止消息；全流程 deadline 和取消传播仍未实现。
+5. `ReactAgent` 创建 `agent -> tools -> agent` 的 LangGraph 循环；每次执行传入默认 10 的 `recursion_limit`，并累计限制默认最多 5 次工具调用。application service、Agent 节点和工具副作用前检查统一 deadline/cancellation guard；已经进入的同步外部调用仍只能依靠各自 timeout，Python 线程不能被安全强杀。
 6. 模型按工具调用结果继续循环。普通模型调用是同步 `invoke`；两类 provider 共享 120 秒默认超时，OpenAI-compatible 还显式设置最多 2 次 SDK 重试。
 7. FastAPI SSE 通过 `ChatApplicationService` 发送稳定的 metadata/token/completed/error 事件，metadata 返回 conversation ID，客户端断开和超时有测试；Streamlit 可通过 `STREAMLIT_MODE=http` 消费该 SSE 并复用会话 ID，默认仍是进程内兼容模式，不代表上游 token streaming。
 8. FastAPI 可注入内存或 SQLAlchemy conversation repository；数据库配置时 lifespan 逆序释放 repository，Streamlit 默认仍只保留当前进程 session state。
@@ -96,7 +96,7 @@ flowchart LR
 | RAG 回归样本 | 有 28 条主集和 6 条 focus 集，但未版本化/冻结 | `data/evaluation/*.jsonl` |
 | FastAPI / API v1 / SSE | 已实现聊天、基础 SSE、内存会话和启动生命周期边界 | `src/app/main.py` 提供应用工厂，`src/app/server.py:build_server_app()` 在显式 server 启动时延迟构造 Agent，并提供 request ID、liveness/readiness、可注入 RAG 的 lifespan 单飞加载、`POST /api/v1/chat`、SSE、可注入的进程内 conversation repository 和资源关闭；`python -m src.app.server` 可启动真实组合根 |
 | PostgreSQL / Alembic | 已实现当前阶段 | Compose PostgreSQL 16、一次性 Alembic migration、会话/文档/job/审批 repository、readiness、重启恢复和真实容器集成均已验证；当前 schema head 为 `0012_add_ingestion_job_leases` |
-| Redis / Celery | 未实现 | 无依赖、worker 或任务状态机 |
+| Redis / Celery | 未实现 | 当前有持久化任务状态机、进程内 worker 和跨 worker lease/fencing，但没有 Redis broker/Celery 独立 worker |
 | Qdrant / hybrid filter | 已实现当前阶段 | Compose Qdrant 1.18.3 healthy；真实 dense+sparse/RRF 查询强制 tenant/index 并覆盖 document/product/language/effective-date filter；Chroma/BM25 baseline 保留 |
 | LangGraph checkpoint | 已实现当前阶段 | `PostgresSaver` 由应用生命周期管理，tenant/conversation 映射为稳定 thread ID；持久化中断、审批恢复和重启恢复均有 fake/真实 PostgreSQL 测试 |
 | 用户/会话持久化 | 部分实现 | FastAPI 可选 SQLAlchemy 会话和入库 job 持久化；Streamlit 默认仍为进程内 session |
@@ -123,7 +123,7 @@ flowchart LR
 | `python scripts/scan_secrets.py` | 通过：Secret scan OK |
 | `python -m pip check` | 通过：No broken requirements found |
 | 外部调用 timeout 定向审计 | 通过：51 passed，6 subtests；未发现需立即补齐的生产 timeout 缺口 |
-| Job claim/recovery 定向审计 | 通过：14 passed；唯一 claim、queued 恢复、running orphan fail 已验证，heartbeat/lease 未实现 |
+| Job claim/recovery 定向审计 | 通过 | 唯一 claim、queued 恢复、heartbeat/lease/fencing、过期 reclaim 与 stale generation 拒绝已验证 |
 | PostgreSQL/container 集成 | 通过 | PostgreSQL healthy，migration exit 0，API healthy；live/ready/OpenAPI 均 200；真实 PostgreSQL checkpoint/审批重启和双 worker 唯一 claim 共 4 个集成测试通过 |
 | `python scripts/run_deterministic_regression.py` | 通过并生成 deterministic summary |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 |
@@ -219,7 +219,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 1. README 的历史提升数字如何排除文件名泄漏、开发集调参和参考答案复用？当前已通过移除来源名特征降低一项风险，但旧 artifact 仍不可追溯，需重跑冻结评测。
 2. 为什么叫“流式”但模型并未 token streaming？当前 FastAPI/Streamlit 只传递 Agent 完整 chunks，Streamlit 已不再逐字符 sleep；HTTP/SSE 模式已可选接入，但上游 token streaming、取消和背压仍未验证。
-3. Agent 如何防止无限工具循环、超时和重复副作用？步骤和工具次数已有确定性上限；全流程 deadline、取消与副作用幂等仍未实现。
+3. Agent 如何防止无限工具循环、超时和重复副作用？步骤/工具次数、全流程 deadline、协作式取消、持久化审批和幂等状态机已有确定性边界；限制是无法强杀已进入的同步外部调用。
 4. 随机 user ID 如何代表真实登录用户，如何防止读取其他人的报告？当前没有安全边界。
 5. 如何部署、扩容和恢复会话？当前首次 RAG 请求仍写本地 Chroma，session 只在单进程内存。
 6. 企业私有 CA 如何接入而不关闭 TLS？当前通过显式 PEM 路径创建验证客户端，路径无效时 fail-fast。
