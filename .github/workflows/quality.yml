@@ -40,6 +40,16 @@ jobs:
         run: docker compose up --wait -d postgres qdrant
       - name: Apply database migrations
         run: docker compose run --rm migrate
+      - name: Wait for Qdrant HTTP readiness
+        run: |
+          for attempt in $(seq 1 30); do
+            if python -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:6333/readyz", timeout=2).read()'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker compose logs --no-color --tail=200 qdrant || true
+          exit 1
       - name: PostgreSQL and Qdrant integration tests
         env:
           TEST_POSTGRES_URL: postgresql+psycopg://app:development-only-change-me@127.0.0.1:5432/intelligent_customer
