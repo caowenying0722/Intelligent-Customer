@@ -10,8 +10,8 @@
 
 - 初始审计 shell 的解释器为 Python 3.13.13；该环境混用全局 site-packages 与 `.local_deps/`，不作为受支持运行环境。
 - 受支持开发版本由 `.python-version` 固定为 Python 3.10.20；当前执行环境是 Python 3.13，`scripts/check_environment.py` 因版本不符而失败，不能把本机结果当作 Python 3.10 验收。
-- `requirements-dev.txt` 在运行依赖上固定 pytest、Ruff、Mypy、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
-- `requirements.lock` 和 `requirements-dev.lock` 固定传递依赖，包含直接认证依赖 `PyJWT==2.13.0`；当前已执行 `pip check`，但 Python 3.10 clean install 仍需 CI/受支持解释器验证。
+- `requirements-dev.txt` 在运行依赖上固定 pytest、pytest-asyncio、Ruff、Mypy、types-PyYAML、Coverage 和 pip-audit；`scripts/check_environment.py` 会拒绝非 Python 3.10、未精确固定、缺失或版本不一致的直接依赖。
+- `requirements.lock` 和 `requirements-dev.lock` 固定传递依赖，包含直接认证依赖 `PyJWT==2.13.0`；Python 3.10.20 锁定环境与远端 CI 已完成 clean-install/环境门禁验证。
 - 目标环境普通导入 `app` 不再加载 Agent、模型、RAG 或 Chroma；Streamlit 执行 `main()` 后才构建 Agent，RAG 服务可用单飞后台任务预加载 Chroma，首次检索等待显式超时并传播失败。
 - 旧 `.local_deps/` 目录仍存在但已不再由评测/报告脚本自动插入 `sys.path`；初始行为曾覆盖目标环境中的正确二进制包并导致 RAGAS 导入失败。
 - Python 3.13 下环境检查失败；支持矩阵固定 Python 3.10，不能用本机解释器替代 CI 验收。
@@ -104,8 +104,8 @@ flowchart LR
 | 多租户隔离 | 部分实现 | API conversation/document/job/retrieval 路径有 tenant filter；Streamlit/本地工具和跨服务部署仍非完整隔离 |
 | OpenTelemetry | 部分实现 | W3C `traceparent`、HTTP/Agent/LLM/RAG dense/sparse/fusion/rerank/工具/Worker span 与 timeout-bounded OTLP gRPC 已接线；真实 Collector 收到 trace batches。生产 trace backend 仍未实现 |
 | Prometheus / metrics endpoint | 已实现当前阶段 | `/metrics` 与 `/metrics/prometheus` 暴露有界 HTTP/模型/RAG/工具/Worker 聚合指标；真实 Prometheus target 为 up，Grafana health 正常；进程重启会归零 |
-| Docker Compose | 部分实现 | PostgreSQL、migration、精简 API 镜像和 `observability` profile 已配置；实际验证 API healthy 及 live/ready/OpenAPI 200。Qdrant 与完整可观测后端仍缺失 |
-| CI | 部分实现 | 已有质量、依赖审计和 Docker build workflow 配置；远端 runner 尚未执行确认 |
+| Docker Compose | 已实现当前里程碑 | PostgreSQL、migration、Qdrant、精简 API 和 `observability` profile 已配置；API、live/ready/OpenAPI、Prometheus scrape、Collector trace、Grafana health 均真实验证 |
+| CI | 已实现当前里程碑 | 远端 run `30732643961` 的功能质量门禁全部通过；完整离线依赖审计按策略保留 3 个漏洞阻断 |
 | 压测 | 部分实现 | `scripts/run_load_smoke.py` 支持 fake API 10 请求/并发 2；不是生产压测，暂无 Locust/k6 |
 
 ## 当前复核基线（2026-08-02）
@@ -114,7 +114,7 @@ flowchart LR
 
 | 命令 | 实际结果 |
 |---|---|
-| `python -m pytest -q` | 通过：401 passed，6 skipped，26 subtests；skip 为需显式 PostgreSQL/Qdrant URL 或新依赖的集成测试 |
+| `python -m pytest -q` | 通过：402 passed，6 skipped，26 subtests；当前 shell 为 Python 3.13 |
 | 容器集成测试 | 通过：5 passed | Python 3.10 API 镜像连接真实 PostgreSQL 16/Qdrant 1.18.3，验证恢复、并发 claim 和 hybrid 隔离 |
 | `python -m ruff format --check .` | 通过：265 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
@@ -132,7 +132,7 @@ flowchart LR
 | `python -m pip_audit -r requirements.txt --format json` | 失败：3 个无可用修复版本漏洞（ChromaDB/RAGAS/DiskCache）；未使用 ignore |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 失败：当前 Python 3.13，不符合 Python 3.10 支持矩阵 |
 | `docker compose config --quiet` / observability config | 通过：静态配置 |
-| Observability isolated health | 通过：Collector/Prometheus/Grafana 各 HTTP 200；不含 API 端到端 scrape |
+| Observability stack E2E | 通过：API、Collector、Prometheus、Grafana 均 healthy；Prometheus target up，Collector 收到 API trace batches |
 | Docker API build / Docker Desktop | 未通过：BuildKit daemon EOF，随后 Docker Desktop unable to start/超时 |
 
 ## 历史审计结果（已过期，不作为当前状态）
@@ -210,9 +210,9 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：当前 pytest 为 401 passed、6 skipped、26 subtests，分支覆盖率 64%；另在 Python 3.10 API 镜像内对真实 PostgreSQL/Qdrant 执行 5 个集成测试。真实付费 provider 和生产负载未验证。
-- 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；Collector/backend 端到端传输和业务日志全面脱敏仍有限制。
-- 部署：Compose PostgreSQL、Qdrant、migration 和精简 API 已真实 healthy；observability profile 仍需端到端 scrape/OTLP 验收，完整生产栈未完成。
+- 测试：当前 shell pytest 为 402 passed、6 skipped、26 subtests，分支覆盖率 64%；Python 3.10.20 锁定环境为 403 passed、5 skipped、26 subtests，并对真实 PostgreSQL/Qdrant 执行 5 个集成测试。真实付费 provider 和生产负载未验证。
+- 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；开发 Collector/backend 端到端传输已验证，生产 trace backend 仍未完成。
+- 部署：Compose PostgreSQL、Qdrant、migration、精简 API 和 observability profile 已真实 healthy，并完成 scrape/OTLP 验收；完整生产栈未完成。
 - 持久化：会话、Agent checkpoint、审批和入库任务已进入 PostgreSQL/Alembic；Qdrant 向量索引和 Chroma baseline 并存。备份恢复和多副本一致性仍未验证。
 
 ## 最可能被面试官质疑的问题
@@ -225,11 +225,17 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 6. 企业私有 CA 如何接入而不关闭 TLS？当前通过显式 PEM 路径创建验证客户端，路径无效时 fail-fast。
 7. 72 个环境/配置/路径/惰性初始化/RAG 显式加载/Agent 上限/模型适配/PDF/UI/LangGraph/Chroma 兼容测试为何能证明 Agent/RAG 主链可靠？当前不能证明。
 
-## 当前是否适合继续自动修改
+## 四里程碑最终验收补充（2026-08-02）
+
+- 提交 `d71156d` 已推送到 `origin/main`，中文标签为 `里程碑四-发布闭环超时与测试门禁修正`；此前三个里程碑也各有中文标签并已推送。
+- 远端 GitHub Actions run `30732643961` 的 Docker build、Compose 配置/迁移、PostgreSQL/Qdrant 集成、格式、Lint、源码/测试 Mypy、全量测试、覆盖率、数据集、deterministic/red-team/load/quality gate 和 artifact 清理均通过。
+- 完整离线依赖审计仍按安全策略失败于 ChromaDB、RAGAS、DiskCache 三个当前无修复漏洞；未使用 ignore 伪造通过。这是无条件生产发布阻塞，不影响精简 API 锁审计。
+
+## 当前自动修改范围（四里程碑已收口）
 
 适合继续做小步、测试先行的改造，但前提是：
 
 - 保留并避开当前用户未提交修改；
-- 在受支持 Python 3.10 环境复核 clean install 和 CI；
+- 在受支持 Python 3.10 环境复核 clean install 和 CI（已完成，后续依赖变更仍需重复）；
 - 先修复依赖漏洞、首次 RAG 同步入库和全流程 deadline/cancellation；
 - 继续以 fake Agent 和本地集成测试推进，单独建立 PostgreSQL/Qdrant/Celery/真实 OTLP 的容器验收目标，不把静态 Compose 配置等同于生产可用。

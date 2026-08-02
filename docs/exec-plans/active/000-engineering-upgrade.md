@@ -1,8 +1,8 @@
 # 工程级 Agentic RAG 渐进升级执行计划
 
-- 状态：Active
+- 状态：当前四里程碑闭环完成；后续扩展待排期
 - 建立日期：2026-08-01
-- 当前阶段：阶段 2（FastAPI 服务化）
+- 当前阶段：四里程碑交付已收口
 - 依据：根目录 `AGENT.md`、`todo.md` 与真实代码审计
 - 当前约束：保留用户未提交修改；默认测试不调用付费模型；每阶段独立验收和回滚
 
@@ -896,7 +896,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第七十六个目标完成：实际复核默认/observability 两套 `docker compose config --quiet`、`compileall` 和 app/server import smoke 均通过；未把静态 Compose 通过扩大为 Docker daemon/容器 health 通过。
 - 阶段 11 第七十三个目标完成：复核发布安全/环境/评测门禁；`pip-audit` 真实保留 3 条 PYSEC 无修复漏洞，Python 3.13 环境检查失败，`docker info` 45 秒超时；deterministic 3/3、red-team 4/4、fake load 10/10 均实际通过并记录 artifact，不把 smoke 结果扩大为生产结论。当前代码门禁为 367 tests、63% coverage、240 formatted files。
 
-阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
+四个当前交付里程碑已全部完成并推送：持久化与可恢复 Agent、Qdrant Hybrid Retrieval、可观测性端到端、发布闭环。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。后续扩展（Redis/Celery、生产 trace backend、备份恢复、容量和真实 provider 评测）需另行排期，不在本次四里程碑范围内。
 
 ## 2026-08-02 里程碑一：持久化与可恢复 Agent
 
@@ -913,3 +913,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 ## 2026-08-02 里程碑四：发布闭环
 
 本里程碑不增加无用途框架：统一 QUICKSTART/架构/当前状态/发布报告；CI 改为安装 Python 3.10 完整锁、构建精简 API、验证两套 Compose、启动真实 PostgreSQL/Qdrant 并运行集成测试、执行全量静态/测试/评测/消融，最后运行完整依赖审计并始终上传 artifact/清理服务。GitHub Actions 升级到 Node 24 对应 major。3 个上游无修复漏洞继续真实阻断无条件生产发布；本地容器闭环完成不等于生产容量、备份恢复或真实模型质量已验证。
+
+### 里程碑四最终修正与远程验收
+
+Python 3.10 下 `concurrent.futures.TimeoutError` 与内置 `TimeoutError` 的兼容差异已在模型网关、索引重建和 Qdrant 边界统一处理；开发锁补齐 `pytest-asyncio` 与 `types-PyYAML`。远程 run `30732643961` 已验证功能质量门禁全部通过，唯一失败项是上述三个无修复漏洞的完整依赖审计；后续 Redis/Celery、生产 trace backend、备份恢复、容量和真实 provider 评测仍不属于本四里程碑交付范围。
