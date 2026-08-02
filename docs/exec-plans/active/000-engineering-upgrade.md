@@ -937,10 +937,10 @@ Python 3.10 下 `concurrent.futures.TimeoutError` 与内置 `TimeoutError` 的�
 - 验收：静态 Compose config、fake task retry/timeout/idempotency/tenant 测试、真实 Redis/worker smoke（仅本地容器）和全量回归均通过；业务 handler 仍按部署显式注册，不将空注册表 smoke 扩大为完整解析/embedding 能力。
 - 回滚：停用 worker profile，API 回到现有受控进程内 worker；保留 job 状态和 PostgreSQL lease 字段。
 
-### 目标三：生产观测、权限边界和最终验收（本地已完成，远程门禁待推送复核）
+### 目标三：生产观测、权限边界和最终验收（本地与远程门禁已完成）
 
 - 目标：增加持久化 trace backend（优先 Jaeger/Tempo 可选 profile），补齐 trace retention/health 检查；复核 API、Worker、RAG、缓存和任务的 RBAC/tenant-by-construction 负向测试。
-- 验收：带 Badger 持久卷的 Jaeger profile 真实 healthy，`/api/traces?service=intelligent-customer-service` 可查询 API span；日志/指标不含凭证和高基数身份；跨租户访问 403、角色边界 401/403；422 passed、278 files format、113/118 Mypy、pip-audit、secret scan、deterministic/quality gate/red-team/load、Compose/backup smoke 均已实际通过。Python 3.10 锁文件 clean-install dry-run 已通过，推送后仍需远程 CI 复核。
+- 验收：带 Badger 持久卷的 Jaeger profile 真实 healthy，`/api/traces?service=intelligent-customer-service` 可查询 API span；日志/指标不含凭证和高基数身份；跨租户访问 403、角色边界 401/403；本地 422 passed、278 files format、113/118 Mypy、pip-audit、secret scan、deterministic/quality gate/red-team/load、Compose/backup smoke 均已实际通过。Python 3.10 锁文件 clean-install dry-run 已通过；远程 run `30739365944` 的同等全量门禁也已通过。
 - 限制：Jaeger 仅为本地/预发布 backend，生产仍需受管 retention、认证、HA/归档；完整业务 worker handler、真实 provider 和生产网络压测不在本次本地门禁结论中。
 - 回滚：关闭 trace profile，保留 Collector；权限策略以旧版本兼容 deny-by-default 回退，不删除审计和租户数据。
-- 远程门禁复核：run `30739101983` 的 artifact 确认集成测试收集阶段缺少 `uvicorn`（此前由已移除的 Chroma 间接带入）；已让 `requirements-dev.txt` 显式引用 `requirements-api.txt`，补齐 `uvicorn` 锁定、环境测试和 Qdrant readiness/诊断 artifact，修复提交 `95b3e34` 待远程复核。
+- 远程门禁复核：run `30739101983` 的 artifact 确认集成测试收集阶段缺少 `uvicorn`（此前由已移除的 Chroma 间接带入）；已让 `requirements-dev.txt` 显式引用 `requirements-api.txt`，补齐 `uvicorn` 锁定、环境测试和 Qdrant readiness/诊断 artifact；修复提交 `c043b09` 后 run `30739365944` 全绿。

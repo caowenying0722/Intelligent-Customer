@@ -105,7 +105,7 @@ flowchart LR
 | OpenTelemetry | 已实现本地持久化 backend 边界 | W3C `traceparent`、HTTP/Agent/LLM/RAG dense/sparse/fusion/rerank/工具/Worker span 与 timeout-bounded OTLP gRPC 已接线；Collector → Jaeger Badger trace 查询已实测；生产仍需受管 backend/retention |
 | Prometheus / metrics endpoint | 已实现当前阶段 | `/metrics` 与 `/metrics/prometheus` 暴露有界 HTTP/模型/RAG/工具/Worker 聚合指标；真实 Prometheus target 为 up，Grafana health 正常；进程重启会归零 |
 | Docker Compose | 已实现当前里程碑 | PostgreSQL、migration、Qdrant、精简 API 和 `observability` profile 已配置；API、live/ready/OpenAPI、Prometheus scrape、Collector trace、Grafana health 均真实验证 |
-| CI | 已实现当前里程碑 | 旧 run `30733015390` 的功能门禁通过；run `30739101983` 已定位为开发锁缺少 `uvicorn`，修复已推送，待新 run 验收 |
+| CI | 已实现当前里程碑 | run `30739365944` 全部通过：依赖、Compose/迁移、PostgreSQL/Qdrant、格式、Lint、Mypy、全量测试、评测、质量门禁和完整依赖审计均成功；此前缺少 `uvicorn` 的收集错误已修复 |
 | 压测 | 部分实现 | `scripts/run_load_smoke.py` 支持 fake API 10 请求/并发 2；不是生产压测，暂无 Locust/k6 |
 
 ## 当前复核基线（2026-08-02）
