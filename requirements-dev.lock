@@ -644,6 +644,8 @@ typer==0.27.0
     #   instructor
     #   ragas
     #   transformers
+types-PyYAML==6.0.12.20260724
+    # via -r requirements-dev.txt
 typing-extensions==4.16.0
     # via
     #   aiohttp

@@ -33,7 +33,14 @@ class PostgresCheckpointRuntime:
         if connect_timeout <= 0:
             raise ValueError("connect_timeout must be positive")
 
-        if pool_factory is None or saver_factory is None or row_factory is None:
+        pool_factory_impl: Any = pool_factory
+        saver_factory_impl: Any = saver_factory
+        row_factory_impl: Any = row_factory
+        if (
+            pool_factory_impl is None
+            or saver_factory_impl is None
+            or row_factory_impl is None
+        ):
             try:
                 from langgraph.checkpoint.postgres import PostgresSaver
                 from psycopg.rows import dict_row
@@ -42,13 +49,13 @@ class PostgresCheckpointRuntime:
                 raise RuntimeError(
                     "PostgreSQL checkpoint dependencies are not installed"
                 ) from exc
-            pool_factory = pool_factory or ConnectionPool
-            saver_factory = saver_factory or PostgresSaver
-            row_factory = row_factory or dict_row
+            pool_factory_impl = pool_factory_impl or ConnectionPool
+            saver_factory_impl = saver_factory_impl or PostgresSaver
+            row_factory_impl = row_factory_impl or dict_row
 
         self.database_url = normalize_psycopg_dsn(database_url)
         self.connect_timeout = connect_timeout
-        self.pool = pool_factory(
+        self.pool = pool_factory_impl(
             conninfo=self.database_url,
             min_size=1,
             max_size=pool_size,
@@ -57,10 +64,10 @@ class PostgresCheckpointRuntime:
             kwargs={
                 "autocommit": True,
                 "prepare_threshold": 0,
-                "row_factory": row_factory,
+                "row_factory": row_factory_impl,
             },
         )
-        self.checkpointer = saver_factory(self.pool)
+        self.checkpointer = saver_factory_impl(self.pool)
         self._started = False
 
     @property

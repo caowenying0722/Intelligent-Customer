@@ -45,7 +45,7 @@ class EnvironmentCheckTest(unittest.TestCase):
             parse_pinned_requirements(PROJECT_ROOT / "requirements-dev.txt")
         )
 
-        self.assertEqual(len(pins), 35)
+        self.assertEqual(len(pins), 36)
         self.assertEqual(pins["fastapi"].version, "0.141.1")
         self.assertEqual(pins["pyjwt"].version, "2.13.0")
         self.assertEqual(pins["opentelemetry-api"].version, "1.44.0")
@@ -75,6 +75,7 @@ class EnvironmentCheckTest(unittest.TestCase):
         self.assertEqual(pins["pytest"].version, "9.1.1")
         self.assertEqual(pins["ruff"].version, "0.16.1")
         self.assertEqual(pins["mypy"].version, "2.3.0")
+        self.assertEqual(pins["types-pyyaml"].version, "6.0.12.20260724")
         self.assertEqual(pins["coverage"].version, "7.15.2")
         self.assertEqual(pins["pip-audit"].version, "2.10.1")
 

@@ -1,6 +1,7 @@
+import sys
 import time
 from datetime import datetime, timezone
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -8,7 +9,23 @@ from rag.qdrant_backend import (
     QdrantMetadataFilter,
     QdrantVectorBackend,
     VectorBackendError,
+    build_qdrant_backend,
 )
+
+
+def test_qdrant_builder_rounds_subsecond_timeout_for_client(monkeypatch) -> None:
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.timeout = kwargs["timeout"]
+
+    fake_module = ModuleType("qdrant_client")
+    setattr(fake_module, "QdrantClient", FakeClient)
+    monkeypatch.setitem(sys.modules, "qdrant_client", fake_module)
+
+    backend = build_qdrant_backend("http://qdrant:6333", timeout_seconds=0.25)
+
+    assert backend is not None
+    assert backend.client.timeout == 1
 
 
 class FakeQdrantClient:

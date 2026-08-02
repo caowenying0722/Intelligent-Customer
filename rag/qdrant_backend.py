@@ -6,6 +6,7 @@ testing the application does not require qdrant-client or a running service.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -429,11 +430,16 @@ def build_qdrant_backend(
     """Build the optional production adapter without import-time network calls."""
     if url is None:
         return None
+    if timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be positive")
     try:
         from qdrant_client import QdrantClient
     except ImportError as exc:  # pragma: no cover - clean-install guard.
         raise RuntimeError("qdrant-client is required when QDRANT_URL is set") from exc
-    client = QdrantClient(url=url, timeout=timeout_seconds)
+    # qdrant-client's constructor accepts integer seconds, while the service
+    # configuration and bounded executor use sub-second precision. Round up
+    # so a configured positive timeout never becomes an accidental zero.
+    client = QdrantClient(url=url, timeout=max(1, math.ceil(timeout_seconds)))
     return QdrantVectorBackend(
         client,
         collection_name=collection_name,
