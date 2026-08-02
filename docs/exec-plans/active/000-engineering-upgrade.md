@@ -954,3 +954,11 @@ Python 3.10 下 `concurrent.futures.TimeoutError` 与内置 `TimeoutError` 的�
 - 已执行容器验收：Python 3.10 API/worker 镜像成功构建；非 root API 通过共享卷上传；真实 PostgreSQL → Redis → Celery → Qdrant 文档任务 completed、document active；v1 → v2 alias 切换 completed；不存在候选失败且 alias 保持 v2。smoke 文档已标记 deleted，3 个 smoke collection 和 1 个 alias 已清理。
 - 最终本地门禁：427 passed、6 skipped、26 subtests、63% branch coverage；282 files format、Ruff、源码 115 files/test 119 files Mypy、secret scan、pip check、API/worker/default 三套 pip-audit、deterministic/ablation/red-team/fake load/quality gate、Compose 三套 config、应用 import 和真实 worker smoke 均通过。宿主 `check_environment` 因 Python 3.13 与全局包不匹配失败；Python 3.10 锁已由两张 Linux 镜像 clean install 和 E2E 验证。
 - 回滚：指回已知 previous collection；停用 `workers` profile 并回到 local 开发 backend；保留数据库与上传卷，代码回滚到上一中文 tag。
+
+### 目标五：多租户合成数据与受控付费模型模拟（本地门禁完成）
+
+- 目标：在不接触真实客户数据的前提下，验证租户隔离、模型调用、延迟、错误和泄漏风险。
+- 设计：`scripts/run_tenant_simulation.py` 生成固定 seed 的 `.test` fixture；默认 dry-run，`--live` 才复用 `.env` Anthropic-compatible 配置；每次运行有总调用数、并发、timeout、retry 和 output token 上限，报告默认脱敏。
+- 质量边界：`passed` 是合成答案词项匹配，`leakage` 是其他租户 ID/marker 检查；provider usage 尚未进入兼容 adapter，因此报告明确 `cost_measured=false`。
+- 实测：5 次 live smoke 为 5/5、0 泄漏；30 次受控批次为 29/30、0 泄漏、0 provider error，P50 3353ms、P95 8753ms；不将结果解释为生产质量或 SLA。
+- 回滚：停止 live 命令即可；输出仅在 ignored `output/`，不写入 `.env` 或数据库，不影响现有 API/worker 数据。

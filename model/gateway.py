@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import threading
 import time
 from collections import deque
@@ -178,8 +179,7 @@ class ModelGateway:
             if self.cache is not None and hasattr(self.cache, "stats")
             else cache_hits_before
         )
-        if not isinstance(output, str):
-            output = str(output)
+        output = self._output_text(output)
         return ModelResponse(
             provider=request.provider,
             model=request.model,
@@ -196,6 +196,27 @@ class ModelGateway:
                 "request_fingerprint": trace.request_fingerprint,
             },
         )
+
+    @staticmethod
+    def _output_text(output: Any) -> str:
+        """Normalize LangChain messages without leaking object repr metadata."""
+        content = getattr(output, "content", None)
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, dict) and isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+                elif isinstance(item, str):
+                    parts.append(item)
+            if parts:
+                return "\n".join(parts)
+        if isinstance(output, str):
+            return output
+        if isinstance(output, (dict, list)):
+            return json.dumps(output, ensure_ascii=False, default=str)
+        return str(output)
 
     def invoke_idempotent(
         self, request: ModelRequest, *, idempotency_key: str

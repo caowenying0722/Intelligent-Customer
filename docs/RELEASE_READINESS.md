@@ -70,6 +70,7 @@
 | PostgreSQL backup/restore drill | 通过：60 个 dump 对象、恢复库 Alembic head `0012_add_ingestion_job_leases`、11 个 public tables | 使用临时数据库，演练后已删除；不宣称备份 SLA |
 | fake capacity baseline | 通过：100 请求/并发 10、0 错误；548.62 req/s、p50 15.84 ms、p95 25.66 ms | 本地 fake ASGI smoke，不能替代生产压测 |
 | Redis/Celery 真实入库与索引 | 通过 | Python 3.10 API/worker 镜像经 PostgreSQL、Redis、共享上传卷和 Qdrant 完成 document/index job；v1→v2 alias 原子切换成功，缺失候选失败时 alias 不变，`model_calls=0` |
+| 多租户合成付费模型模拟 | 通过（受控本地运行） | 5 次 smoke 为 5/5、30 次批次为 29/30，均 0 泄漏；只使用合成 `.test` fixture，报告明确未测量美元成本，不代表生产质量 |
 
 ## 发布阻塞
 

@@ -213,7 +213,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：当前 shell 使用仓库专用 basetemp 实测 427 passed、6 skipped、26 subtests、63% branch coverage；此前远程 Python 3.10 门禁全绿，本阶段远程门禁待本提交触发。真实付费 provider 和生产负载未验证。
+- 测试：当前 shell 使用仓库专用 basetemp 实测 431 passed、6 skipped、26 subtests；真实 Anthropic-compatible 合成租户模拟已完成 5/5 smoke 和 30 次受控批次（29/30 词项匹配、0 泄漏），美元成本仍需 provider billing 对账。真实客户数据、生产负载和语义质量未验证。
 - 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；开发 Collector → Jaeger Badger backend 端到端传输和 trace 查询已验证，生产仍需受管 retention/认证。
 - 部署：Compose PostgreSQL、Qdrant、migration、精简 API 和 observability profile 已真实 healthy，并完成 scrape/OTLP 验收；完整生产栈未完成。
 - 持久化：会话、Agent checkpoint、审批和入库任务已进入 PostgreSQL/Alembic；默认本地 baseline 使用 SQLite，生产检索使用 Qdrant。备份恢复已演练，多副本一致性仍未验证。

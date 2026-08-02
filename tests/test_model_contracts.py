@@ -23,6 +23,18 @@ def test_gateway_returns_provider_neutral_contract():
     assert response.usage.latency_ms >= 0
 
 
+def test_contract_response_extracts_langchain_message_content_without_repr():
+    class Message:
+        content = "clean answer"
+
+    gateway = ModelGateway({"fake": lambda _request: Message()})
+    response = gateway.invoke_contract(
+        ModelRequest(tenant_id="t", provider="fake", model="m", prompt="hello")
+    )
+    assert response.output == "clean answer"
+    assert "content=" not in response.output
+
+
 def test_request_contract_rejects_extra_fields():
     with pytest.raises(ValueError):
         ModelRequest(
