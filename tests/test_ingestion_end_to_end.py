@@ -30,7 +30,7 @@ def test_document_rebuild_cancel_delete_end_to_end() -> None:
     app = create_app(
         ingestion_service=service,
         ingestion_operation=upload_operation,
-        index_rebuild_operation=lambda version: None,
+        index_rebuild_operation=lambda _tenant, version: None,
     )
     try:
         with TestClient(app) as client:

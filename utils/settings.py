@@ -89,6 +89,7 @@ class Settings(BaseSettings):
     ] = "READ COMMITTED"
     qdrant_url: str | None = None
     qdrant_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
+    upload_storage_root: str = Field(default="output/uploads", min_length=1)
     ingestion_worker_backend: Literal["local", "celery"] = Field(
         default="local",
         validation_alias=AliasChoices("INGESTION_WORKER_BACKEND", "WORKER_BACKEND"),

@@ -944,3 +944,13 @@ Python 3.10 下 `concurrent.futures.TimeoutError` 与内置 `TimeoutError` 的�
 - 限制：Jaeger 仅为本地/预发布 backend，生产仍需受管 retention、认证、HA/归档；完整业务 worker handler、真实 provider 和生产网络压测不在本次本地门禁结论中。
 - 回滚：关闭 trace profile，保留 Collector；权限策略以旧版本兼容 deny-by-default 回退，不删除审计和租户数据。
 - 远程门禁复核：run `30739101983` 的 artifact 确认集成测试收集阶段缺少 `uvicorn`（此前由已移除的 Chroma 间接带入）；已让 `requirements-dev.txt` 显式引用 `requirements-api.txt`，补齐 `uvicorn` 锁定、环境测试和 Qdrant readiness/诊断 artifact；修复提交 `c043b09` 后 run `30739365944` 全绿。
+
+### 目标四：真实 Celery 入库与蓝绿索引链路（本地门禁完成）
+
+- 目标：消除 worker 空注册表，使上传任务能从 PostgreSQL 身份重建并跨进程完成解析、切分、embedding、Qdrant 写入和显式蓝绿切换。
+- 设计：document task payload 仅携带版本化 JSON `document_id`；默认 `local-hash-v1` 生成可复现 dense+sparse 向量，不触发付费模型；稳定 UUID point + upsert 收敛重复/部分批次；tenant/index 摘要隔离物理 collection 和 alias。
+- 文件：`src/app/workers/operations.py`、worker/runtime/task 组合根、server/ingestion composition、Qdrant adapter、Compose/requirements、worker/Qdrant/配置测试和 `docs/operations/worker-ingestion.md`。
+- 风险：hash embedding 只用于工程 baseline；Celery 仍为 at-least-once；同步解析线程只能依赖 cooperative timeout 与 Celery hard limit；旧 collection cleanup 保持显式以避免误删回滚点。
+- 已执行容器验收：Python 3.10 API/worker 镜像成功构建；非 root API 通过共享卷上传；真实 PostgreSQL → Redis → Celery → Qdrant 文档任务 completed、document active；v1 → v2 alias 切换 completed；不存在候选失败且 alias 保持 v2。smoke 文档已标记 deleted，3 个 smoke collection 和 1 个 alias 已清理。
+- 最终本地门禁：427 passed、6 skipped、26 subtests、63% branch coverage；282 files format、Ruff、源码 115 files/test 119 files Mypy、secret scan、pip check、API/worker/default 三套 pip-audit、deterministic/ablation/red-team/fake load/quality gate、Compose 三套 config、应用 import 和真实 worker smoke 均通过。宿主 `check_environment` 因 Python 3.13 与全局包不匹配失败；Python 3.10 锁已由两张 Linux 镜像 clean install 和 E2E 验证。
+- 回滚：指回已知 previous collection；停用 `workers` profile 并回到 local 开发 backend；保留数据库与上传卷，代码回滚到上一中文 tag。

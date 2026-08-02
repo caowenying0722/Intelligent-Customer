@@ -119,6 +119,21 @@ def test_worker_profile_is_optional_and_has_broker_health_gate() -> None:
         "service_completed_successfully"
     )
     assert services["worker"]["environment"]["REDIS_URL"] == "redis://redis:6379/0"
+    assert services["worker"]["environment"]["QDRANT_URL"] == "http://qdrant:6333"
+    assert services["worker"]["volumes"] == ["uploads-data:/app/output/uploads"]
+    assert services["api"]["volumes"] == ["uploads-data:/app/output/uploads"]
+    assert services["upload-init"]["user"] == "0:0"
+    assert services["upload-init"]["restart"] == "no"
+    assert services["api"]["depends_on"]["upload-init"]["condition"] == (
+        "service_completed_successfully"
+    )
+    assert services["worker"]["depends_on"]["upload-init"]["condition"] == (
+        "service_completed_successfully"
+    )
+    assert services["api"]["environment"]["INGESTION_WORKER_BACKEND"] == (
+        "${INGESTION_WORKER_BACKEND:-local}"
+    )
+    assert "uploads-data" in compose["volumes"]
     assert "USER app" in Path("Dockerfile.worker").read_text(encoding="utf-8")
     assert "celery" in Path("requirements-worker.lock").read_text(encoding="utf-8")
 

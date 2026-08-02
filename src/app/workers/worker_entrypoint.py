@@ -1,40 +1,52 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
-from src.app.application.ingestion import IngestionJob, PermanentIngestionError
 from src.app.infrastructure.ingestion import SqlAlchemyIngestionRepository
 from src.app.workers.celery_app import CeleryTaskPublisher, build_celery_app
+from src.app.workers.operations import WorkerOperationRegistry
 from src.app.workers.runtime import CeleryTaskRuntime, TaskRuntimeConfig
 from src.app.workers.tasks import register_ingestion_task
 from utils.settings import get_settings
 
 
-def _operation_for(_job: IngestionJob):
-    """Fail closed until a deployment registers its parser/index handlers."""
-
-    raise PermanentIngestionError(
-        "worker operation registry is not configured for this deployment"
-    )
-
-
 def build_worker_app() -> Any:
     settings = get_settings()
-    if settings.redis_url is None or settings.database_url is None:
-        raise RuntimeError("REDIS_URL and DATABASE_URL are required for the worker")
+    if (
+        settings.redis_url is None
+        or settings.database_url is None
+        or settings.qdrant_url is None
+    ):
+        raise RuntimeError(
+            "REDIS_URL, DATABASE_URL and QDRANT_URL are required for the worker"
+        )
     app = build_celery_app(
         settings.redis_url,
         queue=settings.worker_queue,
         task_timeout_seconds=settings.worker_task_timeout_seconds,
     )
     store = SqlAlchemyIngestionRepository(settings.database_url)
+    from qdrant_client import QdrantClient
+
+    qdrant_client = QdrantClient(
+        url=settings.qdrant_url,
+        timeout=max(1, math.ceil(settings.qdrant_timeout_seconds)),
+    )
+    operations = WorkerOperationRegistry(
+        store,
+        qdrant_client,
+        upload_root=settings.upload_storage_root,
+        timeout_seconds=settings.qdrant_timeout_seconds,
+    )
     runtime = CeleryTaskRuntime(
         store,
-        _operation_for,
+        operations.operation_for,
         config=TaskRuntimeConfig(
             timeout_seconds=settings.worker_task_timeout_seconds,
             lease_seconds=settings.worker_lease_seconds,
         ),
+        terminal_hook=operations.terminal_hook,
     )
     register_ingestion_task(
         app,

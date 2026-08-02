@@ -156,7 +156,9 @@ def build_router(
                 job = ingestion_service.jobs.submit(
                     tenant_id=tenant_id,
                     idempotency_key=idempotency_key,
-                    operation=lambda: index_rebuild_operation(payload.index_version),
+                    operation=lambda: index_rebuild_operation(
+                        tenant_id, payload.index_version
+                    ),
                     job_id=pending.job_id,
                     task_type="index_rebuild",
                     task_payload=payload.index_version,
@@ -183,7 +185,9 @@ def build_router(
                 job = ingestion_service.jobs.submit(
                     tenant_id=tenant_id,
                     idempotency_key=idempotency_key,
-                    operation=lambda: index_rebuild_operation(payload.index_version),
+                    operation=lambda: index_rebuild_operation(
+                        tenant_id, payload.index_version
+                    ),
                     task_type="index_rebuild",
                     task_payload=payload.index_version,
                 )

@@ -27,14 +27,21 @@ jobs:
       - name: Prepare CI artifact directory
         run: mkdir -p output/ci
       - name: Build API image
-        run: docker build --tag intelligent-customer-api:ci .
+        run: |
+          docker build --tag intelligent-customer-api:ci .
+          docker tag intelligent-customer-api:ci intelligent-customer-api:local
+      - name: Build worker image
+        run: docker build --file Dockerfile.worker --tag intelligent-customer-worker:local .
       - name: Secret scan
         run: python scripts/scan_secrets.py
       - name: Audit API runtime dependencies
         run: python -m pip_audit -r requirements-api.lock
+      - name: Audit worker runtime dependencies
+        run: python -m pip_audit -r requirements-worker.lock
       - name: Validate Compose configurations
         run: |
           docker compose config --quiet
+          docker compose --profile workers config --quiet
           docker compose --profile observability config --quiet
       - name: Start integration data services
         run: docker compose up --wait -d postgres qdrant
@@ -64,6 +71,10 @@ jobs:
             docker compose logs --no-color --tail=200 postgres qdrant >> output/ci/integration-services.log 2>&1 || true
           fi
           exit "${status}"
+      - name: Celery ingestion and index smoke
+        run: |
+          INGESTION_WORKER_BACKEND=celery docker compose --profile workers up --wait -d redis worker api
+          python scripts/run_worker_ingestion_smoke.py --deadline-seconds 60
       - name: Format check
         run: python -m ruff format --check .
       - name: Lint

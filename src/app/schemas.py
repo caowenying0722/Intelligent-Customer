@@ -91,9 +91,9 @@ class DocumentUploadRequest(BaseModel):
     content_type: str | None = Field(default=None, max_length=128)
     parser_version: str = Field(default="parser-v1", min_length=1, max_length=64)
     chunker_version: str = Field(default="chunker-v1", min_length=1, max_length=64)
-    embedding_model: str = Field(default="pending", min_length=1, max_length=255)
-    embedding_dimension: int = Field(default=1, ge=1, le=100_000)
-    index_version: str = Field(default="pending", min_length=1, max_length=128)
+    embedding_model: str = Field(default="local-hash-v1", min_length=1, max_length=255)
+    embedding_dimension: int = Field(default=64, ge=1, le=4096)
+    index_version: str = Field(default="knowledge-v1", min_length=1, max_length=128)
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
 
 

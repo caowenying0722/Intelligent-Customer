@@ -32,6 +32,17 @@ services:
         condition: service_healthy
     restart: "no"
 
+  upload-init:
+    image: intelligent-customer-api:local
+    user: "0:0"
+    command:
+      - sh
+      - -c
+      - chown -R app:app /app/output/uploads && chmod 0700 /app/output/uploads
+    volumes:
+      - uploads-data:/app/output/uploads
+    restart: "no"
+
   qdrant:
     image: qdrant/qdrant:v1.18.3-unprivileged
     ports:
@@ -72,6 +83,9 @@ services:
       DATABASE_URL: >-
         postgresql+psycopg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-development-only-change-me}@postgres:5432/${POSTGRES_DB:-intelligent_customer}
       REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_TIMEOUT_SECONDS: ${QDRANT_TIMEOUT_SECONDS:-5}
+      UPLOAD_STORAGE_ROOT: /app/output/uploads
       INGESTION_WORKER_BACKEND: celery
       WORKER_QUEUE: ${WORKER_QUEUE:-ingestion}
       WORKER_TASK_TIMEOUT_SECONDS: ${WORKER_TASK_TIMEOUT_SECONDS:-300}
@@ -82,8 +96,14 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      upload-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    volumes:
+      - uploads-data:/app/output/uploads
     restart: unless-stopped
 
   api:
@@ -106,8 +126,13 @@ services:
         postgresql+psycopg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-development-only-change-me}@postgres:5432/${POSTGRES_DB:-intelligent_customer}
       QDRANT_URL: http://qdrant:6333
       QDRANT_TIMEOUT_SECONDS: ${QDRANT_TIMEOUT_SECONDS:-5}
+      REDIS_URL: redis://redis:6379/0
+      INGESTION_WORKER_BACKEND: ${INGESTION_WORKER_BACKEND:-local}
+      UPLOAD_STORAGE_ROOT: /app/output/uploads
     depends_on:
       migrate:
+        condition: service_completed_successfully
+      upload-init:
         condition: service_completed_successfully
       qdrant:
         condition: service_healthy
@@ -123,6 +148,8 @@ services:
       timeout: 5s
       start_period: 20s
       retries: 3
+    volumes:
+      - uploads-data:/app/output/uploads
     restart: unless-stopped
 
   otel-collector:
@@ -224,5 +251,6 @@ services:
 volumes:
   postgres-data:
   qdrant-data:
+  uploads-data:
   redis-data:
   jaeger-data:

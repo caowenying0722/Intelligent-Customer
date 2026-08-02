@@ -45,7 +45,7 @@ class EnvironmentCheckTest(unittest.TestCase):
             parse_pinned_requirements(PROJECT_ROOT / "requirements-dev.txt")
         )
 
-        self.assertEqual(len(pins), 34)
+        self.assertEqual(len(pins), 36)
         self.assertEqual(pins["fastapi"].version, "0.141.1")
         self.assertEqual(pins["pyjwt"].version, "2.13.0")
         self.assertEqual(pins["opentelemetry-api"].version, "1.44.0")
@@ -64,6 +64,8 @@ class EnvironmentCheckTest(unittest.TestCase):
         self.assertEqual(pins["langgraph-checkpoint-postgres"].version, "3.1.1")
         self.assertEqual(pins["psycopg"].version, "3.3.4")
         self.assertEqual(pins["qdrant-client"].version, "1.18.0")
+        self.assertEqual(pins["celery"].version, "5.5.3")
+        self.assertEqual(pins["redis"].version, "6.4.0")
         self.assertEqual(pins["streamlit"].version, "1.54.0")
         self.assertEqual(pins["pillow"].version, "12.3.0")
         self.assertEqual(pins["pypdf"].version, "6.14.2")

@@ -51,11 +51,12 @@ def build_approval_repository(
 
 
 def build_document_ingestion_service(
-    *, database_url: str | None = None, storage_root: str | Path = "output/uploads"
+    *, database_url: str | None = None, storage_root: str | Path | None = None
 ) -> DocumentIngestionService:
     """Build memory or SQL-backed ingestion dependencies from explicit configuration."""
     configured_url = database_url or os.getenv("DATABASE_URL")
     settings = get_settings()
+    selected_storage_root = storage_root or settings.upload_storage_root
     dispatcher = None
     if settings.ingestion_worker_backend == "celery":
         if settings.redis_url is None:
@@ -76,8 +77,8 @@ def build_document_ingestion_service(
     if configured_url:
         repository = SqlAlchemyIngestionRepository(configured_url)
         return DocumentIngestionService(
-            SecureUploadStorage(storage_root), jobs, repository, repository
+            SecureUploadStorage(selected_storage_root), jobs, repository, repository
         )
     return DocumentIngestionService(
-        SecureUploadStorage(storage_root), jobs, DocumentMetadataRegistry()
+        SecureUploadStorage(selected_storage_root), jobs, DocumentMetadataRegistry()
     )

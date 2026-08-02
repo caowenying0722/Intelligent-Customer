@@ -60,6 +60,7 @@ class TaskRuntimeConfig:
 
 
 OperationFactory = Callable[[IngestionJob], Callable[[], Any]]
+TerminalHook = Callable[[IngestionJob, IngestionJobStatus], None]
 
 
 class CeleryTaskRuntime:
@@ -71,9 +72,11 @@ class CeleryTaskRuntime:
         operation_for: OperationFactory,
         *,
         config: TaskRuntimeConfig | None = None,
+        terminal_hook: TerminalHook | None = None,
     ) -> None:
         self.store = store
         self.operation_for = operation_for
+        self.terminal_hook = terminal_hook
         selected = config or TaskRuntimeConfig()
         self.config = TaskRuntimeConfig(
             timeout_seconds=selected.timeout_seconds,
@@ -117,8 +120,16 @@ class CeleryTaskRuntime:
         self._update_progress(lease.job, 0)
         try:
             if lease.job.cancel_requested:
-                self._complete(lease, IngestionJobStatus.CANCELLED, error="cancelled")
-                return self._result(lease.job, status=IngestionJobStatus.CANCELLED)
+                self._notify_terminal(lease.job, IngestionJobStatus.CANCELLED)
+                self._complete(
+                    lease,
+                    IngestionJobStatus.CANCELLED,
+                    error="cancelled",
+                    attempt=attempt,
+                )
+                return self._terminal_result(
+                    lease.job, status=IngestionJobStatus.CANCELLED
+                )
             operation = self.operation_for(lease.job)
             result = self._run_with_timeout(operation)
             current = self.store.get_job(
@@ -127,18 +138,26 @@ class CeleryTaskRuntime:
             if current is not None and current.cancel_requested:
                 raise IngestionCancelledError("ingestion job cancelled")
             self._update_progress(lease.job, 100)
-            self._complete(lease, IngestionJobStatus.COMPLETED)
+            self._notify_terminal(lease.job, IngestionJobStatus.COMPLETED)
+            self._complete(lease, IngestionJobStatus.COMPLETED, attempt=attempt)
             del result
-            return self._result(lease.job, status=IngestionJobStatus.COMPLETED)
+            return self._terminal_result(lease.job, status=IngestionJobStatus.COMPLETED)
         except IngestionCancelledError:
-            self._complete(lease, IngestionJobStatus.CANCELLED, error="cancelled")
-            return self._result(lease.job, status=IngestionJobStatus.CANCELLED)
+            self._notify_terminal(lease.job, IngestionJobStatus.CANCELLED)
+            self._complete(
+                lease,
+                IngestionJobStatus.CANCELLED,
+                error="cancelled",
+                attempt=attempt,
+            )
+            return self._terminal_result(lease.job, status=IngestionJobStatus.CANCELLED)
         except RetryableIngestionError as exc:
             if attempt < envelope.max_attempts:
                 self._release_for_retry(lease, attempt, error="retryable task failure")
                 raise RetryableTaskFailure(
                     "retryable task failure", attempt=attempt
                 ) from exc
+            self._notify_terminal(lease.job, IngestionJobStatus.FAILED)
             self._complete(
                 lease,
                 IngestionJobStatus.FAILED,
@@ -147,6 +166,7 @@ class CeleryTaskRuntime:
             )
             raise PermanentIngestionError("retry attempts exhausted") from exc
         except (TaskTimeoutError, TimeoutError) as exc:
+            self._notify_terminal(lease.job, IngestionJobStatus.FAILED)
             self._complete(
                 lease, IngestionJobStatus.FAILED, error="task timeout", attempt=attempt
             )
@@ -154,6 +174,7 @@ class CeleryTaskRuntime:
         except IngestionLeaseLost:
             raise
         except Exception as exc:  # noqa: BLE001 - persist a safe bounded error.
+            self._notify_terminal(lease.job, IngestionJobStatus.FAILED)
             self._complete(
                 lease,
                 IngestionJobStatus.FAILED,
@@ -226,6 +247,16 @@ class CeleryTaskRuntime:
             attempt=attempt,
             error=error,
         )
+
+    def _notify_terminal(self, job: IngestionJob, status: IngestionJobStatus) -> None:
+        if self.terminal_hook is not None:
+            self.terminal_hook(job, status)
+
+    def _terminal_result(
+        self, job: IngestionJob, *, status: IngestionJobStatus
+    ) -> dict[str, str | int]:
+        current = self.store.get_job(tenant_id=job.tenant_id, job_id=job.job_id)
+        return self._result(current or job, status=status)
 
     @staticmethod
     def _result(

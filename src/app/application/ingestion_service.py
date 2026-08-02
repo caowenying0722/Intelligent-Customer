@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -247,6 +248,12 @@ class DocumentIngestionService:
                     tenant_id=tenant_id,
                     idempotency_key=idempotency_key,
                     operation=run,
+                    task_type="document_ingestion",
+                    task_payload=json.dumps(
+                        {"document_id": str(record.document_id)},
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
                     defer_dispatch=self.jobs.has_dispatcher,
                 )
                 job_holder["id"] = job.job_id

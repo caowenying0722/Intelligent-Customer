@@ -144,8 +144,11 @@ stateDiagram-v2
 
 当前实现边界：`compose.yaml` 的 `workers` profile 提供 Redis 7.4 AOF、独立 Python 3.10
 Celery worker 和 JSON-only task contract；默认 profile 不启动它们。任务先持久化 job 再
-发布，worker 按 job ID claim 并使用 lease/fencing 完成或释放。解析/embedding/索引业务
-handler 仍须在部署组合根显式注册，未注册 task type 安全失败。
+发布，worker 按 job ID claim 并使用 lease/fencing 完成或释放。worker 从持久化 document ID
+重建操作，经共享只存内部随机文件名的上传卷读取内容，执行 TXT/PDF 解析、清洗、去重切分、
+确定性 dense+sparse embedding 和 Qdrant 幂等 upsert；显式 rebuild 对租户候选集合计数验证后
+原子切换 tenant active alias。真实语义 embedding provider 仍未接入，不能把 hash baseline
+解释为生产检索质量。
 
 ### 模型网关
 

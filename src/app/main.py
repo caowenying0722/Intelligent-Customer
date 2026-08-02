@@ -97,7 +97,9 @@ def create_app(
                     tenant_id=None,
                     task_type="index_rebuild",
                     operation_for=lambda job: (
-                        lambda: index_rebuild_operation(job.task_payload or "")
+                        lambda: index_rebuild_operation(
+                            job.tenant_id, job.task_payload or ""
+                        )
                     ),
                 )
             yield

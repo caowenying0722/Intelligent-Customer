@@ -46,6 +46,7 @@ class QdrantVectorBackend:
         self.client = client
         self.collection_name = collection_name
         self.timeout_seconds = timeout_seconds
+        self.request_timeout_seconds = max(1, math.ceil(timeout_seconds))
 
     def close(self) -> None:
         close = getattr(self.client, "close", None)
@@ -108,7 +109,7 @@ class QdrantVectorBackend:
                 "query_vector": query_vector,
                 "query_filter": query_filter,
                 "limit": limit,
-                "timeout": self.timeout_seconds,
+                "timeout": self.request_timeout_seconds,
             }
             if hasattr(self.client, "search"):
                 return list(self.client.search(**kwargs))
@@ -263,7 +264,7 @@ class QdrantVectorBackend:
                 query_filter=models.Filter(must=conditions),
                 with_payload=True,
                 limit=limit,
-                timeout=self.timeout_seconds,
+                timeout=self.request_timeout_seconds,
             )
             return list(response.points)
 
@@ -353,7 +354,7 @@ class QdrantVectorBackend:
                     collection_name=self.collection_name,
                     points=batch,
                     wait=True,
-                    timeout=self.timeout_seconds,
+                    timeout=self.request_timeout_seconds,
                 )
 
             self._run_bounded(call_backend, "upsert")
@@ -365,8 +366,8 @@ class QdrantVectorBackend:
             raise ValueError("alias_name and target_collection must not be empty")
 
         def call_backend() -> Any:
-            return self.client.update_collection_aliases(
-                change_aliases=[
+            return self._update_aliases(
+                [
                     {"delete_alias": {"alias_name": alias_name}},
                     {
                         "create_alias": {
@@ -374,11 +375,58 @@ class QdrantVectorBackend:
                             "alias_name": alias_name,
                         }
                     },
-                ],
-                timeout=self.timeout_seconds,
+                ]
             )
 
         self._run_bounded(call_backend, "alias switch")
+
+    def create_active_alias(self, *, alias_name: str, target_collection: str) -> None:
+        """Create the first tenant alias without deleting a nonexistent alias."""
+        if not alias_name.strip() or not target_collection.strip():
+            raise ValueError("alias_name and target_collection must not be empty")
+        self._run_bounded(
+            lambda: self._update_aliases(
+                [
+                    {
+                        "create_alias": {
+                            "collection_name": target_collection,
+                            "alias_name": alias_name,
+                        }
+                    }
+                ]
+            ),
+            "alias create",
+        )
+
+    def _update_aliases(self, changes: list[dict[str, Any]]) -> Any:
+        """Translate the stable adapter contract to qdrant-client's model API."""
+        if self.client.__class__.__module__.startswith("qdrant_client"):
+            from qdrant_client import models
+
+            operations: list[Any] = []
+            for change in changes:
+                deleted = change.get("delete_alias")
+                if deleted is not None:
+                    operations.append(
+                        models.DeleteAliasOperation(
+                            delete_alias=models.DeleteAlias(**deleted)
+                        )
+                    )
+                created = change.get("create_alias")
+                if created is not None:
+                    operations.append(
+                        models.CreateAliasOperation(
+                            create_alias=models.CreateAlias(**created)
+                        )
+                    )
+            return self.client.update_collection_aliases(
+                change_aliases_operations=operations,
+                timeout=self.request_timeout_seconds,
+            )
+        return self.client.update_collection_aliases(
+            change_aliases=changes,
+            timeout=self.request_timeout_seconds,
+        )
 
     def rollback_active_alias(
         self, *, alias_name: str, previous_collection: str
@@ -414,7 +462,7 @@ class QdrantVectorBackend:
             def call_backend(collection: str = collection) -> Any:
                 return self.client.delete_collection(
                     collection_name=collection,
-                    timeout=self.timeout_seconds,
+                    timeout=self.request_timeout_seconds,
                 )
 
             self._run_bounded(call_backend, "collection cleanup")

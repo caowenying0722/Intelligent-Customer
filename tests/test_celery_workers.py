@@ -182,7 +182,9 @@ def test_runtime_claims_completes_and_is_idempotent() -> None:
     duplicate = runtime.execute(envelope)
 
     assert result["status"] == "completed"
+    assert result["attempt"] == 1
     assert duplicate["status"] == "completed"
+    assert duplicate["attempt"] == 1
     assert store.progress == [0, 100]
     assert "private-result" not in str(result)
 
@@ -254,6 +256,7 @@ def test_task_registration_declares_late_ack_and_bounded_retry() -> None:
     assert registered.task_options["soft_time_limit"] == 12
     assert bounded_retry_delay(1, base_seconds=2) == 2
     assert bounded_retry_delay(10, base_seconds=2) == 300
+    assert 2 < bounded_retry_delay(1, base_seconds=2, jitter_key="job-a") <= 2.4
 
 
 def test_build_celery_app_uses_json_and_bounded_settings() -> None:

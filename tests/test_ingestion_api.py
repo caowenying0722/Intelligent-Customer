@@ -144,7 +144,7 @@ def test_index_rebuild_is_bounded_and_idempotent() -> None:
     calls = []
     app = create_app(
         ingestion_service=service,
-        index_rebuild_operation=lambda version: calls.append(version),
+        index_rebuild_operation=lambda _tenant, version: calls.append(version),
     )
     try:
         with TestClient(app) as client:

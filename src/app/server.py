@@ -14,9 +14,11 @@ from src.app.infrastructure.checkpoints import (
 from src.app.infrastructure.factory import (
     build_approval_repository,
     build_conversation_repository,
+    build_document_ingestion_service,
 )
 from src.app.main import create_app
 from src.app.security.auth import JWTAuthenticator
+from src.app.workers.operations import WorkerOperationRegistry
 from utils.settings import Settings, get_settings
 
 
@@ -75,6 +77,21 @@ def build_server_app(
         timeout_seconds=runtime_settings.qdrant_timeout_seconds,
     )
     approval_service = ApprovalApplicationService(build_approval_repository(repository))
+    ingestion_service = (
+        build_document_ingestion_service(database_url=database_url)
+        if database_url is not None
+        else None
+    )
+    worker_operations = (
+        WorkerOperationRegistry(
+            ingestion_service.job_store,
+            qdrant_backend.client,
+            upload_root=runtime_settings.upload_storage_root,
+            timeout_seconds=runtime_settings.qdrant_timeout_seconds,
+        )
+        if ingestion_service is not None and qdrant_backend is not None
+        else None
+    )
     chat_service = ChatApplicationService(
         agent,
         timeout_seconds=runtime_settings.request_timeout_seconds,
@@ -86,6 +103,20 @@ def build_server_app(
         resources = (checkpoint_runtime, *resources)
     if qdrant_backend is not None:
         resources = (*resources, qdrant_backend)
+    if ingestion_service is not None:
+        # Ingestion may still use Qdrant while draining; reverse-order shutdown
+        # must therefore close the ingestion service before the Qdrant client.
+        resources = (*resources, ingestion_service)
+    ingestion_operation = None
+    index_rebuild_operation = None
+    if worker_operations is not None:
+
+        def ingestion_operation(_path, _upload, document):
+            return worker_operations.ingest_document(
+                document.tenant_id, document.document_id
+            )
+
+        index_rebuild_operation = worker_operations.rebuild_index
     return create_app(
         chat_service=chat_service,
         database_url=database_url,
@@ -94,6 +125,9 @@ def build_server_app(
             qdrant_backend.check_ready if qdrant_backend is not None else None
         ),
         lifecycle_resources=resources,
+        ingestion_service=ingestion_service,
+        ingestion_operation=ingestion_operation,
+        index_rebuild_operation=index_rebuild_operation,
         authenticator=authenticator,
     )
 

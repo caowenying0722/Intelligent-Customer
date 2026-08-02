@@ -33,3 +33,4 @@
 | TD-027 | 低置信度与域外判断是少量硬编码关键词 | Low | 容易误拒答或漏过，不能作为通用安全 guardrail | `rag/guardrails.py`、`tests/test_guardrails.py` | 已版本化为可注入 deterministic baseline 并覆盖自定义策略；仍需数据驱动分类器和人工升级路径，不能宣称通用 guardrail | 5/9/10 | 部分完成 |
 | TD-028 | 旧基线曾包含 ChromaDB/RAGAS/DiskCache 漏洞 | Blocker | 默认安装会把已知漏洞带入发布环境 | `requirements.txt`、`requirements.lock`、`docs/security/dependency-audit.md` | 已移除默认漏洞依赖、替换 SQLite baseline；RAGAS 仅允许隔离评测并单独审计 | 1 | 已完成（可选评测仍需隔离审批） |
 | TD-029 | Chat 失败时 run.error 曾保存完整异常文本 | High | 运行查询接口可能把供应商/内部错误正文返回给租户 | `src/app/application/chat.py`、`tests/test_api_factory.py` | 失败终态只保存 `chat_timeout`、模型错误码或 `chat_failed`，管理端显式 PATCH 的业务错误不受本边界覆盖 | 1/2/9 | 已完成 |
+| TD-030 | Celery worker 曾只有空业务注册表，API/worker 上传目录不共享 | High | 跨进程上传任务必然永久失败，静态 worker ready 不能证明入库可用 | `src/app/workers/operations.py`、`worker_entrypoint.py`、`compose.yaml` | 已接入持久化 document payload、真实解析/向量/蓝绿 handler、共享卷 init 和 Docker E2E；真实语义 embedding 与容量测试另行推进 | 6 | 已完成（hash baseline） |

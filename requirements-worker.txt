@@ -2,4 +2,5 @@
 
 # Optional cross-process ingestion profile. Keep out of the default API image.
 celery==5.5.3
+pypdf==6.14.2
 redis==6.4.0

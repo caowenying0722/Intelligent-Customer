@@ -6,13 +6,13 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q --basetemp output/pytest-full-target3` | 通过：422 passed，6 skipped，26 subtests | 当前工作区 Python 3.13 本地回归；默认不调用付费模型 |
+| `python -m pytest -q --basetemp output/pytest-stage4-full` | 通过：427 passed，6 skipped，26 subtests | 当前工作区 Python 3.13 本地回归；默认不调用付费模型 |
 | Python 3.10.20 锁定环境全量测试 | 待重新安装后复跑 | 当前 `ics` 环境存在历史 async-timeout/OTel 包冲突，不能冒充 clean-install 结果；锁文件已重新生成 |
 | 容器集成测试 | 通过：5 passed | Python 3.10 API 镜像连接 PostgreSQL 16/Qdrant 1.18.3 |
 | `python -m ruff format --check .` | 通过 | 278 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
 | `python -m mypy agent rag model evaluation utils scripts src app.py` | 通过：113 个源码文件 | 生产源码类型门禁 |
-| `python -m mypy tests` | 通过：118 个测试源码文件 | 独立测试类型门禁 |
+| `python -m mypy tests` | 通过：119 个测试源码文件 | 独立测试类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
 | `python -m pip check` | 通过 | 依赖元数据无破损；PyJWT 2.13.0 已显式锁定 |
 | `python -m pip_audit -r requirements.txt --format json` | 通过：No known vulnerabilities found | 默认依赖已移除 ChromaDB/LangChain-Chroma/RAGAS/Datasets，DiskCache 不再被安装；可选 RAGAS 需隔离审计 |
@@ -69,7 +69,7 @@
 | `python scripts/run_load_smoke.py --requests 10 --concurrency 2 --output output/ci/target73-load.json` | 通过：10 完成、0 错误 | fake 模式；error_rate=0、throughput_rps=305.25、p50=3.98ms、p95=16.11ms；仅本地 smoke，不作生产性能结论 |
 | PostgreSQL backup/restore drill | 通过：60 个 dump 对象、恢复库 Alembic head `0012_add_ingestion_job_leases`、11 个 public tables | 使用临时数据库，演练后已删除；不宣称备份 SLA |
 | fake capacity baseline | 通过：100 请求/并发 10、0 错误；548.62 req/s、p50 15.84 ms、p95 25.66 ms | 本地 fake ASGI smoke，不能替代生产压测 |
-| Redis/Celery workers profile | 通过 | `docker compose --profile workers up -d --build redis worker`；Redis health/PONG，Celery 5.5.3 ready，task registered；未执行真实业务 handler |
+| Redis/Celery 真实入库与索引 | 通过 | Python 3.10 API/worker 镜像经 PostgreSQL、Redis、共享上传卷和 Qdrant 完成 document/index job；v1→v2 alias 原子切换成功，缺失候选失败时 alias 不变，`model_calls=0` |
 
 ## 发布阻塞
 
@@ -78,11 +78,11 @@
 
 ## 已知未完成
 
-- Compose 当前包含 PostgreSQL、migration、Qdrant、精简 API、可选 observability profile（Jaeger Badger）以及已实测的 workers profile；受管 trace backend/retention 和业务 worker handler 仍是后续扩展。
+- Compose 当前包含 PostgreSQL、migration、Qdrant、精简 API、可选 observability profile（Jaeger Badger）以及已实测的 workers profile；受管 trace backend/retention、真实语义 embedding 和容量验证仍是后续扩展。
 - CI 已在依赖漏洞审计前加入 Docker build 步骤；远端 run `30732643961` 已确认镜像构建、Compose、测试和 artifact 流程成功。
-- 已执行真实 Docker health、迁移、API readiness、PostgreSQL backup/restore、Redis/Celery worker smoke 和 Jaeger trace 查询；真实业务 worker handler、SSE 上游取消/背压仍未完成。
+- 已执行真实 Docker health、迁移、API readiness、PostgreSQL backup/restore、Redis/Celery 文档入库与蓝绿切换、Jaeger trace 查询；SSE 上游取消/背压仍未完成。
 - hidden evaluation、真实 provider 评测和生产网络压测未执行。
 
 ## 结论
 
-当前状态已具备可复现的本地容器栈、默认依赖安全门禁、备份恢复演练、可追溯 fake 容量基线、跨进程 worker、本地持久 trace backend 和生产 JWT/RBAC 边界，但不满足无条件生产发布。后续仍需受管 trace retention/认证、完整业务 worker handler、clean Python 3.10 重装及真实流量/provider 验证。
+当前状态已具备可复现的本地容器栈、默认依赖安全门禁、备份恢复演练、可追溯 fake 容量基线、真实跨进程入库/蓝绿 worker、本地持久 trace backend 和生产 JWT/RBAC 边界，但不满足无条件生产发布。后续仍需受管 trace retention/认证、真实语义 embedding、clean Python 3.10 宿主环境及真实流量/provider 验证。

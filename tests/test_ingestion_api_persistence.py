@@ -65,7 +65,7 @@ def test_api_database_url_persists_index_rebuild_job() -> None:
     url = f"sqlite:///{database.as_posix()}"
     app = create_app(
         database_url=url,
-        index_rebuild_operation=lambda version: None,
+        index_rebuild_operation=lambda _tenant, version: None,
     )
     with TestClient(app) as client:
         response = client.post(
@@ -94,7 +94,7 @@ def test_api_database_url_reuses_persisted_rebuild_idempotency() -> None:
         calls = []
         app = create_app(
             database_url=url,
-            index_rebuild_operation=lambda version: calls.append(version),
+            index_rebuild_operation=lambda _tenant, version: calls.append(version),
         )
         with TestClient(app) as client:
             headers = {"x-tenant-id": "tenant-a", "idempotency-key": "rebuild-1"}
@@ -138,7 +138,7 @@ def test_lifespan_recovers_persisted_index_rebuild_job() -> None:
         seen = []
         done = threading.Event()
 
-        def rebuild(version):
+        def rebuild(_tenant, version):
             seen.append(version)
             done.set()
 
