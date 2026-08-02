@@ -203,8 +203,8 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 完整清单见 [TECH_DEBT.md](TECH_DEBT.md)。优先级最高的风险是：
 
-1. 当前运行依赖仍有 3 条已知漏洞记录，涉及 `chromadb`、`ragas` 和 `diskcache`；当前公开索引未给出兼容的直接升级修复版本，pip-audit 门禁必须保持失败并阻止发布。
-2. Python 3.13 不在支持矩阵；当前环境检查因此失败，Python 3.10 clean install 仍需 CI/受支持解释器复核。
+1. 默认运行依赖的 `pip-audit` 已通过且不再安装 `chromadb`、`ragas`、`diskcache`；可选 `requirements-ragas-lite.txt` 仍须隔离审计和数据出境审批。
+2. Python 3.13 不在支持矩阵；当前 shell 环境检查因此失败，但 Python 3.10 锁定依赖、远程环境门禁和集成测试已通过。
 3. Agent 步骤和工具调用已有代码级上限，但请求没有全流程 deadline/cancellation，工具副作用也没有幂等控制。
 4. 随机用户身份与本地报告数据没有认证、授权和租户隔离。
 5. 历史评测曾使用来源文件名，当前重排已移除该特征；README 中旧质量提升数字仍不能视为独立证据，需等待新 artifact。
@@ -213,10 +213,10 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：当前 shell pytest 为 402 passed、6 skipped、26 subtests，分支覆盖率 64%；Python 3.10.20 锁定环境为 403 passed、5 skipped、26 subtests，并对真实 PostgreSQL/Qdrant 执行 5 个集成测试。真实付费 provider 和生产负载未验证。
+- 测试：当前 shell 使用仓库专用 basetemp 实测 422 passed、6 skipped、26 subtests；远程 Python 3.10 门禁全绿，并对真实 PostgreSQL/Qdrant 执行 5 个集成测试。真实付费 provider 和生产负载未验证。
 - 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；开发 Collector → Jaeger Badger backend 端到端传输和 trace 查询已验证，生产仍需受管 retention/认证。
 - 部署：Compose PostgreSQL、Qdrant、migration、精简 API 和 observability profile 已真实 healthy，并完成 scrape/OTLP 验收；完整生产栈未完成。
-- 持久化：会话、Agent checkpoint、审批和入库任务已进入 PostgreSQL/Alembic；Qdrant 向量索引和 Chroma baseline 并存。备份恢复和多副本一致性仍未验证。
+- 持久化：会话、Agent checkpoint、审批和入库任务已进入 PostgreSQL/Alembic；默认本地 baseline 使用 SQLite，生产检索使用 Qdrant。备份恢复已演练，多副本一致性仍未验证。
 
 ## 最可能被面试官质疑的问题
 
@@ -231,8 +231,8 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 ## 四里程碑最终验收补充（2026-08-02）
 
 - 提交 `d71156d` 已推送到 `origin/main`，中文标签为 `里程碑四-发布闭环超时与测试门禁修正`；此前三个里程碑也各有中文标签并已推送。
-- 远端 GitHub Actions run `30732643961` 的 Docker build、Compose 配置/迁移、PostgreSQL/Qdrant 集成、格式、Lint、源码/测试 Mypy、全量测试、覆盖率、数据集、deterministic/red-team/load/quality gate 和 artifact 清理均通过。
-- 完整离线依赖审计仍按安全策略失败于 ChromaDB、RAGAS、DiskCache 三个当前无修复漏洞；未使用 ignore 伪造通过。这是无条件生产发布阻塞，不影响精简 API 锁审计。
+- 远端 GitHub Actions run `30739759294` 的 Docker build、Compose 配置/迁移、PostgreSQL/Qdrant 集成、格式、Lint、源码/测试 Mypy、全量测试、覆盖率、数据集、deterministic/red-team/load/quality gate、完整依赖审计和 artifact 清理均通过。
+- 默认依赖安全门禁已解除旧 ChromaDB/RAGAS/DiskCache 阻塞；可选 RAGAS 仍不进入默认 CI，需单独审计和数据出境审批。
 
 ## 当前自动修改范围（四里程碑已收口）
 
