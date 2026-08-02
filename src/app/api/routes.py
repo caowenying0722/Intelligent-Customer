@@ -151,6 +151,7 @@ def build_router(
                     job_id=pending.job_id,
                     task_type="index_rebuild",
                     task_payload=payload.index_version,
+                    defer_dispatch=ingestion_service.jobs.has_dispatcher,
                 )
                 current = (
                     ingestion_service.jobs.get(tenant_id=tenant_id, job_id=job.job_id)
@@ -168,6 +169,7 @@ def build_router(
                         status=current.status,
                         error=current.error,
                     )
+                ingestion_service.jobs.dispatch(job)
             else:
                 job = ingestion_service.jobs.submit(
                     tenant_id=tenant_id,

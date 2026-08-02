@@ -142,6 +142,11 @@ stateDiagram-v2
 - Qdrant 1.18.3 查询在 adapter 内强制 tenant 与 index version filter，并支持 document version、product model、language 和 effective date；Dense/Sparse 命名向量经参数化 RRF 融合，再由可关闭且显式降级的 Cross-Encoder adapter 重排。SQLite/BM25 继续作为离线 baseline。
 - 文档入库由 Celery Worker 执行，输入校验、内容哈希、有限重试、可取消状态机和蓝绿 alias 切换均可独立测试。
 
+当前实现边界：`compose.yaml` 的 `workers` profile 提供 Redis 7.4 AOF、独立 Python 3.10
+Celery worker 和 JSON-only task contract；默认 profile 不启动它们。任务先持久化 job 再
+发布，worker 按 job ID claim 并使用 lease/fencing 完成或释放。解析/embedding/索引业务
+handler 仍须在部署组合根显式注册，未注册 task type 安全失败。
+
 ### 模型网关
 
 - 业务层只认识统一 request/response/usage/error，不依赖供应商对象。

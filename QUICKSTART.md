@@ -141,6 +141,16 @@ docker compose --profile observability up -d
 python scripts/check_observability_stack.py
 ```
 
+需要跨进程入库队列时再显式启用 workers profile（默认不启动 Redis/Celery）：
+
+```powershell
+docker compose --profile workers up -d --build redis worker
+docker compose --profile workers ps
+```
+
+Worker 的 JSON task contract、lease/fencing、超时和有限重试已接入；具体解析、embedding
+和索引 handler 必须由部署组合根注册，未注册任务会安全失败。
+
 ### 方式1：手动启动
 ```bash
 # 激活 conda 环境

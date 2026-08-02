@@ -4,7 +4,7 @@
 
 本页记录 2026-08-02 对 `main` 分支工作区的实测结果。工作区仍保留用户未提交修改：`README.md` 被修改、两份 `docs/rag_quality_*.md` 被删除，`AGENT.md`、`todo.md` 未跟踪。本轮不覆盖或恢复这些内容；本页只描述已提交代码和实际执行结果。
 
-当前项目是 Streamlit 演示客户端加 FastAPI API-first 服务、LangGraph Agent、SQLite 本地 baseline/Qdrant Hybrid RAG、PostgreSQL/Alembic 持久化和可观测性栈。Compose 中 PostgreSQL、迁移、Qdrant、精简 API、Collector、Prometheus 和 Grafana 已完成真实启动与端到端验收；会话、LangGraph checkpoint、人工审批和入库任务 lease/fencing 已持久化。默认依赖的 ChromaDB/RAGAS/DiskCache 漏洞已通过移除默认安装和替换本地 baseline 收口；生产 trace backend、Redis/Celery 和容量上限仍待完成。
+当前项目是 Streamlit 演示客户端加 FastAPI API-first 服务、LangGraph Agent、SQLite 本地 baseline/Qdrant Hybrid RAG、PostgreSQL/Alembic 持久化和可观测性栈。Compose 中 PostgreSQL、迁移、Qdrant、精简 API、Collector、Prometheus 和 Grafana 已完成真实启动与端到端验收；`workers` profile 的 Redis 7.4/Celery 独立 worker 也已真实启动并连接。默认依赖的 ChromaDB/RAGAS/DiskCache 漏洞已通过移除默认安装和替换本地 baseline 收口；生产 trace backend、完整 worker 业务 handler、容量上限仍待完成。
 
 ## 运行环境与依赖
 
@@ -96,7 +96,7 @@ flowchart LR
 | RAG 回归样本 | 有 28 条主集和 6 条 focus 集，但未版本化/冻结 | `data/evaluation/*.jsonl` |
 | FastAPI / API v1 / SSE | 已实现聊天、基础 SSE、内存会话和启动生命周期边界 | `src/app/main.py` 提供应用工厂，`src/app/server.py:build_server_app()` 在显式 server 启动时延迟构造 Agent，并提供 request ID、liveness/readiness、可注入 RAG 的 lifespan 单飞加载、`POST /api/v1/chat`、SSE、可注入的进程内 conversation repository 和资源关闭；`python -m src.app.server` 可启动真实组合根 |
 | PostgreSQL / Alembic | 已实现当前阶段 | Compose PostgreSQL 16、一次性 Alembic migration、会话/文档/job/审批 repository、readiness、重启恢复和真实容器集成均已验证；当前 schema head 为 `0012_add_ingestion_job_leases` |
-| Redis / Celery | 未实现 | 当前有持久化任务状态机、进程内 worker 和跨 worker lease/fencing，但没有 Redis broker/Celery 独立 worker |
+| Redis / Celery | 已实现可选跨进程边界 | `workers` profile 真实启动 Redis 7.4 + Celery 5.5.3；JSON task contract、late ack、worker-lost、精确 claim、有限 retry/timeout 和 lease/fencing 已有 fake/SQLite 测试；业务 handler 需显式注册 |
 | Qdrant / hybrid filter | 已实现当前阶段 | Compose Qdrant 1.18.3 healthy；真实 dense+sparse/RRF 查询强制 tenant/index 并覆盖 document/product/language/effective-date filter；SQLite/BM25 baseline 保留 |
 | LangGraph checkpoint | 已实现当前阶段 | `PostgresSaver` 由应用生命周期管理，tenant/conversation 映射为稳定 thread ID；持久化中断、审批恢复和重启恢复均有 fake/真实 PostgreSQL 测试 |
 | 用户/会话持久化 | 部分实现 | FastAPI 可选 SQLAlchemy 会话和入库 job 持久化；Streamlit 默认仍为进程内 session |
@@ -114,12 +114,12 @@ flowchart LR
 
 | 命令 | 实际结果 |
 |---|---|
-| `python -m pytest -q --basetemp output/pytest-full-after-vector` | 通过：407 passed，6 skipped，26 subtests；当前 shell 为 Python 3.13 |
+| `python -m pytest -q --basetemp output/pytest-full-celery` | 通过：420 passed，6 skipped，26 subtests；当前 shell 为 Python 3.13 |
 | 容器集成测试 | 通过：5 passed | Python 3.10 API 镜像连接真实 PostgreSQL 16/Qdrant 1.18.3，验证恢复、并发 claim 和 hybrid 隔离 |
-| `python -m ruff format --check .` | 通过：270 个 Python 文件已格式化 |
+| `python -m ruff format --check .` | 通过：277 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
-| `python -m mypy agent rag model evaluation utils scripts src app.py` | 通过：107 个源码文件 |
-| `python -m mypy tests` | 通过：117 个测试源码文件 |
+| `python -m mypy agent rag model evaluation utils scripts src app.py` | 通过：113 个源码文件 |
+| `python -m mypy tests` | 通过：118 个测试源码文件 |
 | `python scripts/scan_secrets.py` | 通过：Secret scan OK |
 | `python -m pip check` | 通过：No broken requirements found |
 | 外部调用 timeout 定向审计 | 通过：51 passed，6 subtests；未发现需立即补齐的生产 timeout 缺口 |
@@ -132,6 +132,7 @@ flowchart LR
 | `python -m pip_audit -r requirements.txt --format json` | 通过：No known vulnerabilities found；默认依赖已移除 ChromaDB/RAGAS/DiskCache |
 | PostgreSQL backup/restore drill | 通过：60 个 dump 对象，恢复库 Alembic head `0012_add_ingestion_job_leases`，11 个 public tables |
 | fake capacity baseline | 通过：100 请求/并发 10，0 错误；吞吐 548.62 req/s，p50 15.84 ms，p95 25.66 ms | 仅本地 fake ASGI smoke，不是生产容量结论 |
+| `docker compose --profile workers up -d --build redis worker` | 通过 | Redis healthy/PONG；Celery 5.5.3 worker ready，注册 `intelligent_customer.process_ingestion_job`；未执行真实业务 handler |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 失败：当前 Python 3.13，不符合 Python 3.10 支持矩阵 |
 | `docker compose config --quiet` / observability config | 通过：静态配置 |
 | Observability stack E2E | 通过：API、Collector、Prometheus、Grafana 均 healthy；Prometheus target up，Collector 收到 API trace batches |

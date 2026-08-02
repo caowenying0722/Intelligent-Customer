@@ -18,6 +18,7 @@ from src.app.application.ingestion import (
     IngestionJob,
     IngestionJobManager,
     IngestionJobStatus,
+    TaskDispatchError,
 )
 from src.app.application.upload_storage import SecureUploadStorage
 from src.app.application.uploads import ValidatedUpload, validate_upload
@@ -94,11 +95,14 @@ class DocumentIngestionService:
             upload = validate_upload(filename, content, content_type)
             path = self.storage.persist(upload)
             try:
-                return self.jobs.submit(
+                job = self.jobs.submit(
                     tenant_id=tenant_id,
                     idempotency_key=idempotency_key,
                     operation=lambda: operation(path, upload),
+                    defer_dispatch=self.jobs.has_dispatcher,
                 )
+                self.jobs.dispatch(job)
+                return job
             except Exception:
                 self.storage.remove(upload.storage_name)
                 raise
@@ -243,6 +247,7 @@ class DocumentIngestionService:
                     tenant_id=tenant_id,
                     idempotency_key=idempotency_key,
                     operation=run,
+                    defer_dispatch=self.jobs.has_dispatcher,
                 )
                 job_holder["id"] = job.job_id
                 if self.job_store is not None:
@@ -265,5 +270,11 @@ class DocumentIngestionService:
                     document_id=record.document_id,
                     status=DocumentStatus.FAILED,
                 )
+                raise
+            try:
+                self.jobs.dispatch(job)
+            except TaskDispatchError:
+                # Keep the durable queued row and uploaded bytes for broker
+                # recovery; a publish failure must not mark the document failed.
                 raise
             return DocumentSubmission(document=record, job=job, created=True)

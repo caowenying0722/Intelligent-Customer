@@ -55,7 +55,24 @@ def build_document_ingestion_service(
 ) -> DocumentIngestionService:
     """Build memory or SQL-backed ingestion dependencies from explicit configuration."""
     configured_url = database_url or os.getenv("DATABASE_URL")
-    jobs = IngestionJobManager()
+    settings = get_settings()
+    dispatcher = None
+    if settings.ingestion_worker_backend == "celery":
+        if settings.redis_url is None:
+            raise ValueError("REDIS_URL is required for the Celery ingestion backend")
+        from src.app.workers.celery_app import CeleryTaskPublisher
+
+        dispatcher = CeleryTaskPublisher.from_settings(
+            redis_url=settings.redis_url,
+            queue=settings.worker_queue,
+            task_timeout_seconds=settings.worker_task_timeout_seconds,
+        )
+    jobs = IngestionJobManager(
+        max_attempts=settings.worker_max_attempts,
+        timeout_seconds=settings.worker_task_timeout_seconds,
+        retry_backoff_seconds=settings.worker_retry_backoff_seconds,
+        dispatcher=dispatcher,
+    )
     if configured_url:
         repository = SqlAlchemyIngestionRepository(configured_url)
         return DocumentIngestionService(

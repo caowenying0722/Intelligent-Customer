@@ -45,6 +45,47 @@ services:
       retries: 20
     restart: unless-stopped
 
+  redis:
+    image: redis:7.4-alpine
+    profiles: [workers]
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: intelligent-customer-worker:local
+    profiles: [workers]
+    init: true
+    environment:
+      APPLICATION_ENV: ${APPLICATION_ENV:-development}
+      DATABASE_URL: >-
+        postgresql+psycopg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-development-only-change-me}@postgres:5432/${POSTGRES_DB:-intelligent_customer}
+      REDIS_URL: redis://redis:6379/0
+      INGESTION_WORKER_BACKEND: celery
+      WORKER_QUEUE: ${WORKER_QUEUE:-ingestion}
+      WORKER_TASK_TIMEOUT_SECONDS: ${WORKER_TASK_TIMEOUT_SECONDS:-300}
+      WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-360}
+      WORKER_MAX_ATTEMPTS: ${WORKER_MAX_ATTEMPTS:-3}
+      WORKER_RETRY_BACKOFF_SECONDS: ${WORKER_RETRY_BACKOFF_SECONDS:-1}
+      WORKER_CLAIM_LIMIT: ${WORKER_CLAIM_LIMIT:-10}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   api:
     build:
       context: .
@@ -153,3 +194,4 @@ services:
 volumes:
   postgres-data:
   qdrant-data:
+  redis-data:

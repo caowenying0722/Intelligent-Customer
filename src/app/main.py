@@ -89,6 +89,7 @@ def create_app(
                 ingestion_service is not None
                 and ingestion_service.job_store is not None
                 and index_rebuild_operation is not None
+                and not ingestion_service.jobs.has_dispatcher
             ):
                 IngestionWorker(
                     ingestion_service.jobs, ingestion_service.job_store
@@ -140,6 +141,11 @@ def create_app(
             readiness_checks.append(candidate)
     if rag_service is not None:
         candidate = getattr(rag_service, "check_ready", None)
+        if callable(candidate):
+            readiness_checks.append(candidate)
+    if ingestion_service is not None:
+        dispatcher = ingestion_service.jobs.dispatcher
+        candidate = getattr(dispatcher, "check_ready", None)
         if callable(candidate):
             readiness_checks.append(candidate)
 

@@ -95,6 +95,26 @@ def test_observability_profile_is_explicit_and_configured_without_secrets() -> N
     assert "api:8000" in prometheus
 
 
+def test_worker_profile_is_optional_and_has_broker_health_gate() -> None:
+    compose = yaml.safe_load(Path("compose.yaml").read_text(encoding="utf-8"))
+    services = compose["services"]
+
+    assert services["redis"]["profiles"] == ["workers"]
+    assert services["redis"]["healthcheck"]["test"] == [
+        "CMD",
+        "redis-cli",
+        "ping",
+    ]
+    assert services["worker"]["profiles"] == ["workers"]
+    assert services["worker"]["depends_on"]["redis"]["condition"] == ("service_healthy")
+    assert services["worker"]["depends_on"]["migrate"]["condition"] == (
+        "service_completed_successfully"
+    )
+    assert services["worker"]["environment"]["REDIS_URL"] == "redis://redis:6379/0"
+    assert "USER app" in Path("Dockerfile.worker").read_text(encoding="utf-8")
+    assert "celery" in Path("requirements-worker.lock").read_text(encoding="utf-8")
+
+
 def test_grafana_dashboard_uses_only_existing_bounded_metrics() -> None:
     dashboard = json.loads(
         Path("deploy/observability/grafana/dashboards/api-overview.json").read_text(

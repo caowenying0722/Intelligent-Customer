@@ -32,6 +32,10 @@ class SettingsTest(unittest.TestCase):
         self.assertIsNone(settings.database_url)
         self.assertEqual(settings.database_pool_size, 5)
         self.assertEqual(settings.database_isolation_level, "READ COMMITTED")
+        self.assertEqual(settings.ingestion_worker_backend, "local")
+        self.assertIsNone(settings.redis_url)
+        self.assertEqual(settings.worker_queue, "ingestion")
+        self.assertEqual(settings.worker_max_attempts, 3)
 
     def test_database_url_accepts_supported_schemes_and_rejects_others(self) -> None:
         self.assertEqual(
@@ -55,6 +59,23 @@ class SettingsTest(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             Settings.model_validate({"qdrant_url": "http://user:pass@qdrant:6333"})
+
+    def test_celery_backend_requires_bounded_redis_configuration(self) -> None:
+        settings = Settings.model_validate(
+            {
+                "ingestion_worker_backend": "celery",
+                "redis_url": "redis://redis:6379/0",
+                "worker_task_timeout_seconds": 12,
+                "worker_max_attempts": 2,
+            }
+        )
+        self.assertEqual(settings.redis_url, "redis://redis:6379/0")
+        self.assertEqual(settings.worker_task_timeout_seconds, 12)
+        self.assertEqual(settings.worker_max_attempts, 2)
+        with self.assertRaisesRegex(ValidationError, "REDIS_URL"):
+            Settings.model_validate({"ingestion_worker_backend": "celery"})
+        with self.assertRaises(ValidationError):
+            Settings.model_validate({"redis_url": "http://redis:6379"})
 
     def test_legacy_provider_alias_and_json_origins_are_supported(self) -> None:
         env = {

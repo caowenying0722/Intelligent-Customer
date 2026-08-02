@@ -10,7 +10,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 from opentelemetry import context as otel_context
@@ -40,6 +40,16 @@ class IngestionCancelledError(RuntimeError):
 
 class IngestionLeaseLost(RuntimeError):
     """The persisted job was reclaimed by another worker generation."""
+
+
+class TaskDispatchError(RuntimeError):
+    """A durable job row exists but broker publication did not complete."""
+
+
+class TaskDispatcher(Protocol):
+    """Transport boundary for a durable cross-process task queue."""
+
+    def dispatch(self, job: IngestionJob) -> str | None: ...
 
 
 @dataclass(frozen=True)
@@ -79,6 +89,7 @@ class IngestionJobManager:
         timeout_seconds: float = 300.0,
         max_attempts: int = 3,
         retry_backoff_seconds: float = 0.1,
+        dispatcher: TaskDispatcher | None = None,
         tracer: Any | None = None,
         metrics: WorkerMetrics | None = None,
     ):
@@ -96,12 +107,15 @@ class IngestionJobManager:
         self._timeout_seconds = timeout_seconds
         self._max_attempts = max_attempts
         self._retry_backoff_seconds = retry_backoff_seconds
+        self._dispatcher = dispatcher
         self.tracer = tracer
         self.metrics = metrics or WorkerMetrics()
         self._lock = threading.Lock()
         self._jobs: dict[UUID, IngestionJob] = {}
         self._futures: dict[UUID, Future[Any]] = {}
         self._idempotency: dict[tuple[str, str], UUID] = {}
+        self._dispatched: set[UUID] = set()
+        self._dispatching: set[UUID] = set()
 
     def submit(
         self,
@@ -113,6 +127,7 @@ class IngestionJobManager:
         max_attempts: int | None = None,
         task_type: str = "ingestion",
         task_payload: str | None = None,
+        defer_dispatch: bool = False,
     ) -> IngestionJob:
         if not tenant_id.strip() or not idempotency_key.strip():
             raise ValueError("tenant_id and idempotency_key must not be empty")
@@ -134,20 +149,57 @@ class IngestionJobManager:
             self._jobs[job.job_id] = job
             self._idempotency[key] = job.job_id
             self.metrics.submitted()
-            try:
-                self._futures[job.job_id] = self._executor.submit(
-                    self._run,
-                    job.job_id,
-                    operation,
-                    otel_context.get_current(),
-                    time.monotonic(),
-                )
-            except Exception:
+            if self._dispatcher is None:
+                try:
+                    self._futures[job.job_id] = self._executor.submit(
+                        self._run,
+                        job.job_id,
+                        operation,
+                        otel_context.get_current(),
+                        time.monotonic(),
+                    )
+                except Exception:
+                    self.metrics.submission_failed()
+                    del self._jobs[job.job_id]
+                    del self._idempotency[key]
+                    raise
+        if self._dispatcher is not None and not defer_dispatch:
+            self.dispatch(job)
+        return job
+
+    def dispatch(self, job: IngestionJob) -> str | None:
+        """Publish a queued job exactly once per manager instance.
+
+        Persistence must happen before this method is called when a durable
+        job store is configured. A failed publish leaves the queued job
+        available for an explicit retry or startup recovery.
+        """
+
+        dispatcher = self._dispatcher
+        if dispatcher is None:
+            return None
+        with self._lock:
+            current = self._jobs.get(job.job_id)
+            if current is None or current.tenant_id != job.tenant_id:
+                raise KeyError("ingestion job not found")
+            if current.status != IngestionJobStatus.QUEUED:
+                return None
+            if job.job_id in self._dispatched:
+                return None
+            if job.job_id in self._dispatching:
+                return None
+            self._dispatching.add(job.job_id)
+        try:
+            task_id = dispatcher.dispatch(current)
+        except Exception as exc:
+            with self._lock:
+                self._dispatching.discard(job.job_id)
                 self.metrics.submission_failed()
-                del self._jobs[job.job_id]
-                del self._idempotency[key]
-                raise
-            return job
+            raise TaskDispatchError("ingestion task dispatch failed") from exc
+        with self._lock:
+            self._dispatching.discard(job.job_id)
+            self._dispatched.add(job.job_id)
+        return task_id
 
     def get(self, *, tenant_id: str, job_id: UUID) -> IngestionJob | None:
         with self._lock:
@@ -155,6 +207,14 @@ class IngestionJobManager:
             if job is None or job.tenant_id != tenant_id:
                 return None
             return job
+
+    @property
+    def has_dispatcher(self) -> bool:
+        return self._dispatcher is not None
+
+    @property
+    def dispatcher(self) -> TaskDispatcher | None:
+        return self._dispatcher
 
     def get_by_idempotency(
         self, *, tenant_id: str, idempotency_key: str

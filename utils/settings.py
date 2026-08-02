@@ -89,6 +89,20 @@ class Settings(BaseSettings):
     ] = "READ COMMITTED"
     qdrant_url: str | None = None
     qdrant_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
+    ingestion_worker_backend: Literal["local", "celery"] = Field(
+        default="local",
+        validation_alias=AliasChoices("INGESTION_WORKER_BACKEND", "WORKER_BACKEND"),
+    )
+    redis_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("REDIS_URL", "CELERY_BROKER_URL"),
+    )
+    worker_queue: str = Field(default="ingestion", min_length=1, max_length=64)
+    worker_task_timeout_seconds: float = Field(default=300.0, gt=0, le=3600)
+    worker_lease_seconds: float = Field(default=360.0, gt=0, le=7200)
+    worker_max_attempts: int = Field(default=3, ge=1, le=10)
+    worker_retry_backoff_seconds: float = Field(default=1.0, ge=0, le=300)
+    worker_claim_limit: int = Field(default=10, ge=1, le=100)
 
     openai_api_key: SecretStr | None = None
     deepseek_api_key: SecretStr | None = None
@@ -168,6 +182,18 @@ class Settings(BaseSettings):
             raise ValueError("QDRANT_URL must not contain credentials or query data")
         return str(value).strip().rstrip("/")
 
+    @field_validator("redis_url", mode="before")
+    @classmethod
+    def validate_redis_url(cls, value: object) -> str | None:
+        if value is None or not str(value).strip():
+            return None
+        parsed = urlparse(str(value).strip())
+        if parsed.scheme not in {"redis", "rediss"} or not parsed.hostname:
+            raise ValueError("REDIS_URL must be a redis(s) URL")
+        if parsed.query or parsed.fragment:
+            raise ValueError("REDIS_URL must not contain query or fragment data")
+        return str(value).strip().rstrip("/")
+
     @field_validator("otel_exporter_endpoint", mode="before")
     @classmethod
     def validate_otel_exporter_endpoint(cls, value: object) -> str | None:
@@ -192,6 +218,10 @@ class Settings(BaseSettings):
             and not self.otel_exporter_endpoint.startswith("https://")
         ):
             raise ValueError("OTEL_EXPORTER_OTLP_ENDPOINT must use HTTPS in production")
+        if self.ingestion_worker_backend == "celery" and self.redis_url is None:
+            raise ValueError(
+                "REDIS_URL is required when INGESTION_WORKER_BACKEND=celery"
+            )
         return self
 
     @property

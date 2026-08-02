@@ -318,7 +318,7 @@ python-dotenv==1.2.2
     # via pydantic-settings
 pytz==2026.3.post1
     # via pandas
-pywin32==312
+pywin32==312; sys_platform == "win32"
     # via portalocker
 pyyaml==6.0.2
     # via

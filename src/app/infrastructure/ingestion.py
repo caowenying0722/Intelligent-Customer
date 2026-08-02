@@ -374,6 +374,91 @@ class SqlAlchemyIngestionRepository:
             row.lease_expires_at = now + timedelta(seconds=lease_seconds)
             session.commit()
 
+    def claim_job(
+        self,
+        *,
+        tenant_id: str,
+        job_id: UUID,
+        worker_id: str,
+        lease_seconds: float,
+    ) -> IngestionLease | None:
+        """Claim one broker-delivered job without accidentally taking another."""
+
+        if not worker_id.strip() or lease_seconds <= 0:
+            raise ValueError("worker_id and lease_seconds are required")
+        now = datetime.now(timezone.utc)
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(IngestionJobRow)
+                .where(
+                    IngestionJobRow.tenant_id == tenant_id,
+                    IngestionJobRow.id == str(job_id),
+                    or_(
+                        IngestionJobRow.status == IngestionJobStatus.QUEUED.value,
+                        (
+                            (IngestionJobRow.status == IngestionJobStatus.RUNNING.value)
+                            & (IngestionJobRow.lease_expires_at.is_not(None))
+                            & (IngestionJobRow.lease_expires_at < now)
+                        ),
+                    ),
+                )
+                .with_for_update(skip_locked=True)
+            )
+            if row is None:
+                return None
+            row.status = IngestionJobStatus.RUNNING.value
+            row.worker_id = worker_id
+            row.lease_token = str(uuid4())
+            row.fence_version += 1
+            row.started_at = row.started_at or now
+            row.heartbeat_at = now
+            row.lease_expires_at = now + timedelta(seconds=lease_seconds)
+            session.commit()
+            return IngestionLease(
+                job=self._job(row),
+                worker_id=worker_id,
+                lease_token=row.lease_token,
+                fence_version=row.fence_version,
+            )
+
+    def release_claimed_job(
+        self,
+        *,
+        tenant_id: str,
+        job_id: UUID,
+        worker_id: str,
+        lease_token: str,
+        fence_version: int,
+        attempt: int,
+        error: str | None = None,
+    ) -> IngestionJob:
+        """Return a retryable task to the queue while preserving its attempt."""
+
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(IngestionJobRow)
+                .where(
+                    IngestionJobRow.tenant_id == tenant_id,
+                    IngestionJobRow.id == str(job_id),
+                    IngestionJobRow.status == IngestionJobStatus.RUNNING.value,
+                    IngestionJobRow.worker_id == worker_id,
+                    IngestionJobRow.lease_token == lease_token,
+                    IngestionJobRow.fence_version == fence_version,
+                )
+                .with_for_update()
+            )
+            if row is None:
+                raise IngestionLeaseLost("ingestion lease was lost")
+            row.status = IngestionJobStatus.QUEUED.value
+            row.error = error[:500] if error else None
+            row.attempt = attempt
+            row.worker_id = None
+            row.lease_token = None
+            row.heartbeat_at = None
+            row.lease_expires_at = None
+            session.commit()
+            return self._job(row)
+
     def complete_claimed_job(
         self,
         *,

@@ -106,3 +106,41 @@ def test_recovery_worker_claims_and_completes_persisted_job() -> None:
     manager.close()
     repository.close()
     database.unlink()
+
+
+def test_specific_claim_and_retry_release_preserve_fencing() -> None:
+    repository = SqlAlchemyIngestionRepository(
+        "sqlite+pysqlite:///:memory:", initialize_schema=True
+    )
+    job = _queued("specific-claim")
+    repository.create_job(job=job)
+
+    lease = repository.claim_job(
+        tenant_id="tenant-a",
+        job_id=job.job_id,
+        worker_id="celery-1",
+        lease_seconds=30,
+    )
+    assert lease is not None
+    released = repository.release_claimed_job(
+        tenant_id="tenant-a",
+        job_id=job.job_id,
+        worker_id="celery-1",
+        lease_token=lease.lease_token,
+        fence_version=lease.fence_version,
+        attempt=1,
+        error="retryable task failure",
+    )
+    assert released.status == IngestionJobStatus.QUEUED
+    assert released.attempt == 1
+    assert released.error == "retryable task failure"
+
+    next_lease = repository.claim_job(
+        tenant_id="tenant-a",
+        job_id=job.job_id,
+        worker_id="celery-2",
+        lease_seconds=30,
+    )
+    assert next_lease is not None
+    assert next_lease.fence_version == lease.fence_version + 1
+    repository.close()

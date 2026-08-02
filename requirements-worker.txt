@@ -1,0 +1,5 @@
+-r requirements-api.txt
+
+# Optional cross-process ingestion profile. Keep out of the default API image.
+celery==5.5.3
+redis==6.4.0
