@@ -13,6 +13,7 @@ from langgraph.runtime import Runtime
 from langgraph.types import Command
 
 from agent.tools.policy import safe_argument_summary
+from src.app.observability.metrics import get_tool_metrics
 from src.app.security.redaction import text_metadata
 from utils.logger_handler import logger
 from utils.prompt_loader import load_report_prompts, load_system_prompts
@@ -30,9 +31,13 @@ def monitor_tool(
         "[tool monitor]参数摘要：%s",
         safe_argument_summary(request.tool_call.get("args")),
     )
+    metrics = get_tool_metrics()
+    started = metrics.begin() if metrics is not None else None
 
     try:
         result = handler(request)
+        if metrics is not None and started is not None:
+            metrics.end(started, status="completed")
         logger.info(f"[tool monitor]工具{request.tool_call['name']}调用成功")
 
         if request.tool_call["name"] == "fill_context_for_report":
@@ -42,6 +47,8 @@ def monitor_tool(
 
         return result
     except Exception as e:
+        if metrics is not None and started is not None:
+            metrics.end(started, status="failed")
         logger.error(
             "工具%s调用失败，异常类型=%s",
             request.tool_call["name"],
@@ -62,8 +69,12 @@ async def monitor_tool_async(
         "[tool monitor]参数摘要：%s",
         safe_argument_summary(request.tool_call.get("args")),
     )
+    metrics = get_tool_metrics()
+    started = metrics.begin() if metrics is not None else None
     try:
         result = await handler(request)
+        if metrics is not None and started is not None:
+            metrics.end(started, status="completed")
         logger.info(f"[tool monitor]工具{request.tool_call['name']}调用成功")
         if request.tool_call["name"] == "fill_context_for_report":
             context = request.runtime.context
@@ -71,6 +82,8 @@ async def monitor_tool_async(
                 context["report"] = True
         return result
     except Exception as error:
+        if metrics is not None and started is not None:
+            metrics.end(started, status="failed")
         logger.error(
             "工具%s调用失败，异常类型=%s",
             request.tool_call["name"],

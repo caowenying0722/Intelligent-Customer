@@ -53,9 +53,7 @@ boolean-py==5.0
 build==1.5.0
     # via chromadb
 cachecontrol==0.14.4
-    # via
-    #   cachecontrol
-    #   pip-audit
+    # via pip-audit
 cachetools==6.2.6
     # via streamlit
 certifi==2026.7.22
@@ -256,7 +254,10 @@ langgraph==1.2.10
 langgraph-checkpoint==4.1.1
     # via
     #   langgraph
+    #   langgraph-checkpoint-postgres
     #   langgraph-prebuilt
+langgraph-checkpoint-postgres==3.1.1
+    # via -r requirements.txt
 langgraph-prebuilt==1.1.0
     # via langgraph
 langgraph-sdk==0.4.2
@@ -334,6 +335,7 @@ openai==2.52.0
     #   ragas
 opentelemetry-api==1.44.0
     # via
+    #   -r requirements.txt
     #   chromadb
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-sdk
@@ -341,13 +343,16 @@ opentelemetry-api==1.44.0
 opentelemetry-exporter-otlp-proto-common==1.44.0
     # via opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-exporter-otlp-proto-grpc==1.44.0
-    # via chromadb
+    # via
+    #   -r requirements.txt
+    #   chromadb
 opentelemetry-proto==1.44.0
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-sdk==1.44.0
     # via
+    #   -r requirements.txt
     #   chromadb
     #   opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-semantic-conventions==0.65b0
@@ -355,6 +360,7 @@ opentelemetry-semantic-conventions==0.65b0
 orjson==3.11.9
     # via
     #   chromadb
+    #   langgraph-checkpoint-postgres
     #   langgraph-sdk
     #   langsmith
 ormsgpack==1.12.2
@@ -411,6 +417,16 @@ protobuf==6.33.6
     #   onnxruntime
     #   opentelemetry-proto
     #   streamlit
+psycopg==3.3.4
+    # via
+    #   -r requirements.txt
+    #   langgraph-checkpoint-postgres
+psycopg-binary==3.3.4
+    # via psycopg
+psycopg-pool==3.3.1
+    # via
+    #   langgraph-checkpoint-postgres
+    #   psycopg
 py-serializable==2.1.0
     # via cyclonedx-python-lib
 pyarrow==25.0.0
@@ -640,8 +656,11 @@ typing-extensions==4.16.0
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
+    #   psycopg
+    #   psycopg-pool
     #   pydantic
     #   pydantic-core
+    #   pyjwt
     #   pypdf
     #   pypika
     #   referencing

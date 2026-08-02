@@ -10,10 +10,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from src.app.api.routes import build_router
+from src.app.application.approvals import ApprovalApplicationService
 from src.app.application.chat import ChatAgent, ChatApplicationService
 from src.app.application.ingestion_service import DocumentIngestionService
 from src.app.application.ingestion_worker import IngestionWorker
 from src.app.infrastructure.factory import (
+    build_approval_repository,
     build_conversation_repository,
     build_document_ingestion_service,
 )
@@ -22,6 +24,7 @@ from src.app.observability.metrics import (
     HttpMetrics,
     empty_gateway_snapshot,
     empty_rag_snapshot,
+    empty_tool_snapshot,
     empty_worker_snapshot,
     metrics_token_matches,
     render_prometheus,
@@ -73,43 +76,53 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        if rag_service is not None:
-            start_loading = getattr(rag_service, "start_document_loading", None)
-            if callable(start_loading):
-                start_loading()
-        if (
-            ingestion_service is not None
-            and ingestion_service.job_store is not None
-            and index_rebuild_operation is not None
-        ):
-            IngestionWorker(
-                ingestion_service.jobs, ingestion_service.job_store
-            ).recover_queued(
-                tenant_id=None,
-                task_type="index_rebuild",
-                operation_for=lambda job: (
-                    lambda: index_rebuild_operation(job.task_payload or "")
-                ),
-            )
-        yield
-        for resource in reversed(lifecycle_resources):
-            close = getattr(resource, "close", None)
-            if close is not None:
-                close()
-                continue
-            async_close = getattr(resource, "aclose", None)
-            if async_close is not None:
-                await async_close()
+        try:
+            for resource in lifecycle_resources:
+                start = getattr(resource, "start", None)
+                if callable(start):
+                    start()
+            if rag_service is not None:
+                start_loading = getattr(rag_service, "start_document_loading", None)
+                if callable(start_loading):
+                    start_loading()
+            if (
+                ingestion_service is not None
+                and ingestion_service.job_store is not None
+                and index_rebuild_operation is not None
+            ):
+                IngestionWorker(
+                    ingestion_service.jobs, ingestion_service.job_store
+                ).recover_queued(
+                    tenant_id=None,
+                    task_type="index_rebuild",
+                    operation_for=lambda job: (
+                        lambda: index_rebuild_operation(job.task_payload or "")
+                    ),
+                )
+            yield
+        finally:
+            for resource in reversed(lifecycle_resources):
+                close = getattr(resource, "close", None)
+                if close is not None:
+                    close()
+                    continue
+                async_close = getattr(resource, "aclose", None)
+                if async_close is not None:
+                    await async_close()
 
     if chat_service is None and chat_agent is not None:
         repository = build_conversation_repository(database_url)
+        approval_service = ApprovalApplicationService(
+            build_approval_repository(repository)
+        )
         chat_service = ChatApplicationService(
             chat_agent,
             timeout_seconds=settings.request_timeout_seconds,
             conversation_repository=repository,
             tracer=api_tracer,
+            approval_service=approval_service,
         )
-        lifecycle_resources = (*lifecycle_resources, repository)
+        lifecycle_resources = (*lifecycle_resources, repository, approval_service)
 
     if ingestion_service is None and database_url:
         ingestion_service = build_document_ingestion_service(database_url=database_url)
@@ -152,6 +165,12 @@ def create_app(
     app.state.worker_metrics = worker_metrics
     rag_metrics = getattr(rag_service, "metrics", None)
     app.state.rag_metrics = rag_metrics
+    tool_metrics = (
+        getattr(chat_service.agent, "tool_metrics", None)
+        if chat_service is not None
+        else None
+    )
+    app.state.tool_metrics = tool_metrics
     if chat_service is not None:
         chat_service.tracer = api_tracer
     if ingestion_service is not None:
@@ -286,6 +305,11 @@ def create_app(
                     if rag_metrics is not None
                     else empty_rag_snapshot()
                 ),
+                "tool": (
+                    tool_metrics.snapshot()
+                    if tool_metrics is not None
+                    else empty_tool_snapshot()
+                ),
             }
         return {
             "model_gateway": gateway.audit_snapshot(),
@@ -300,6 +324,11 @@ def create_app(
                 rag_metrics.snapshot()
                 if rag_metrics is not None
                 else empty_rag_snapshot()
+            ),
+            "tool": (
+                tool_metrics.snapshot()
+                if tool_metrics is not None
+                else empty_tool_snapshot()
             ),
         }
 
@@ -330,6 +359,11 @@ def create_app(
         rag_snapshot = (
             rag_metrics.snapshot() if rag_metrics is not None else empty_rag_snapshot()
         )
+        tool_snapshot = (
+            tool_metrics.snapshot()
+            if tool_metrics is not None
+            else empty_tool_snapshot()
+        )
         return PlainTextResponse(
             render_prometheus(
                 gateway_snapshot,
@@ -337,6 +371,7 @@ def create_app(
                 http_metrics.snapshot(),
                 worker_snapshot,
                 rag_snapshot,
+                tool_snapshot,
             ),
             media_type="text/plain; version=0.0.4",
         )

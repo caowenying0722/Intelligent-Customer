@@ -40,7 +40,8 @@ class RunStateConflict(RuntimeError):
 
 RUN_TRANSITIONS: dict[str, set[str]] = {
     "queued": {"queued", "running", "cancelled"},
-    "running": {"running", "completed", "failed", "cancelled"},
+    "running": {"running", "interrupted", "completed", "failed", "cancelled"},
+    "interrupted": {"interrupted", "running", "completed", "failed", "cancelled"},
     "completed": {"completed"},
     "failed": {"failed"},
     "cancelled": {"cancelled"},
@@ -200,7 +201,7 @@ class ConversationRepository:
     def update_run(
         self, tenant_id: str, run_id: UUID, status: str, error: str | None = None
     ) -> AgentRun:
-        if status not in {"queued", "running", "completed", "failed", "cancelled"}:
+        if status not in RUN_TRANSITIONS:
             raise ValueError("invalid run status")
         with self._lock:
             run = self.get_run(tenant_id, run_id)

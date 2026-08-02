@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from uuid import UUID
+from datetime import datetime, timedelta, timezone
+from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,12 @@ from src.app.application.document_metadata import (
     DocumentRecord,
     DocumentStatus,
 )
-from src.app.application.ingestion import IngestionJob, IngestionJobStatus
+from src.app.application.ingestion import (
+    IngestionJob,
+    IngestionJobStatus,
+    IngestionLease,
+    IngestionLeaseLost,
+)
 from src.app.application.uploads import ValidatedUpload
 from src.app.infrastructure.postgres import (
     DocumentRow,
@@ -281,6 +286,137 @@ class SqlAlchemyIngestionRepository:
             rows = session.scalars(statement.order_by(IngestionJobRow.created_at)).all()
             return [self._job(row) for row in rows]
 
+    def claim_recoverable_jobs(
+        self,
+        *,
+        worker_id: str,
+        lease_seconds: float,
+        limit: int = 10,
+        tenant_id: str | None = None,
+        task_type: str | None = None,
+    ) -> list[IngestionLease]:
+        if not worker_id.strip():
+            raise ValueError("worker_id is required")
+        if lease_seconds <= 0 or not 1 <= limit <= 100:
+            raise ValueError("invalid lease configuration")
+        now = datetime.now(timezone.utc)
+        with Session(self.engine) as session:
+            statement = (
+                select(IngestionJobRow)
+                .where(
+                    or_(
+                        IngestionJobRow.status == IngestionJobStatus.QUEUED.value,
+                        (
+                            (IngestionJobRow.status == IngestionJobStatus.RUNNING.value)
+                            & (IngestionJobRow.lease_expires_at.is_not(None))
+                            & (IngestionJobRow.lease_expires_at < now)
+                        ),
+                    )
+                )
+                .order_by(IngestionJobRow.created_at)
+                .limit(limit)
+                .with_for_update(skip_locked=True)
+            )
+            if tenant_id is not None:
+                statement = statement.where(IngestionJobRow.tenant_id == tenant_id)
+            if task_type is not None:
+                statement = statement.where(IngestionJobRow.task_type == task_type)
+            rows = session.scalars(statement).all()
+            leases: list[IngestionLease] = []
+            for row in rows:
+                row.status = IngestionJobStatus.RUNNING.value
+                row.worker_id = worker_id
+                row.lease_token = str(uuid4())
+                row.fence_version += 1
+                row.started_at = row.started_at or now
+                row.heartbeat_at = now
+                row.lease_expires_at = now + timedelta(seconds=lease_seconds)
+                leases.append(
+                    IngestionLease(
+                        job=self._job(row),
+                        worker_id=worker_id,
+                        lease_token=row.lease_token,
+                        fence_version=row.fence_version,
+                    )
+                )
+            session.commit()
+            return leases
+
+    def renew_lease(
+        self,
+        *,
+        tenant_id: str,
+        job_id: UUID,
+        worker_id: str,
+        lease_token: str,
+        fence_version: int,
+        lease_seconds: float,
+    ) -> None:
+        if lease_seconds <= 0:
+            raise ValueError("lease_seconds must be positive")
+        now = datetime.now(timezone.utc)
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(IngestionJobRow)
+                .where(
+                    IngestionJobRow.tenant_id == tenant_id,
+                    IngestionJobRow.id == str(job_id),
+                    IngestionJobRow.status == IngestionJobStatus.RUNNING.value,
+                    IngestionJobRow.worker_id == worker_id,
+                    IngestionJobRow.lease_token == lease_token,
+                    IngestionJobRow.fence_version == fence_version,
+                )
+                .with_for_update()
+            )
+            if row is None:
+                raise IngestionLeaseLost("ingestion lease was lost")
+            row.heartbeat_at = now
+            row.lease_expires_at = now + timedelta(seconds=lease_seconds)
+            session.commit()
+
+    def complete_claimed_job(
+        self,
+        *,
+        tenant_id: str,
+        job_id: UUID,
+        worker_id: str,
+        lease_token: str,
+        fence_version: int,
+        status: IngestionJobStatus,
+        error: str | None = None,
+        attempt: int | None = None,
+    ) -> IngestionJob:
+        if status not in {
+            IngestionJobStatus.COMPLETED,
+            IngestionJobStatus.FAILED,
+            IngestionJobStatus.CANCELLED,
+        }:
+            raise ValueError("claimed jobs require a terminal status")
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(IngestionJobRow)
+                .where(
+                    IngestionJobRow.tenant_id == tenant_id,
+                    IngestionJobRow.id == str(job_id),
+                    IngestionJobRow.status == IngestionJobStatus.RUNNING.value,
+                    IngestionJobRow.worker_id == worker_id,
+                    IngestionJobRow.lease_token == lease_token,
+                    IngestionJobRow.fence_version == fence_version,
+                )
+                .with_for_update()
+            )
+            if row is None:
+                raise IngestionLeaseLost("ingestion lease was lost")
+            row.status = status.value
+            row.error = error[:500] if error else None
+            if attempt is not None:
+                row.attempt = attempt
+            if status == IngestionJobStatus.COMPLETED:
+                row.progress = 100
+            row.completed_at = datetime.now(timezone.utc)
+            session.commit()
+            return self._job(row)
+
     def request_cancel(self, *, tenant_id: str, job_id: UUID) -> IngestionJob:
         with Session(self.engine) as session:
             row = session.scalar(
@@ -302,8 +438,15 @@ class SqlAlchemyIngestionRepository:
     def fail_orphaned_jobs(self) -> int:
         """Mark running jobs from a crashed worker as safely failed on startup."""
         with Session(self.engine) as session:
+            now = datetime.now(timezone.utc)
             rows = session.scalars(
-                select(IngestionJobRow).where(IngestionJobRow.status == "running")
+                select(IngestionJobRow).where(
+                    IngestionJobRow.status == "running",
+                    or_(
+                        IngestionJobRow.lease_expires_at.is_(None),
+                        IngestionJobRow.lease_expires_at < now,
+                    ),
+                )
             ).all()
             for row in rows:
                 row.status = IngestionJobStatus.FAILED.value

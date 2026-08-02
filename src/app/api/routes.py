@@ -10,9 +10,18 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from src.app.application.chat import ChatApplicationError, ChatApplicationService
+from src.app.application.chat import (
+    ChatApplicationError,
+    ChatApplicationService,
+    ChatApprovalRequired,
+)
 from src.app.application.ingestion import IngestionJob, IngestionJobStatus
 from src.app.application.ingestion_service import DocumentIngestionService
+from src.app.domain.approvals import (
+    ApprovalNotFound,
+    ApprovalStateConflict,
+    HumanApproval,
+)
 from src.app.domain.conversations import (
     ConcurrencyConflict,
     IdempotencyConflict,
@@ -21,6 +30,7 @@ from src.app.domain.conversations import (
 from src.app.schemas import (
     AgentRunListResponse,
     AgentRunResponse,
+    ApprovalDecisionRequest,
     ChatRequest,
     ChatResponse,
     ConversationResponse,
@@ -28,6 +38,7 @@ from src.app.schemas import (
     DocumentUploadRequest,
     DocumentUploadResponse,
     ErrorResponse,
+    HumanApprovalResponse,
     IndexRebuildRequest,
     IngestionJobResponse,
     MessageResponse,
@@ -35,7 +46,7 @@ from src.app.schemas import (
 )
 from src.app.security.audit import AuditSink
 from src.app.security.auth import JWTAuthenticator
-from src.app.security.dependencies import auth_dependency
+from src.app.security.dependencies import auth_dependency, role_dependency
 
 
 def build_router(
@@ -71,6 +82,27 @@ def build_router(
             attempt=job.attempt,
             max_attempts=job.max_attempts,
             cancel_requested=job.cancel_requested,
+        )
+
+    def approval_response(
+        approval: HumanApproval, *, answer: str | None = None
+    ) -> HumanApprovalResponse:
+        return HumanApprovalResponse(
+            approval_id=str(approval.approval_id),
+            conversation_id=str(approval.conversation_id),
+            run_id=str(approval.run_id),
+            tool_name=approval.tool_name,
+            arguments=approval.arguments,
+            risk_level=approval.risk_level,
+            status=approval.status,
+            execution_status=approval.execution_status,
+            requested_at=approval.requested_at.isoformat(),
+            expires_at=approval.expires_at.isoformat(),
+            decided_at=(
+                approval.decided_at.isoformat() if approval.decided_at else None
+            ),
+            decided_by=approval.decided_by,
+            answer=answer,
         )
 
     @router.post("/indexes/rebuild", response_model=IngestionJobResponse)
@@ -434,6 +466,16 @@ def build_router(
                     "request_id": request.state.request_id,
                 },
             )
+        except ChatApprovalRequired as exc:
+            response = approval_response(exc.approval)
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "code": "approval_required",
+                    "request_id": request.state.request_id,
+                    **response.model_dump(mode="json"),
+                },
+            )
         except ChatApplicationError as exc:
             model_error = exc.model_error
             raw_code = (
@@ -475,6 +517,129 @@ def build_router(
             conversation_id=str(conversation_id),
             run_id=str(run_id),
         )
+
+    @router.get("/approvals/{approval_id}", response_model=HumanApprovalResponse)
+    async def get_approval(request: Request, approval_id: str):
+        approval_service = (
+            chat_service.approval_service if chat_service is not None else None
+        )
+        if approval_service is None:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "approval_unavailable",
+                    "message": "approval service is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
+        try:
+            parsed = UUID(approval_id)
+        except ValueError:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": "approval_not_found",
+                    "message": "approval not found",
+                    "request_id": request.state.request_id,
+                },
+            )
+        approval = approval_service.get(request_tenant_id(request), parsed)
+        if approval is None:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": "approval_not_found",
+                    "message": "approval not found",
+                    "request_id": request.state.request_id,
+                },
+            )
+        return approval_response(approval)
+
+    decision_dependencies = (
+        [Depends(role_dependency(authenticator, {"admin", "approver"}, audit_sink))]
+        if authenticator is not None
+        else []
+    )
+
+    @router.post(
+        "/approvals/{approval_id}/decision",
+        response_model=HumanApprovalResponse,
+        dependencies=decision_dependencies,
+    )
+    async def decide_approval(
+        request: Request, approval_id: str, payload: ApprovalDecisionRequest
+    ):
+        if chat_service is None or chat_service.approval_service is None:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "approval_unavailable",
+                    "message": "approval service is not configured",
+                    "request_id": request.state.request_id,
+                },
+            )
+        try:
+            parsed = UUID(approval_id)
+        except ValueError:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": "approval_not_found",
+                    "message": "approval not found",
+                    "request_id": request.state.request_id,
+                },
+            )
+        claims = getattr(request.state, "auth_claims", None)
+        decided_by = (
+            claims.subject
+            if claims is not None
+            else request.headers.get("x-user-id", "local-approver")
+        )
+        try:
+            approval, answer = await chat_service.decide_approval(
+                request_tenant_id(request),
+                parsed,
+                approved=payload.approved,
+                decided_by=decided_by,
+            )
+        except ApprovalNotFound:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": "approval_not_found",
+                    "message": "approval not found",
+                    "request_id": request.state.request_id,
+                },
+            )
+        except ApprovalStateConflict as exc:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "code": "approval_conflict",
+                    "message": str(exc),
+                    "request_id": request.state.request_id,
+                },
+            )
+        except ChatApprovalRequired as exc:
+            response = approval_response(exc.approval)
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "code": "approval_required",
+                    "request_id": request.state.request_id,
+                    **response.model_dump(mode="json"),
+                },
+            )
+        except ChatApplicationError as exc:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "code": "approval_execution_failed",
+                    "message": str(exc),
+                    "request_id": request.state.request_id,
+                },
+            )
+        return approval_response(approval, answer=answer)
 
     @router.post("/chat/stream")
     async def chat_stream(request: Request, payload: ChatRequest):
@@ -756,3 +921,5 @@ def build_router(
         )
 
     return router
+    (ApprovalDecisionRequest,)
+    (HumanApprovalResponse,)

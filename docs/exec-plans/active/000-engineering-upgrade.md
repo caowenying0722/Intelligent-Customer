@@ -897,3 +897,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 - 阶段 11 第七十三个目标完成：复核发布安全/环境/评测门禁；`pip-audit` 真实保留 3 条 PYSEC 无修复漏洞，Python 3.13 环境检查失败，`docker info` 45 秒超时；deterministic 3/3、red-team 4/4、fake load 10/10 均实际通过并记录 artifact，不把 smoke 结果扩大为生产结论。当前代码门禁为 367 tests、63% coverage、240 formatted files。
 
 阶段 1 已完成可在仓库内闭环的验收项：Python 3.10 传递依赖锁、clean dry-run、RAG 有界后台加载和 41% 覆盖率回归阈值。`chromadb`、`ragas`、`diskcache` 的 3 条上游漏洞仍使 pip-audit 失败，已记录为发布阻塞风险，不用 ignore 掩盖。现在自动开始阶段 2 的首个独立目标：建立不依赖真实模型的 FastAPI 应用工厂与 liveness/readiness 边界。
+
+## 2026-08-02 里程碑一：持久化与可恢复 Agent
+
+本里程碑按一个交付目标收口，不再拆成编号小目标：Compose 增加 PostgreSQL 和一次性 Alembic migration；API composition root 接入 SQLAlchemy repository 与生命周期托管的 LangGraph `PostgresSaver`；高风险工具使用持久化人工审批中断/恢复；Chat 增加协作式 deadline/cancellation；入库任务使用 lease、heartbeat、fencing 和 PostgreSQL `FOR UPDATE SKIP LOCKED` 防止跨 worker 同代重复 claim。默认测试不调用真实付费模型。真实 PostgreSQL 已验证 checkpoint/审批跨重启恢复和双 worker 唯一 claim；交付语义为 at-least-once，不宣称 exactly-once。API 使用独立精简锁文件，容器不安装 Torch/Chroma 等离线 RAG 重依赖。

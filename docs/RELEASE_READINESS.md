@@ -6,18 +6,19 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：369 passed，26 subtests | 默认不调用付费模型 |
-| `coverage run -m pytest -q && coverage report` | 通过：369 passed，26 subtests；总覆盖率 63%，门槛 41% | 当前本地基线 |
-| `python -m ruff format --check .` | 通过 | 240 个 Python 文件已格式化 |
+| `python -m pytest -q` | 通过：391 passed，4 skipped，26 subtests | 默认不调用付费模型；skip 为需显式 PostgreSQL URL 的集成测试 |
+| PostgreSQL 集成测试 | 通过：4 passed | 使用运行中 PostgreSQL 16，验证 checkpoint/审批跨重启和双 worker 唯一 claim |
+| `python -m ruff format --check .` | 通过 | 256 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
-| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 | 生产源码类型门禁 |
-| `python -m mypy tests` | 通过：102 个测试源码文件 | 独立测试类型门禁 |
+| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：101 个源码文件 | 生产源码类型门禁 |
+| `python -m mypy tests` | 通过：112 个测试源码文件 | 独立测试类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
 | `python -m pip check` | 通过 | 依赖元数据无破损；PyJWT 2.13.0 已显式锁定 |
 | `python -m pip_audit -r requirements.txt` | 失败：3 个无修复漏洞 | `chromadb==1.3.7/PYSEC-2026-311`、`ragas==0.4.3/PYSEC-2026-3046`、`diskcache==5.6.3/PYSEC-2026-2447`；不使用 ignore |
+| `python -m pip_audit -r requirements-api.lock` | 通过：No known vulnerabilities found | 精简 API 镜像锁独立审计；不代表完整离线 RAG 依赖无漏洞 |
 | `python scripts/check_environment.py --requirements requirements-dev.txt` | 失败 | 当前解释器 Python 3.13，不符合仓库 Python 3.10 支持矩阵 |
-| `docker info` | 失败：命令 45 秒超时 | Docker daemon 当前不可用，不能替代容器验收 |
-| `docker compose config --quiet` | 通过 | API 单服务 Compose 配置有效，镜像使用 `requirements.lock` |
+| `docker info` | 通过 | Docker Desktop Engine 已恢复，数据盘位于 D 盘 |
+| `docker compose config --quiet` | 通过 | PostgreSQL、migration、API 配置有效；API 镜像使用精简 `requirements-api.lock` |
 | `docker compose --profile observability config --quiet` | 通过 | 仅验证静态 profile 配置；Collector/Prometheus 镜像拉取与健康尚未在当前网络完成 |
 | Grafana dashboard/profile config | 通过：静态测试 | 已验证 PromQL、datasource 挂载和本地只读端口；镜像拉取与健康尚未在当前网络完成 |
 | `python -m compileall -q agent evaluation model rag scripts src app.py` | 通过 | 近期 server/RAG metrics 改动无语法导入错误 |
@@ -52,7 +53,7 @@
 | Persistent claim-before-worker | 通过：持久化 route 测试 | rebuild 先写唯一 job，再提交进程内 worker；进程崩溃后的 queued job 由 recovery 处理 |
 | Job claim/recovery audit | 通过：14 个定向测试 | queued 恢复、running orphan fail、取消、租户隔离和持久化幂等；heartbeat/lease fencing 未实现 |
 | Schema claim consistency | 通过：migration smoke + ORM/index assertions | 唯一索引列顺序/unique 与 0008→0010 nullable 迁移一致；SQLite 不替代 PostgreSQL 并发验收 |
-| PostgreSQL/container integration | 阻塞：`docker info` 124 秒超时 | Compose/migration 静态测试 5 passed；Docker daemon 不可用，未执行容器 health/真实 PostgreSQL 锁语义 |
+| PostgreSQL/container integration | 通过 | PostgreSQL healthy、migration exit 0、API healthy，live/ready/OpenAPI 200；真实 checkpoint/审批重启及 `SKIP LOCKED` 双 worker claim 测试通过 |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 | `python scripts/run_deterministic_regression.py --output output/ci/target73-deterministic.json` | 通过：3/3 样本，model_calls=0 | retrieval-regression-v1；recall@1=0.5、recall@3/5/10=1.0、MRR=1.0；artifact commit=`aac459e`、dirty=true |

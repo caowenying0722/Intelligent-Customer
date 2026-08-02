@@ -4,26 +4,24 @@
 
 ```text
 docker info
-结果：超时（124 秒），Docker Desktop daemon 无响应
+结果：通过；Docker Desktop Engine 已恢复，数据盘位于 D 盘
 
-docker compose config --quiet
-结果：通过
+docker compose up -d --force-recreate migrate api
+结果：PostgreSQL healthy，migration exit 0，API healthy
 
-docker compose --profile observability config --quiet
-结果：通过
+GET /health/live, GET /health/ready, GET /openapi.json
+结果：均为 HTTP 200
 
-python -m pytest -q tests/test_docker_config.py tests/test_migrations.py
-结果：5 passed
+TEST_POSTGRES_URL=... python -m pytest -q tests/test_postgres_checkpoint_integration.py
+结果：4 passed；覆盖 checkpoint/审批跨重启恢复和双 worker 唯一 claim
 ```
 
 ## 结论
 
-Alembic migration、SQLAlchemy model/index 声明和 Compose 静态配置可检查；当前机器无法访问 Docker daemon，因此没有执行 PostgreSQL 容器启动、真实迁移、API readiness、跨容器 job recovery 或并发锁 smoke。SQLite migration 结果不能替代 PostgreSQL 隔离/锁语义验收。
+Alembic migration、SQLAlchemy model/index、PostgreSQL checkpoint、审批恢复、lease/fencing 和 Compose API 已在真实 PostgreSQL 16 容器中验收。当前 migration head 为 `0012_add_ingestion_job_leases`；API 镜像使用精简 `requirements-api.lock`，不包含 Torch/Chroma/sentence-transformers。
 
-Docker Desktop 恢复后必须重新执行：
+后续里程碑仍需执行：
 
-1. PostgreSQL 容器启动与 healthcheck；
-2. `alembic upgrade head` 和 downgrade smoke；
-3. API `DATABASE_URL` readiness、会话/文档/job 重启恢复；
-4. 两个 worker 对同一 tenant/idempotency key 的 claim/lease 竞态；
-5. Compose observability API scrape/OTLP 端到端传输。
+1. Qdrant tenant/index-version filter 与 hybrid retrieval 集成；
+2. Compose observability API scrape/OTLP 端到端传输；
+3. 发布环境的备份恢复、滚动升级和长时间并发验证。

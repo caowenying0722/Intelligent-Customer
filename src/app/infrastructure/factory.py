@@ -7,10 +7,15 @@ from src.app.application.document_metadata import DocumentMetadataRegistry
 from src.app.application.ingestion import IngestionJobManager
 from src.app.application.ingestion_service import DocumentIngestionService
 from src.app.application.upload_storage import SecureUploadStorage
+from src.app.domain.approvals import (
+    ApprovalRepositoryProtocol,
+    InMemoryApprovalRepository,
+)
 from src.app.domain.conversations import (
     ConversationRepository,
     ConversationRepositoryProtocol,
 )
+from src.app.infrastructure.approvals import SqlAlchemyApprovalRepository
 from src.app.infrastructure.ingestion import SqlAlchemyIngestionRepository
 from src.app.infrastructure.postgres import SqlAlchemyConversationRepository
 from utils.settings import get_settings
@@ -32,6 +37,17 @@ def build_conversation_repository(
             isolation_level=settings.database_isolation_level,
         )
     return ConversationRepository()
+
+
+def build_approval_repository(
+    conversation_repository: ConversationRepositoryProtocol,
+) -> ApprovalRepositoryProtocol:
+    """Share the SQLAlchemy engine when durable conversations are configured."""
+
+    engine = getattr(conversation_repository, "engine", None)
+    if engine is not None:
+        return SqlAlchemyApprovalRepository(engine)
+    return InMemoryApprovalRepository()
 
 
 def build_document_ingestion_service(

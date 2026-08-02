@@ -43,6 +43,7 @@ def test_prometheus_metrics_without_gateway_are_zero_valued():
     assert response.status_code == 200
     assert "model_gateway_calls_total 0" in response.text
     assert "model_gateway_healthy 0" in response.text
+    assert "agent_tool_calls_total 0" in response.text
 
 
 def test_prometheus_metrics_expose_cost_without_tenant_identity():

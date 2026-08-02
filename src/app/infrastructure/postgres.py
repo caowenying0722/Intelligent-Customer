@@ -25,7 +25,7 @@ from src.app.domain.conversations import (
     RunStateConflict,
 )
 
-EXPECTED_SCHEMA_REVISION = "0010_add_ingestion_job_payload"
+EXPECTED_SCHEMA_REVISION = "0012_add_ingestion_job_leases"
 
 
 class Base(DeclarativeBase):
@@ -151,6 +151,15 @@ class IngestionJobRow(Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    worker_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    lease_token: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    fence_version: Mapped[int] = mapped_column(default=0)
 
 
 class SqlAlchemyConversationRepository:
@@ -337,7 +346,7 @@ class SqlAlchemyConversationRepository:
     def update_run(
         self, tenant_id: str, run_id: UUID, status: str, error: str | None = None
     ) -> AgentRun:
-        if status not in {"queued", "running", "completed", "failed", "cancelled"}:
+        if status not in RUN_TRANSITIONS:
             raise ValueError("invalid run status")
         with Session(self.engine) as session:
             row = session.scalar(

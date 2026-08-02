@@ -4,7 +4,7 @@
 
 本页记录 2026-08-02 对 `main` 分支工作区的实测结果。工作区仍保留用户未提交修改：`README.md` 被修改、两份 `docs/rag_quality_*.md` 被删除，`AGENT.md`、`todo.md` 未跟踪。本轮不覆盖或恢复这些内容；本页只描述已提交代码和实际执行结果。
 
-当前项目是 Streamlit 演示客户端加 FastAPI API-first 服务、LangGraph Agent、本地 RAG、SQLAlchemy/Alembic 持久化和可观测性基线。API、文档入库任务、JWT/RBAC、租户边界、Prometheus/OTel 配置和 Compose profile 已有代码与测试，但仍不是已完成生产栈：Docker API 镜像构建、PostgreSQL/Redis/Qdrant/Celery 全链路、真实 OTLP backend、外部依赖漏洞和 Python 3.10 clean install 仍未在当前环境完成验收。
+当前项目是 Streamlit 演示客户端加 FastAPI API-first 服务、LangGraph Agent、本地 RAG、PostgreSQL/Alembic 持久化和可观测性基线。Compose 中的 PostgreSQL、迁移任务和精简 API 镜像已完成真实启动验收；会话、LangGraph checkpoint、人工审批和入库任务 lease/fencing 已持久化。它仍不是完整生产栈：Qdrant hybrid、真实 OTLP backend、外部依赖漏洞和完整发布环境仍待完成。
 
 ## 运行环境与依赖
 
@@ -95,16 +95,16 @@ flowchart LR
 | 启发式重排 | 已实现无来源名特征的确定性 baseline | `rag/reranker.py`、`docs/evaluation/retrieval-leakage.md` |
 | RAG 回归样本 | 有 28 条主集和 6 条 focus 集，但未版本化/冻结 | `data/evaluation/*.jsonl` |
 | FastAPI / API v1 / SSE | 已实现聊天、基础 SSE、内存会话和启动生命周期边界 | `src/app/main.py` 提供应用工厂，`src/app/server.py:build_server_app()` 在显式 server 启动时延迟构造 Agent，并提供 request ID、liveness/readiness、可注入 RAG 的 lifespan 单飞加载、`POST /api/v1/chat`、SSE、可注入的进程内 conversation repository 和资源关闭；`python -m src.app.server` 可启动真实组合根 |
-| PostgreSQL / Alembic | 部分实现 | SQLAlchemy conversation/document/job repository、Alembic migration、readiness 和重启恢复测试已存在；当前 Docker/PostgreSQL 端到端未验收 |
+| PostgreSQL / Alembic | 已实现当前阶段 | Compose PostgreSQL 16、一次性 Alembic migration、会话/文档/job/审批 repository、readiness、重启恢复和真实容器集成均已验证；当前 schema head 为 `0012_add_ingestion_job_leases` |
 | Redis / Celery | 未实现 | 无依赖、worker 或任务状态机 |
 | Qdrant / hybrid filter | 未实现 | 当前仅本地 Chroma |
-| LangGraph checkpoint | 未实现 | `graph.compile()` 无 checkpointer |
+| LangGraph checkpoint | 已实现当前阶段 | `PostgresSaver` 由应用生命周期管理，tenant/conversation 映射为稳定 thread ID；持久化中断、审批恢复和重启恢复均有 fake/真实 PostgreSQL 测试 |
 | 用户/会话持久化 | 部分实现 | FastAPI 可选 SQLAlchemy 会话和入库 job 持久化；Streamlit 默认仍为进程内 session |
 | JWT / RBAC | 部分实现 | `JWTAuthenticator`、稳定 401/403、tenant 一致性和安全审计已测试；审批/完整角色策略仍有限 |
 | 多租户隔离 | 部分实现 | API conversation/document/job/retrieval 路径有 tenant filter；Streamlit/本地工具和跨服务部署仍非完整隔离 |
 | OpenTelemetry | 部分实现 | API 有 W3C `traceparent`、HTTP/Agent/LLM/RAG/工具/当前进程 Worker SDK span、有界本地 exporter 和可选 timeout-bounded OTLP gRPC exporter；生产强制 HTTPS；尚无 OTLP Collector/backend，重启任务不保留 parent context |
 | Prometheus / metrics endpoint | 部分实现 | `/metrics` 与 `/metrics/prometheus` 暴露有界 HTTP/模型网关/Worker 聚合指标，生产要求 `METRICS_TOKEN`；RAG/工具专用 metrics 和真实 scrape 尚未完成 |
-| Docker Compose | 部分实现 | API 基础服务、`observability` profile（OTel Collector/Prometheus/Grafana）和 provisioning artifact 已配置；数据库、Redis、Worker 等完整生产栈仍缺失 |
+| Docker Compose | 部分实现 | PostgreSQL、migration、精简 API 镜像和 `observability` profile 已配置；实际验证 API healthy 及 live/ready/OpenAPI 200。Qdrant 与完整可观测后端仍缺失 |
 | CI | 部分实现 | 已有质量、依赖审计和 Docker build workflow 配置；远端 runner 尚未执行确认 |
 | 压测 | 部分实现 | `scripts/run_load_smoke.py` 支持 fake API 10 请求/并发 2；不是生产压测，暂无 Locust/k6 |
 
@@ -114,17 +114,17 @@ flowchart LR
 
 | 命令 | 实际结果 |
 |---|---|
-| `python -m pytest -q` | 通过：369 passed，26 subtests |
-| `coverage run -m pytest -q` / `coverage report` | 通过：369 passed，26 subtests；总覆盖率 63% |
-| `python -m ruff format --check .` | 通过：240 个 Python 文件已格式化 |
+| `python -m pytest -q` | 通过：391 passed，4 skipped，26 subtests；skip 为需显式 PostgreSQL URL 的集成测试 |
+| PostgreSQL 集成测试 | 通过：4 passed | 使用运行中 PostgreSQL 16 容器和补充依赖路径，验证 checkpoint/审批重启及双 worker claim |
+| `python -m ruff format --check .` | 通过：256 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
-| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：96 个源码文件 |
-| `python -m mypy tests` | 通过：102 个测试源码文件 |
+| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：101 个源码文件 |
+| `python -m mypy tests` | 通过：112 个测试源码文件 |
 | `python scripts/scan_secrets.py` | 通过：Secret scan OK |
 | `python -m pip check` | 通过：No broken requirements found |
 | 外部调用 timeout 定向审计 | 通过：51 passed，6 subtests；未发现需立即补齐的生产 timeout 缺口 |
 | Job claim/recovery 定向审计 | 通过：14 passed；唯一 claim、queued 恢复、running orphan fail 已验证，heartbeat/lease 未实现 |
-| PostgreSQL/container 集成 | 阻塞：`docker info` 超时；Compose/migration 静态 5 passed | Docker daemon 外部状态不可用，未宣称 PostgreSQL 容器或跨 worker 并发通过 |
+| PostgreSQL/container 集成 | 通过 | PostgreSQL healthy，migration exit 0，API healthy；live/ready/OpenAPI 均 200；真实 PostgreSQL checkpoint/审批重启和双 worker 唯一 claim 共 4 个集成测试通过 |
 | `python scripts/run_deterministic_regression.py` | 通过并生成 deterministic summary |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 |
 | `python scripts/run_load_smoke.py --requests 10 --concurrency 2` | 通过：fake API smoke，错误率 0 |

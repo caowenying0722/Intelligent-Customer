@@ -19,6 +19,28 @@ class ChatResponse(BaseModel):
     run_id: str
 
 
+class ApprovalDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    approved: bool
+
+
+class HumanApprovalResponse(BaseModel):
+    approval_id: str
+    conversation_id: str
+    run_id: str
+    tool_name: str
+    arguments: dict[str, object]
+    risk_level: str
+    status: str
+    execution_status: str
+    requested_at: str
+    expires_at: str
+    decided_at: str | None = None
+    decided_by: str | None = None
+    answer: str | None = None
+
+
 class ErrorResponse(BaseModel):
     code: str
     message: str

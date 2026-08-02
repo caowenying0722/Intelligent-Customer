@@ -14,13 +14,42 @@ def test_compose_api_baseline_is_health_checked_and_does_not_embed_keys() -> Non
     assert "ANTHROPIC" not in str(api)
 
 
+def test_compose_runs_postgres_migrations_before_api() -> None:
+    compose = yaml.safe_load(Path("compose.yaml").read_text(encoding="utf-8"))
+    services = compose["services"]
+
+    assert services["postgres"]["healthcheck"]["test"][0] == "CMD-SHELL"
+    assert services["postgres"]["volumes"] == ["postgres-data:/var/lib/postgresql/data"]
+    assert services["migrate"]["command"] == ["alembic", "upgrade", "head"]
+    assert services["migrate"]["depends_on"]["postgres"]["condition"] == (
+        "service_healthy"
+    )
+    assert services["api"]["depends_on"]["migrate"]["condition"] == (
+        "service_completed_successfully"
+    )
+    assert "postgres-data" in compose["volumes"]
+
+
 def test_dockerfile_uses_python_310_non_root_and_healthcheck() -> None:
     dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
 
     assert "python:3.10-slim" in dockerfile
     assert "USER app" in dockerfile
     assert "HEALTHCHECK" in dockerfile
-    assert "pip install -r requirements.lock" in dockerfile
+    assert "pip install -r requirements-api.lock" in dockerfile
+
+
+def test_api_runtime_lock_contains_server_dependencies_without_rag_heavyweights() -> (
+    None
+):
+    lock = Path("requirements-api.lock").read_text(encoding="utf-8").lower()
+
+    assert "\nlangchain==1.3.9\n" in lock
+    assert "\nlanggraph-checkpoint-postgres==3.1.1\n" in lock
+    assert "\npsycopg[binary,pool]==3.3.4\n" in lock
+    assert "\ntorch==" not in lock
+    assert "\nchromadb==" not in lock
+    assert "\nsentence-transformers==" not in lock
 
 
 def test_observability_profile_is_explicit_and_configured_without_secrets() -> None:

@@ -38,6 +38,10 @@ class IngestionCancelledError(RuntimeError):
     """A cooperative task cancellation requested by the caller."""
 
 
+class IngestionLeaseLost(RuntimeError):
+    """The persisted job was reclaimed by another worker generation."""
+
+
 @dataclass(frozen=True)
 class IngestionJob:
     job_id: UUID
@@ -55,6 +59,14 @@ class IngestionJob:
     cancel_requested: bool = False
     task_type: str = "ingestion"
     task_payload: str | None = None
+
+
+@dataclass(frozen=True)
+class IngestionLease:
+    job: IngestionJob
+    worker_id: str
+    lease_token: str
+    fence_version: int
 
 
 class IngestionJobManager:

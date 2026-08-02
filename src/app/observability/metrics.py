@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextvars import ContextVar, Token
 from hmac import compare_digest
 from math import isfinite
 from threading import Lock
@@ -236,6 +237,53 @@ class RagMetrics:
             }
 
 
+class ToolMetrics:
+    """Bounded process-local tool metrics without tool names or argument labels."""
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._calls = 0
+        self._failures = 0
+        self._duration_sum = 0.0
+        self._duration_count = 0
+
+    def begin(self) -> float:
+        return perf_counter()
+
+    def end(self, started: float, *, status: str) -> None:
+        with self._lock:
+            self._calls += 1
+            self._failures += int(status != "completed")
+            self._duration_sum += max(0.0, perf_counter() - started)
+            self._duration_count += 1
+
+    def snapshot(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "calls": self._calls,
+                "failures": self._failures,
+                "duration_sum_seconds": self._duration_sum,
+                "duration_count": self._duration_count,
+            }
+
+
+_current_tool_metrics: ContextVar[ToolMetrics | None] = ContextVar(
+    "current_tool_metrics", default=None
+)
+
+
+def set_tool_metrics(metrics: ToolMetrics | None) -> Token[ToolMetrics | None]:
+    return _current_tool_metrics.set(metrics)
+
+
+def reset_tool_metrics(token: Token[ToolMetrics | None]) -> None:
+    _current_tool_metrics.reset(token)
+
+
+def get_tool_metrics() -> ToolMetrics | None:
+    return _current_tool_metrics.get()
+
+
 def empty_worker_snapshot() -> dict[str, object]:
     """Return a stable zero snapshot when no ingestion worker is configured."""
     return WorkerMetrics().snapshot()
@@ -244,6 +292,11 @@ def empty_worker_snapshot() -> dict[str, object]:
 def empty_rag_snapshot() -> dict[str, object]:
     """Return stable zero metrics when no RAG service is configured."""
     return RagMetrics().snapshot()
+
+
+def empty_tool_snapshot() -> dict[str, object]:
+    """Return stable zero metrics when no Agent tool metrics are configured."""
+    return ToolMetrics().snapshot()
 
 
 def empty_gateway_snapshot() -> dict[str, object]:
@@ -301,6 +354,7 @@ def render_prometheus(
     http_snapshot: Mapping[str, object] | None = None,
     worker_snapshot: Mapping[str, object] | None = None,
     rag_snapshot: Mapping[str, object] | None = None,
+    tool_snapshot: Mapping[str, object] | None = None,
 ) -> str:
     """Render aggregate metrics without tenant, user, request, or prompt labels."""
     lines = [
@@ -531,6 +585,29 @@ def render_prometheus(
                 "# TYPE rag_retrieval_duration_seconds histogram",
             ]
         )
+    if tool_snapshot is not None:
+        lines.extend(
+            [
+                "# HELP agent_tool_calls_total Agent tool calls.",
+                "# TYPE agent_tool_calls_total counter",
+                _line("agent_tool_calls_total", tool_snapshot.get("calls", 0)),
+                "# HELP agent_tool_failures_total Agent tool failures.",
+                "# TYPE agent_tool_failures_total counter",
+                _line("agent_tool_failures_total", tool_snapshot.get("failures", 0)),
+                "# HELP agent_tool_duration_seconds Agent tool duration.",
+                "# TYPE agent_tool_duration_seconds gauge",
+                _line(
+                    "agent_tool_duration_seconds",
+                    tool_snapshot.get("duration_sum_seconds", 0),
+                ),
+                "# HELP agent_tool_duration_count Agent tool observations.",
+                "# TYPE agent_tool_duration_count gauge",
+                _line(
+                    "agent_tool_duration_count", tool_snapshot.get("duration_count", 0)
+                ),
+            ]
+        )
+    if rag_snapshot is not None:
         duration_buckets = cast(
             Mapping[float, object], _mapping(rag_snapshot.get("duration_buckets"))
         )

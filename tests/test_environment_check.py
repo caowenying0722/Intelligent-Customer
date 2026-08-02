@@ -45,7 +45,7 @@ class EnvironmentCheckTest(unittest.TestCase):
             parse_pinned_requirements(PROJECT_ROOT / "requirements-dev.txt")
         )
 
-        self.assertEqual(len(pins), 32)
+        self.assertEqual(len(pins), 34)
         self.assertEqual(pins["fastapi"].version, "0.141.1")
         self.assertEqual(pins["pyjwt"].version, "2.13.0")
         self.assertEqual(pins["opentelemetry-api"].version, "1.44.0")
@@ -62,6 +62,8 @@ class EnvironmentCheckTest(unittest.TestCase):
         self.assertEqual(pins["chromadb"].version, "1.3.7")
         self.assertEqual(pins["langchain-text-splitters"].version, "1.1.2")
         self.assertEqual(pins["langgraph"].version, "1.2.10")
+        self.assertEqual(pins["langgraph-checkpoint-postgres"].version, "3.1.1")
+        self.assertEqual(pins["psycopg"].version, "3.3.4")
         self.assertEqual(pins["streamlit"].version, "1.54.0")
         self.assertEqual(pins["pillow"].version, "12.3.0")
         self.assertEqual(pins["pypdf"].version, "6.14.2")
@@ -87,6 +89,16 @@ class EnvironmentCheckTest(unittest.TestCase):
 
         self.assertEqual(set(pins), {"example-pkg", "ruff"})
         self.assertEqual(pins["example-pkg"].version, "1.2.3")
+
+    def test_parses_exact_pin_with_extras_as_distribution_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "requirements.txt"
+            path.write_text("psycopg[binary,pool]==3.3.4\n", encoding="utf-8")
+
+            pins = ensure_consistent_pins(parse_pinned_requirements(path))
+
+        self.assertEqual(set(pins), {"psycopg"})
+        self.assertEqual(pins["psycopg"].version, "3.3.4")
 
     def test_rejects_unpinned_dependency(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

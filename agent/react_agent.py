@@ -1,11 +1,13 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.types import Command
 
 from agent.tools.agent_tools import (
     RagService,
@@ -21,6 +23,13 @@ from agent.tools.agent_tools import (
 from agent.tools.middleware import monitor_tool, monitor_tool_async
 from agent.tools.policy import ToolPolicy
 from model.factory import get_chat_model
+from src.app.domain.approvals import ApprovalRequired
+from src.app.domain.execution import check_execution_guard
+from src.app.observability.metrics import (
+    ToolMetrics,
+    reset_tool_metrics,
+    set_tool_metrics,
+)
 from src.app.security.prompt_guard import PromptInjectionError, PromptSafetyPolicy
 from utils.logger_handler import logger
 from utils.prompt_loader import load_report_prompts, load_system_prompts
@@ -42,6 +51,8 @@ class ReactAgent:
         tool_policy: ToolPolicy | None = None,
         prompt_policy: PromptSafetyPolicy | None = None,
         rag_service: RagService | None = None,
+        tool_metrics: ToolMetrics | None = None,
+        checkpointer: BaseCheckpointSaver | None = None,
     ):
         runtime_settings = settings if settings is not None else get_settings()
         self.max_steps = runtime_settings.agent_max_steps
@@ -49,6 +60,8 @@ class ReactAgent:
         self.max_input_chars = runtime_settings.agent_max_input_chars
         self.max_context_chars = runtime_settings.agent_max_context_chars
         self.prompt_policy = prompt_policy or PromptSafetyPolicy()
+        self.tool_metrics = tool_metrics or ToolMetrics()
+        self.checkpointer = checkpointer
         if tools is not None:
             self.tools = list(tools)
         else:
@@ -71,7 +84,10 @@ class ReactAgent:
         chat_model = model if model is not None else get_chat_model()
         self.model_with_tools = chat_model.bind_tools(self.guarded_tools)
         self.system_prompt = load_system_prompts()
-        self.graph = self._build_graph()
+        self.graph = self._build_graph(checkpointer)
+        self.stateless_graph = (
+            self._build_graph() if checkpointer is not None else self.graph
+        )
 
     @staticmethod
     def _count_tool_calls(messages: Sequence[BaseMessage]) -> int:
@@ -89,6 +105,7 @@ class ReactAgent:
         )
 
     def _call_model(self, state: MessagesState):
+        check_execution_guard()
         messages = state["messages"]
         prompt_policy = getattr(self, "prompt_policy", None)
         if prompt_policy is not None:
@@ -141,7 +158,7 @@ class ReactAgent:
         logger.info(f"[model]调用模型，返回 {len(response.content)} 字符")
         return {"messages": [response]}
 
-    def _build_graph(self):
+    def _build_graph(self, checkpointer: BaseCheckpointSaver | None = None):
         tool_node = ToolNode(
             getattr(self, "guarded_tools", self.tools),
             wrap_tool_call=monitor_tool.wrap_tool_call,
@@ -157,9 +174,32 @@ class ReactAgent:
         )
         graph.add_edge("tools", "agent")
 
-        return graph.compile()
+        return graph.compile(checkpointer=checkpointer)
 
-    def execute_stream(self, query: str):
+    @staticmethod
+    def _raise_if_interrupted(graph: object, config: dict[str, object]) -> None:
+        get_state = getattr(graph, "get_state", None)
+        if not callable(get_state):
+            return
+        snapshot = get_state(config)
+        interrupts = getattr(snapshot, "interrupts", ())
+        if not interrupts:
+            return
+        current = interrupts[0]
+        payload = getattr(current, "value", None)
+        if not isinstance(payload, Mapping):
+            raise RuntimeError("invalid approval interrupt payload")
+        arguments = payload.get("arguments")
+        if not isinstance(arguments, Mapping):
+            raise RuntimeError("invalid approval arguments")
+        raise ApprovalRequired(
+            interrupt_id=str(getattr(current, "id", "")),
+            tool_name=str(payload.get("tool_name", "")),
+            arguments=dict(arguments),
+            risk_level=str(payload.get("risk_level", "high")),
+        )
+
+    def execute_stream(self, query: str, *, thread_id: str | None = None):
         prompt_policy = getattr(self, "prompt_policy", None)
         if prompt_policy is not None:
             try:
@@ -182,17 +222,31 @@ class ReactAgent:
         }
 
         try:
-            for chunk in self.graph.stream(
+            metrics_token = set_tool_metrics(getattr(self, "tool_metrics", None))
+            graph = (
+                self.graph
+                if thread_id is not None
+                else getattr(self, "stateless_graph", self.graph)
+            )
+            config: dict[str, object] = {"recursion_limit": self.max_steps}
+            if thread_id is not None:
+                config["configurable"] = {"thread_id": thread_id}
+            for chunk in graph.stream(
                 input_dict,
-                config={"recursion_limit": self.max_steps},
+                config=config,
                 stream_mode="values",
             ):
+                check_execution_guard()
                 latest_message = chunk["messages"][-1]
                 if latest_message.content:
                     yield latest_message.content.strip() + "\n"
+            if thread_id is not None:
+                self._raise_if_interrupted(graph, config)
         except GraphRecursionError:
             logger.warning("[agent]达到图步骤上限 max_steps=%s", self.max_steps)
             yield AGENT_STEP_LIMIT_MESSAGE + "\n"
+        finally:
+            reset_tool_metrics(metrics_token)
 
     def run(self, query: str) -> str:
         """Run the bounded graph and combine its user-visible chunks."""
@@ -203,6 +257,45 @@ class ReactAgent:
         """Return bounded graph chunks for the API streaming adapter."""
 
         return list(self.execute_stream(query))
+
+    def run_in_thread(self, query: str, thread_id: str) -> str:
+        if self.checkpointer is None:
+            return self.run(query)
+        return "".join(self.execute_stream(query, thread_id=thread_id)).strip()
+
+    def stream_in_thread(self, query: str, thread_id: str) -> list[str]:
+        if self.checkpointer is None:
+            return self.stream(query)
+        return list(self.execute_stream(query, thread_id=thread_id))
+
+    def resume_in_thread(
+        self, thread_id: str, *, approved: bool, approval_id: str
+    ) -> str:
+        if self.checkpointer is None:
+            raise RuntimeError("checkpoint storage is not configured")
+        config: dict[str, object] = {
+            "recursion_limit": self.max_steps,
+            "configurable": {"thread_id": thread_id},
+        }
+        chunks: list[str] = []
+        metrics_token = set_tool_metrics(getattr(self, "tool_metrics", None))
+        try:
+            for chunk in self.graph.stream(
+                Command(resume={"approved": approved, "approval_id": approval_id}),
+                config=config,
+                stream_mode="values",
+            ):
+                check_execution_guard()
+                latest_message = chunk["messages"][-1]
+                if latest_message.content:
+                    chunks.append(latest_message.content.strip() + "\n")
+            self._raise_if_interrupted(self.graph, config)
+        except GraphRecursionError:
+            logger.warning("[agent]达到图步骤上限 max_steps=%s", self.max_steps)
+            return AGENT_STEP_LIMIT_MESSAGE
+        finally:
+            reset_tool_metrics(metrics_token)
+        return "".join(chunks).strip()
 
     def run_with_history(self, query: str, history: list[tuple[str, str]]) -> str:
         if not history:

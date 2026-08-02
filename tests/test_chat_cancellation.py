@@ -4,6 +4,7 @@ import threading
 import pytest
 
 from src.app.application.chat import ChatApplicationError, ChatApplicationService
+from src.app.domain.execution import ExecutionCancelled, check_execution_guard
 
 
 class Agent:
@@ -66,3 +67,37 @@ def test_async_stream_cancellation_propagates_to_runner() -> None:
 
     asyncio.run(exercise())
     assert cancelled.is_set()
+
+
+def test_timeout_cancels_cooperative_sync_agent_before_next_step() -> None:
+    started = threading.Event()
+    release = threading.Event()
+    observed_cancel = threading.Event()
+
+    class CooperativeAgent(Agent):
+        def run(self, _message: str) -> str:
+            started.set()
+            release.wait(1)
+            try:
+                check_execution_guard()
+            except ExecutionCancelled:
+                observed_cancel.set()
+                raise
+            return "unsafe-late-result"
+
+    service = ChatApplicationService(CooperativeAgent(), timeout_seconds=0.01)
+
+    async def exercise() -> None:
+        with pytest.raises(ChatApplicationError, match="timed out"):
+            await service.chat("slow")
+
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(exercise())
+        assert started.wait(1)
+        release.set()
+        loop.run_until_complete(asyncio.sleep(0.02))
+        assert observed_cancel.is_set()
+    finally:
+        loop.run_until_complete(loop.shutdown_default_executor())
+        loop.close()

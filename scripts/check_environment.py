@@ -12,7 +12,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SUPPORTED_PYTHON = (3, 10)
 PIN_PATTERN = re.compile(
-    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9_.-]*)==(?P<version>[^\s;]+)$"
+    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9_.-]*)"
+    r"(?:\[[A-Za-z0-9_,.-]+\])?==(?P<version>[^\s;]+)$"
 )
 
 

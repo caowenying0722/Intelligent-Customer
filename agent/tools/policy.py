@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from langchain_core.tools import BaseTool, StructuredTool
+from langgraph.types import interrupt
+
+from src.app.domain.execution import check_execution_guard
 
 
 class ToolPolicyError(ValueError):
@@ -24,6 +27,7 @@ class ToolPolicy:
     allowed_tools: frozenset[str]
     high_risk_tools: frozenset[str] = frozenset()
     approval_checker: ApprovalChecker | None = None
+    interrupt_on_high_risk: bool = False
     max_args_bytes: int = 4096
 
     def __post_init__(self) -> None:
@@ -41,7 +45,7 @@ class ToolPolicy:
             raise ValueError("tool names must be unique")
         return cls(allowed_tools=frozenset(names))
 
-    def check(self, name: str, args: Mapping[str, Any]) -> None:
+    def _check_base(self, name: str, args: Mapping[str, Any]) -> None:
         if name not in self.allowed_tools:
             raise ToolPolicyError("tool is not allowlisted")
         if not isinstance(args, Mapping):
@@ -54,15 +58,42 @@ class ToolPolicy:
             raise ToolPolicyError("tool arguments are not serializable") from exc
         if len(encoded) > self.max_args_bytes:
             raise ToolPolicyError("tool arguments exceed the size limit")
+
+    def _check_callback_approval(self, name: str, args: Mapping[str, Any]) -> None:
+        if self.approval_checker is None:
+            raise ToolPolicyError("high-risk tool requires approval")
+        try:
+            approved = self.approval_checker(name, args)
+        except Exception as exc:  # noqa: BLE001 - approval failures deny access.
+            raise ToolPolicyError("tool approval is unavailable") from exc
+        if not approved:
+            raise ToolPolicyError("high-risk tool approval denied")
+
+    def check(self, name: str, args: Mapping[str, Any]) -> None:
+        self._check_base(name, args)
         if name in self.high_risk_tools:
-            if self.approval_checker is None:
-                raise ToolPolicyError("high-risk tool requires approval")
-            try:
-                approved = self.approval_checker(name, args)
-            except Exception as exc:  # noqa: BLE001 - approval failures deny access.
-                raise ToolPolicyError("tool approval is unavailable") from exc
-            if not approved:
-                raise ToolPolicyError("high-risk tool approval denied")
+            self._check_callback_approval(name, args)
+
+    def _check_graph_call(self, name: str, args: Mapping[str, Any]) -> None:
+        check_execution_guard()
+        self._check_base(name, args)
+        if name not in self.high_risk_tools:
+            return
+        if self.approval_checker is not None:
+            self._check_callback_approval(name, args)
+            return
+        if not self.interrupt_on_high_risk:
+            raise ToolPolicyError("high-risk tool requires approval")
+        decision = interrupt(
+            {
+                "type": "tool_approval",
+                "tool_name": name,
+                "arguments": dict(args),
+                "risk_level": "high",
+            }
+        )
+        if not isinstance(decision, Mapping) or decision.get("approved") is not True:
+            raise ToolPolicyError("high-risk tool approval denied")
 
     def guard(self, tools: Sequence[BaseTool]) -> list[BaseTool]:
         """Return schema-preserving wrappers that enforce policy before execution."""
@@ -73,11 +104,11 @@ class ToolPolicy:
                 raise ToolPolicyError("tool is not allowlisted")
 
             def call(*, _tool: BaseTool = tool, **kwargs: Any) -> Any:
-                self.check(_tool.name, kwargs)
+                self._check_graph_call(_tool.name, kwargs)
                 return _tool.invoke(kwargs)
 
             async def acall(*, _tool: BaseTool = tool, **kwargs: Any) -> Any:
-                self.check(_tool.name, kwargs)
+                self._check_graph_call(_tool.name, kwargs)
                 return await _tool.ainvoke(kwargs)
 
             guarded.append(
