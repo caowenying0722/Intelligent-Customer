@@ -44,7 +44,16 @@ jobs:
         env:
           TEST_POSTGRES_URL: postgresql+psycopg://app:development-only-change-me@127.0.0.1:5432/intelligent_customer
           TEST_QDRANT_URL: http://127.0.0.1:6333
-        run: python -m pytest -q tests/test_postgres_checkpoint_integration.py tests/test_qdrant_integration.py
+        run: |
+          set +e
+          python -m pytest -q tests/test_postgres_checkpoint_integration.py tests/test_qdrant_integration.py 2>&1 | tee output/ci/postgres-qdrant-integration.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "${status}" -ne 0 ]; then
+            docker compose ps > output/ci/integration-services.log
+            docker compose logs --no-color --tail=200 postgres qdrant >> output/ci/integration-services.log 2>&1 || true
+          fi
+          exit "${status}"
       - name: Format check
         run: python -m ruff format --check .
       - name: Lint
@@ -88,6 +97,8 @@ jobs:
             output/ci/load-smoke.json
             output/ci/retrieval-ablation.json
             output/ci/pip-audit.json
+            output/ci/postgres-qdrant-integration.log
+            output/ci/integration-services.log
           if-no-files-found: warn
       - name: Stop integration data services
         if: always()
