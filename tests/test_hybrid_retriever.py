@@ -2,6 +2,11 @@ from langchain_core.documents import Document
 
 from rag.hybrid_retriever import QdrantHybridRetriever, SparseEncoding
 from rag.retrieval_types import RetrievalResult
+from src.app.observability.tracing import (
+    ApiTracer,
+    reset_current_tracer,
+    set_current_tracer,
+)
 
 
 class DenseEncoder:
@@ -95,3 +100,70 @@ def test_hybrid_retriever_uses_explicit_reranker() -> None:
         "filter cleaning", tenant_id="tenant-a", index_version="idx-1"
     )
     assert result[0].metadata["rerank_applied"] is True
+
+
+def test_hybrid_retriever_records_bounded_metrics_and_stage_spans() -> None:
+    tracer = ApiTracer(max_spans=8)
+    token = set_current_tracer(tracer)
+    try:
+        retriever = QdrantHybridRetriever(
+            Backend(),  # type: ignore[arg-type]
+            DenseEncoder(),
+            SparseEncoder(),
+            candidate_k=2,
+            final_k=1,
+        )
+        retriever.invoke(
+            "filter cleaning", tenant_id="tenant-secret", index_version="idx-secret"
+        )
+        snapshot = retriever.metrics.snapshot()
+        spans = tracer.exporter.snapshot()
+    finally:
+        reset_current_tracer(token)
+        tracer.close()
+
+    assert snapshot["retrievals"] == 1
+    assert snapshot["candidate_sum"] == 1
+    assert {span["name"] for span in spans} >= {
+        "retrieval.dense",
+        "retrieval.sparse",
+        "retrieval.fusion",
+    }
+    assert "tenant-secret" not in str(spans)
+    assert "idx-secret" not in str(spans)
+
+
+def test_hybrid_retriever_records_payload_failures() -> None:
+    backend = Backend()
+    retriever = QdrantHybridRetriever(
+        backend,  # type: ignore[arg-type]
+        DenseEncoder(),
+        SparseEncoder(),
+        candidate_k=2,
+        final_k=1,
+    )
+    original = backend.hybrid_search_results
+
+    def invalid_payload(dense_vector, **kwargs):
+        results = original(dense_vector, **kwargs)
+        result = results[0]
+        return [
+            RetrievalResult(
+                chunk_id=result.chunk_id,
+                document_id=result.document_id,
+                tenant_id=result.tenant_id,
+                document_version=result.document_version,
+                index_version=result.index_version,
+                source=result.source,
+                metadata={},
+            )
+        ]
+
+    backend.hybrid_search_results = invalid_payload  # type: ignore[method-assign]
+    try:
+        retriever.invoke("filter cleaning", tenant_id="tenant-a", index_version="idx-1")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("invalid payload must fail closed")
+    assert retriever.metrics.snapshot()["failures"] == 1

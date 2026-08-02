@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Protocol
 
 from langchain_core.documents import Document
 
 from rag.qdrant_backend import QdrantMetadataFilter, QdrantVectorBackend
+from src.app.observability.metrics import RagMetrics
+from src.app.observability.tracing import get_current_tracer
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +51,7 @@ class QdrantHybridRetriever:
         candidate_k: int = 20,
         final_k: int = 5,
         rrf_k: int = 60,
+        metrics: RagMetrics | None = None,
     ) -> None:
         if final_k < 1 or candidate_k < final_k:
             raise ValueError("candidate_k must be greater than or equal to final_k")
@@ -60,6 +64,12 @@ class QdrantHybridRetriever:
         self.candidate_k = candidate_k
         self.final_k = final_k
         self.rrf_k = rrf_k
+        self.metrics = metrics or RagMetrics()
+
+    @staticmethod
+    def _span(name: str):
+        tracer = get_current_tracer()
+        return tracer.start_span(name) if tracer is not None else nullcontext()
 
     def invoke(
         self,
@@ -71,43 +81,61 @@ class QdrantHybridRetriever:
     ) -> list[Document]:
         if not query.strip():
             raise ValueError("query must not be empty")
-        dense = self.dense_encoder.embed_query(query)
-        sparse = self.sparse_encoder.encode_query(query)
-        results = self.backend.hybrid_search_results(
-            dense,
-            sparse_indices=sparse.indices,
-            sparse_values=sparse.values,
-            tenant_id=tenant_id,
-            index_version=index_version,
-            metadata_filter=metadata_filter,
-            prefetch_limit=self.candidate_k,
-            limit=self.candidate_k,
-            rrf_k=self.rrf_k,
-        )
-        documents: list[Document] = []
-        for result in results:
-            metadata = dict(result.metadata)
-            content = metadata.pop("content", None)
-            if not isinstance(content, str) or not content.strip():
-                raise ValueError("Qdrant result payload must contain non-empty content")
-            metadata.update(
-                {
-                    "chunk_id": result.chunk_id,
-                    "document_id": result.document_id,
-                    "tenant_id": result.tenant_id,
-                    "document_version": result.document_version,
-                    "index_version": result.index_version,
-                    "source": result.source,
-                    "fused_score": result.fused_score,
-                    "fused_rank": result.final_rank,
-                }
-            )
-            documents.append(Document(page_content=content, metadata=metadata))
-        if self.reranker is None:
-            for document in documents[: self.final_k]:
-                document.metadata["rerank_applied"] = False
-            return documents[: self.final_k]
-        return self.reranker.rerank(query, documents, self.final_k)
+        started = self.metrics.begin()
+        try:
+            with self._span("retrieval.dense"):
+                dense = self.dense_encoder.embed_query(query)
+            with self._span("retrieval.sparse"):
+                sparse = self.sparse_encoder.encode_query(query)
+            with self._span("retrieval.fusion"):
+                results = self.backend.hybrid_search_results(
+                    dense,
+                    sparse_indices=sparse.indices,
+                    sparse_values=sparse.values,
+                    tenant_id=tenant_id,
+                    index_version=index_version,
+                    metadata_filter=metadata_filter,
+                    prefetch_limit=self.candidate_k,
+                    limit=self.candidate_k,
+                    rrf_k=self.rrf_k,
+                )
+        except Exception:
+            self.metrics.end(started, status="failed", candidate_count=0)
+            raise
+        try:
+            documents: list[Document] = []
+            for result in results:
+                metadata = dict(result.metadata)
+                content = metadata.pop("content", None)
+                if not isinstance(content, str) or not content.strip():
+                    raise ValueError(
+                        "Qdrant result payload must contain non-empty content"
+                    )
+                metadata.update(
+                    {
+                        "chunk_id": result.chunk_id,
+                        "document_id": result.document_id,
+                        "tenant_id": result.tenant_id,
+                        "document_version": result.document_version,
+                        "index_version": result.index_version,
+                        "source": result.source,
+                        "fused_score": result.fused_score,
+                        "fused_rank": result.final_rank,
+                    }
+                )
+                documents.append(Document(page_content=content, metadata=metadata))
+            if self.reranker is None:
+                for document in documents[: self.final_k]:
+                    document.metadata["rerank_applied"] = False
+                selected = documents[: self.final_k]
+            else:
+                with self._span("retrieval.rerank"):
+                    selected = self.reranker.rerank(query, documents, self.final_k)
+        except Exception:
+            self.metrics.end(started, status="failed", candidate_count=len(results))
+            raise
+        self.metrics.end(started, status="completed", candidate_count=len(results))
+        return selected
 
 
 class CallableSparseEncoder:

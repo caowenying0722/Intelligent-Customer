@@ -102,8 +102,8 @@ flowchart LR
 | 用户/会话持久化 | 部分实现 | FastAPI 可选 SQLAlchemy 会话和入库 job 持久化；Streamlit 默认仍为进程内 session |
 | JWT / RBAC | 部分实现 | `JWTAuthenticator`、稳定 401/403、tenant 一致性和安全审计已测试；审批/完整角色策略仍有限 |
 | 多租户隔离 | 部分实现 | API conversation/document/job/retrieval 路径有 tenant filter；Streamlit/本地工具和跨服务部署仍非完整隔离 |
-| OpenTelemetry | 部分实现 | API 有 W3C `traceparent`、HTTP/Agent/LLM/RAG/工具/当前进程 Worker SDK span、有界本地 exporter 和可选 timeout-bounded OTLP gRPC exporter；生产强制 HTTPS；尚无 OTLP Collector/backend，重启任务不保留 parent context |
-| Prometheus / metrics endpoint | 部分实现 | `/metrics` 与 `/metrics/prometheus` 暴露有界 HTTP/模型网关/Worker 聚合指标，生产要求 `METRICS_TOKEN`；RAG/工具专用 metrics 和真实 scrape 尚未完成 |
+| OpenTelemetry | 部分实现 | W3C `traceparent`、HTTP/Agent/LLM/RAG dense/sparse/fusion/rerank/工具/Worker span 与 timeout-bounded OTLP gRPC 已接线；真实 Collector 收到 trace batches。生产 trace backend 仍未实现 |
+| Prometheus / metrics endpoint | 已实现当前阶段 | `/metrics` 与 `/metrics/prometheus` 暴露有界 HTTP/模型/RAG/工具/Worker 聚合指标；真实 Prometheus target 为 up，Grafana health 正常；进程重启会归零 |
 | Docker Compose | 部分实现 | PostgreSQL、migration、精简 API 镜像和 `observability` profile 已配置；实际验证 API healthy 及 live/ready/OpenAPI 200。Qdrant 与完整可观测后端仍缺失 |
 | CI | 部分实现 | 已有质量、依赖审计和 Docker build workflow 配置；远端 runner 尚未执行确认 |
 | 压测 | 部分实现 | `scripts/run_load_smoke.py` 支持 fake API 10 请求/并发 2；不是生产压测，暂无 Locust/k6 |
@@ -114,12 +114,12 @@ flowchart LR
 
 | 命令 | 实际结果 |
 |---|---|
-| `python -m pytest -q` | 通过：397 passed，6 skipped，26 subtests；skip 为需显式 PostgreSQL/Qdrant URL 或新依赖的集成测试 |
+| `python -m pytest -q` | 通过：401 passed，6 skipped，26 subtests；skip 为需显式 PostgreSQL/Qdrant URL 或新依赖的集成测试 |
 | 容器集成测试 | 通过：5 passed | Python 3.10 API 镜像连接真实 PostgreSQL 16/Qdrant 1.18.3，验证恢复、并发 claim 和 hybrid 隔离 |
-| `python -m ruff format --check .` | 通过：262 个 Python 文件已格式化 |
+| `python -m ruff format --check .` | 通过：265 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
-| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：103 个源码文件 |
-| `python -m mypy tests` | 通过：115 个测试源码文件 |
+| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：104 个源码文件 |
+| `python -m mypy tests` | 通过：116 个测试源码文件 |
 | `python scripts/scan_secrets.py` | 通过：Secret scan OK |
 | `python -m pip check` | 通过：No broken requirements found |
 | 外部调用 timeout 定向审计 | 通过：51 passed，6 subtests；未发现需立即补齐的生产 timeout 缺口 |
@@ -210,7 +210,7 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：当前 pytest 为 397 passed、6 skipped、26 subtests，分支覆盖率 64%；另在 Python 3.10 API 镜像内对真实 PostgreSQL/Qdrant 执行 5 个集成测试。真实付费 provider 和生产负载未验证。
+- 测试：当前 pytest 为 401 passed、6 skipped、26 subtests，分支覆盖率 64%；另在 Python 3.10 API 镜像内对真实 PostgreSQL/Qdrant 执行 5 个集成测试。真实付费 provider 和生产负载未验证。
 - 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；Collector/backend 端到端传输和业务日志全面脱敏仍有限制。
 - 部署：Compose PostgreSQL、Qdrant、migration 和精简 API 已真实 healthy；observability profile 仍需端到端 scrape/OTLP 验收，完整生产栈未完成。
 - 持久化：会话、Agent checkpoint、审批和入库任务已进入 PostgreSQL/Alembic；Qdrant 向量索引和 Chroma baseline 并存。备份恢复和多副本一致性仍未验证。

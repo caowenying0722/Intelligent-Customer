@@ -905,3 +905,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 ## 2026-08-02 里程碑二：Qdrant Hybrid Retrieval
 
 本里程碑作为一个交付目标实施：保留 Chroma/BM25 baseline，新增固定版本 Qdrant Compose 服务、客户端依赖、强制 tenant/index 和业务 metadata filter、dense+sparse 命名向量、参数化 RRF、可插拔/显式降级 reranker、API readiness 与真实容器集成测试；新增五路 model-free 消融脚本并记录 dataset/config/commit/dirty/latency。冻结集仅 3 条且 dense 使用 hash-ngram proxy，报告不得解释为生产质量或性能提升。
+
+## 2026-08-02 里程碑三：可观测性端到端
+
+本里程碑作为一个交付目标实施：复用现有脱敏 access log、W3C trace、HTTP/模型/RAG/工具/Worker 聚合指标，补齐 Qdrant hybrid dense/sparse/fusion/rerank spans 与 metrics；修复 distroless Collector 的错误 wget healthcheck；新增有 timeout、失败关闭的栈检查脚本。真实 Compose 已验证 Collector 收到 trace batch、Prometheus API target up、Grafana/Collector/API health 正常。Collector 仍为 debug exporter，生产 trace backend 留到最终部署阶段。

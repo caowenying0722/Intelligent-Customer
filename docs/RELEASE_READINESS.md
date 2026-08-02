@@ -6,12 +6,12 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：397 passed，6 skipped，26 subtests | 默认不调用付费模型；skip 为需显式 PostgreSQL/Qdrant URL 或新依赖的集成测试 |
+| `python -m pytest -q` | 通过：401 passed，6 skipped，26 subtests | 默认不调用付费模型；skip 为需显式 PostgreSQL/Qdrant URL 或新依赖的集成测试 |
 | 容器集成测试 | 通过：5 passed | Python 3.10 API 镜像连接 PostgreSQL 16/Qdrant 1.18.3 |
-| `python -m ruff format --check .` | 通过 | 262 个 Python 文件已格式化 |
+| `python -m ruff format --check .` | 通过 | 265 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
-| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：103 个源码文件 | 生产源码类型门禁 |
-| `python -m mypy tests` | 通过：115 个测试源码文件 | 独立测试类型门禁 |
+| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：104 个源码文件 | 生产源码类型门禁 |
+| `python -m mypy tests` | 通过：116 个测试源码文件 | 独立测试类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
 | `python -m pip check` | 通过 | 依赖元数据无破损；PyJWT 2.13.0 已显式锁定 |
 | `python -m pip_audit -r requirements.txt` | 失败：3 个无修复漏洞 | `chromadb==1.3.7/PYSEC-2026-311`、`ragas==0.4.3/PYSEC-2026-3046`、`diskcache==5.6.3/PYSEC-2026-2447`；不使用 ignore |
@@ -56,6 +56,7 @@
 | PostgreSQL/container integration | 通过 | PostgreSQL healthy、migration exit 0、API healthy，live/ready/OpenAPI 200；真实 checkpoint/审批重启及 `SKIP LOCKED` 双 worker claim 测试通过 |
 | Qdrant hybrid integration | 通过 | Qdrant 1.18.3 healthy；真实 dense+sparse/RRF、tenant/index/version/business filter 集成测试通过；API readiness 200 |
 | 五路 retrieval ablation | 通过 | baseline/dense/sparse/RRF/RRF+reranker 使用 3 条冻结样本、model_calls=0 生成本地报告；只作为 proxy，不宣称生产提升 |
+| Observability stack E2E | 通过 | API/Collector/Prometheus/Grafana health 均 ok；Prometheus target up；Collector debug exporter 收到真实 API trace batches |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 | `python scripts/run_deterministic_regression.py --output output/ci/target73-deterministic.json` | 通过：3/3 样本，model_calls=0 | retrieval-regression-v1；recall@1=0.5、recall@3/5/10=1.0、MRR=1.0；artifact commit=`aac459e`、dirty=true |

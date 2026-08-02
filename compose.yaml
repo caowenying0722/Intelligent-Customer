@@ -96,10 +96,8 @@ services:
     healthcheck:
       test:
         - CMD
-        - wget
-        - --spider
-        - --quiet
-        - http://127.0.0.1:13133/
+        - /otelcol-contrib
+        - components
       interval: 30s
       timeout: 5s
       retries: 3

@@ -86,6 +86,11 @@ def test_observability_profile_is_explicit_and_configured_without_secrets() -> N
     )
     prometheus = Path("deploy/observability/prometheus.yml").read_text(encoding="utf-8")
     assert "health_check" in collector
+    assert services["otel-collector"]["healthcheck"]["test"] == [
+        "CMD",
+        "/otelcol-contrib",
+        "components",
+    ]
     assert "metrics_path: /metrics/prometheus" in prometheus
     assert "api:8000" in prometheus
 
