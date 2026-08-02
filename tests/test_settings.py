@@ -47,6 +47,15 @@ class SettingsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "DATABASE_URL"):
             Settings.model_validate({"database_url": "redis://localhost/0"})
 
+    def test_qdrant_url_is_optional_and_rejects_credential_bearing_urls(self) -> None:
+        self.assertIsNone(Settings().qdrant_url)
+        self.assertEqual(
+            Settings.model_validate({"qdrant_url": "http://qdrant:6333/"}).qdrant_url,
+            "http://qdrant:6333",
+        )
+        with self.assertRaises(ValueError):
+            Settings.model_validate({"qdrant_url": "http://user:pass@qdrant:6333"})
+
     def test_legacy_provider_alias_and_json_origins_are_supported(self) -> None:
         env = {
             "APP_ENV": "test",

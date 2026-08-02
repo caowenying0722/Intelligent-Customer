@@ -4,6 +4,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from agent.tools.agent_tools import RagService
+from rag.qdrant_backend import build_qdrant_backend
 from src.app.application.approvals import ApprovalApplicationService
 from src.app.application.chat import ChatAgent, ChatApplicationService
 from src.app.infrastructure.checkpoints import (
@@ -47,6 +48,10 @@ def build_server_app(
             ),
         )
     repository = build_conversation_repository(database_url)
+    qdrant_backend = build_qdrant_backend(
+        runtime_settings.qdrant_url,
+        timeout_seconds=runtime_settings.qdrant_timeout_seconds,
+    )
     approval_service = ApprovalApplicationService(build_approval_repository(repository))
     chat_service = ChatApplicationService(
         agent,
@@ -57,10 +62,15 @@ def build_server_app(
     resources: tuple[object, ...] = (repository, approval_service)
     if checkpoint_runtime is not None:
         resources = (checkpoint_runtime, *resources)
+    if qdrant_backend is not None:
+        resources = (*resources, qdrant_backend)
     return create_app(
         chat_service=chat_service,
         database_url=database_url,
         rag_service=rag_service,
+        readiness_check=(
+            qdrant_backend.check_ready if qdrant_backend is not None else None
+        ),
         lifecycle_resources=resources,
     )
 

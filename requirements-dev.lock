@@ -148,13 +148,17 @@ h11==0.16.0
     # via
     #   httpcore
     #   uvicorn
+h2==4.4.0
+    # via httpx
+hpack==4.2.0
+    # via h2
 hf-xet==1.5.2
     # via huggingface-hub
 httpcore==1.0.9
     # via httpx
 httptools==0.8.0
     # via uvicorn
-httpx==0.28.1
+httpx[http2]==0.28.1
     # via
     #   -r requirements.txt
     #   chromadb
@@ -163,6 +167,9 @@ httpx==0.28.1
     #   langgraph-sdk
     #   langsmith
     #   openai
+    #   qdrant-client
+hyperframe==6.1.0
+    # via h2
 httpx-sse==0.4.3
     # via langchain-community
 huggingface-hub==1.26.0
@@ -384,6 +391,8 @@ packaging==26.2
     #   pytest
     #   streamlit
     #   transformers
+portalocker==3.2.0
+    # via qdrant-client
 pandas==2.3.3
     # via
     #   datasets
@@ -496,6 +505,8 @@ pyyaml==6.0.2
     #   langchain-community
     #   langchain-core
     #   transformers
+qdrant-client==1.18.0
+    # via -r requirements.txt
     #   uvicorn
 ragas==0.4.3
     # via -r requirements.txt

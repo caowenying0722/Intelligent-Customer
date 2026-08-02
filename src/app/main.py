@@ -134,7 +134,7 @@ def create_app(
     readiness_checks: list[ReadinessCheck] = []
     if readiness_check is not None:
         readiness_checks.append(readiness_check)
-    if readiness_check is None and chat_service is not None:
+    if chat_service is not None:
         candidate = getattr(chat_service.conversation_repository, "check_ready", None)
         if callable(candidate):
             readiness_checks.append(candidate)

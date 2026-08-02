@@ -901,3 +901,7 @@ trace/span 边界、context propagation、Prometheus cardinality、脱敏与可�
 ## 2026-08-02 里程碑一：持久化与可恢复 Agent
 
 本里程碑按一个交付目标收口，不再拆成编号小目标：Compose 增加 PostgreSQL 和一次性 Alembic migration；API composition root 接入 SQLAlchemy repository 与生命周期托管的 LangGraph `PostgresSaver`；高风险工具使用持久化人工审批中断/恢复；Chat 增加协作式 deadline/cancellation；入库任务使用 lease、heartbeat、fencing 和 PostgreSQL `FOR UPDATE SKIP LOCKED` 防止跨 worker 同代重复 claim。默认测试不调用真实付费模型。真实 PostgreSQL 已验证 checkpoint/审批跨重启恢复和双 worker 唯一 claim；交付语义为 at-least-once，不宣称 exactly-once。API 使用独立精简锁文件，容器不安装 Torch/Chroma 等离线 RAG 重依赖。
+
+## 2026-08-02 里程碑二：Qdrant Hybrid Retrieval
+
+本里程碑作为一个交付目标实施：保留 Chroma/BM25 baseline，新增固定版本 Qdrant Compose 服务、客户端依赖、强制 tenant/index 和业务 metadata filter、dense+sparse 命名向量、参数化 RRF、可插拔/显式降级 reranker、API readiness 与真实容器集成测试；新增五路 model-free 消融脚本并记录 dataset/config/commit/dirty/latency。冻结集仅 3 条且 dense 使用 hash-ngram proxy，报告不得解释为生产质量或性能提升。

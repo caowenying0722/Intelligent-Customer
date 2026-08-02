@@ -95,9 +95,9 @@ def should_skip(path: Path, include_private_env: bool) -> bool:
 def iter_files(include_private_env: bool) -> list[Path]:
     files = []
     for path in PROJECT_ROOT.rglob("*"):
-        if not path.is_file():
-            continue
         if should_skip(path, include_private_env=include_private_env):
+            continue
+        if not path.is_file():
             continue
         files.append(path)
     return files

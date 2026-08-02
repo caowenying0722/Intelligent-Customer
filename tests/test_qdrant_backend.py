@@ -1,8 +1,14 @@
 import time
+from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 
-from rag.qdrant_backend import QdrantVectorBackend, VectorBackendError
+from rag.qdrant_backend import (
+    QdrantMetadataFilter,
+    QdrantVectorBackend,
+    VectorBackendError,
+)
 
 
 class FakeQdrantClient:
@@ -27,6 +33,25 @@ class FakeQdrantClient:
     def delete_collection(self, **kwargs):
         self.calls.append(kwargs)
         return {"status": "completed"}
+
+    def query_points(self, **kwargs):
+        self.calls.append(kwargs)
+        return SimpleNamespace(
+            points=[
+                {
+                    "id": "chunk-1",
+                    "score": 0.75,
+                    "payload": {
+                        "chunk_id": "chunk-1",
+                        "document_id": "doc-1",
+                        "document_version": "v2",
+                        "tenant_id": "tenant-a",
+                        "index_version": "idx-1",
+                        "source": "manual.txt",
+                    },
+                }
+            ]
+        )
 
 
 def test_qdrant_search_always_carries_tenant_and_index_filter() -> None:
@@ -128,6 +153,63 @@ def test_qdrant_upsert_batches_and_validates_scope() -> None:
     with pytest.raises(ValueError, match="outside"):
         backend.upsert(
             [{"id": "bad", "payload": {"tenant_id": "tenant-b"}}],
+            tenant_id="tenant-a",
+            index_version="idx-1",
+        )
+
+
+def test_qdrant_hybrid_query_uses_named_vectors_rrf_and_all_filters() -> None:
+    pytest.importorskip("qdrant_client")
+    client = FakeQdrantClient()
+    backend = QdrantVectorBackend(client, collection_name="knowledge")
+    effective_at = datetime(2026, 8, 2, tzinfo=timezone.utc)
+
+    results = backend.hybrid_search_results(
+        [0.1, 0.2],
+        sparse_indices=[1, 7],
+        sparse_values=[0.4, 0.9],
+        tenant_id="tenant-a",
+        index_version="idx-1",
+        metadata_filter=QdrantMetadataFilter(
+            document_version="v2",
+            product_model="air-1",
+            language="zh-CN",
+            effective_at=effective_at,
+        ),
+        prefetch_limit=8,
+        limit=3,
+        rrf_k=60,
+    )
+
+    call = client.calls[-1]
+    assert [item.using for item in call["prefetch"]] == ["dense", "sparse"]
+    assert call["query"].rrf.k == 60
+    conditions = {condition.key: condition for condition in call["query_filter"].must}
+    assert conditions["tenant_id"].match.value == "tenant-a"
+    assert conditions["index_version"].match.value == "idx-1"
+    assert conditions["document_version"].match.value == "v2"
+    assert conditions["product_model"].match.value == "air-1"
+    assert conditions["language"].match.value == "zh-CN"
+    assert conditions["effective_from"].range.lte == effective_at
+    assert conditions["effective_to"].range.gte == effective_at
+    assert results[0].fused_score == 0.75
+
+
+def test_qdrant_hybrid_query_rejects_unscoped_or_malformed_vectors() -> None:
+    backend = QdrantVectorBackend(FakeQdrantClient(), collection_name="knowledge")
+    with pytest.raises(ValueError, match="tenant_id"):
+        backend.hybrid_search_results(
+            [0.1],
+            sparse_indices=[1],
+            sparse_values=[1.0],
+            tenant_id="",
+            index_version="idx-1",
+        )
+    with pytest.raises(ValueError, match="aligned"):
+        backend.hybrid_search_results(
+            [0.1],
+            sparse_indices=[1],
+            sparse_values=[],
             tenant_id="tenant-a",
             index_version="idx-1",
         )

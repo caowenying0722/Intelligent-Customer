@@ -6,12 +6,12 @@
 
 | 检查 | 实际结果 | 说明 |
 |---|---|---|
-| `python -m pytest -q` | 通过：391 passed，4 skipped，26 subtests | 默认不调用付费模型；skip 为需显式 PostgreSQL URL 的集成测试 |
-| PostgreSQL 集成测试 | 通过：4 passed | 使用运行中 PostgreSQL 16，验证 checkpoint/审批跨重启和双 worker 唯一 claim |
-| `python -m ruff format --check .` | 通过 | 256 个 Python 文件已格式化 |
+| `python -m pytest -q` | 通过：397 passed，6 skipped，26 subtests | 默认不调用付费模型；skip 为需显式 PostgreSQL/Qdrant URL 或新依赖的集成测试 |
+| 容器集成测试 | 通过：5 passed | Python 3.10 API 镜像连接 PostgreSQL 16/Qdrant 1.18.3 |
+| `python -m ruff format --check .` | 通过 | 262 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 | 全仓 lint |
-| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：101 个源码文件 | 生产源码类型门禁 |
-| `python -m mypy tests` | 通过：112 个测试源码文件 | 独立测试类型门禁 |
+| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：103 个源码文件 | 生产源码类型门禁 |
+| `python -m mypy tests` | 通过：115 个测试源码文件 | 独立测试类型门禁 |
 | `python scripts/scan_secrets.py` | 通过 | 未发现疑似密钥 |
 | `python -m pip check` | 通过 | 依赖元数据无破损；PyJWT 2.13.0 已显式锁定 |
 | `python -m pip_audit -r requirements.txt` | 失败：3 个无修复漏洞 | `chromadb==1.3.7/PYSEC-2026-311`、`ragas==0.4.3/PYSEC-2026-3046`、`diskcache==5.6.3/PYSEC-2026-2447`；不使用 ignore |
@@ -54,6 +54,8 @@
 | Job claim/recovery audit | 通过：14 个定向测试 | queued 恢复、running orphan fail、取消、租户隔离和持久化幂等；heartbeat/lease fencing 未实现 |
 | Schema claim consistency | 通过：migration smoke + ORM/index assertions | 唯一索引列顺序/unique 与 0008→0010 nullable 迁移一致；SQLite 不替代 PostgreSQL 并发验收 |
 | PostgreSQL/container integration | 通过 | PostgreSQL healthy、migration exit 0、API healthy，live/ready/OpenAPI 200；真实 checkpoint/审批重启及 `SKIP LOCKED` 双 worker claim 测试通过 |
+| Qdrant hybrid integration | 通过 | Qdrant 1.18.3 healthy；真实 dense+sparse/RRF、tenant/index/version/business filter 集成测试通过；API readiness 200 |
+| 五路 retrieval ablation | 通过 | baseline/dense/sparse/RRF/RRF+reranker 使用 3 条冻结样本、model_calls=0 生成本地报告；只作为 proxy，不宣称生产提升 |
 | `python scripts/run_red_team_regression.py` | 通过：4/4 拒绝、0 漏检 | model_calls=0 |
 | fake API load smoke | 通过：10 请求、并发 2、错误率 0 | 仅为本地 ASGI smoke，不是生产压测 |
 | `python scripts/run_deterministic_regression.py --output output/ci/target73-deterministic.json` | 通过：3/3 样本，model_calls=0 | retrieval-regression-v1；recall@1=0.5、recall@3/5/10=1.0、MRR=1.0；artifact commit=`aac459e`、dirty=true |
@@ -64,14 +66,13 @@
 ## 发布阻塞
 
 1. `pip-audit -r requirements.txt` 真实发现 3 个无修复版本漏洞：ChromaDB `CVE-2026-45829`、RAGAS `CVE-2026-6587`、DiskCache `CVE-2025-69872`。本轮已复核可见最新版本仍无 fix；CI 必须继续失败，不使用 ignore。
-2. `docker build --tag intelligent-customer-api:local .` 已重新执行：Python 3.10 基础镜像和依赖下载/安装完成，但约 889 秒后在 BuildKit 镜像导出阶段收到 Docker daemon EOF；最终没有生成可用镜像。随后 `docker desktop start/restart` 复核仍报 daemon unable to start/超时，不能宣称 Docker 镜像可发布。
-3. 本机解释器是 Python 3.13，`scripts/check_environment.py` 按支持矩阵拒绝；远端 CI 使用 Python 3.10，仍需在 CI 上验证完整 clean install。
+2. 本机解释器是 Python 3.13，`scripts/check_environment.py` 按支持矩阵拒绝；精简 API 已在 Python 3.10 镜像构建和启动，完整开发依赖仍需远端 Python 3.10 CI clean install。
 
 ## 已知未完成
 
-- Compose 当前包含 API 基础服务和可选 OpenTelemetry Collector/Prometheus/Grafana profile；三个 observability 镜像的独立 health endpoint 已实测 200，但 API 基础镜像 build 仍被 Docker Hub token 网络阻塞，端到端 scrape/OTLP 未完成。PostgreSQL、Redis、Qdrant、Worker 和生产 trace backend 尚未纳入；Grafana 仅为本地匿名只读配置，重启任务不保留 parent context。
+- Compose 当前包含 PostgreSQL、migration、Qdrant、精简 API 和可选 OpenTelemetry Collector/Prometheus/Grafana profile；PostgreSQL/Qdrant/API health 已实测，端到端 scrape/OTLP、Redis/独立 Worker 和生产 trace backend 尚未完成。
 - CI 已在依赖漏洞审计前加入 Docker build 步骤；远端 runner 的镜像构建结果仍待实际 workflow 运行确认。
-- 尚未执行真实 Docker health、迁移、SSE 和后台 job 容器 smoke。
+- 已执行真实 Docker health、迁移和 API readiness；SSE 与独立后台 Worker 容器 smoke 尚未完成。
 - hidden evaluation、真实 provider 评测和生产网络压测未执行。
 
 ## 结论

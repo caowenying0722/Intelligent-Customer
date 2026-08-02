@@ -30,6 +30,18 @@ def test_compose_runs_postgres_migrations_before_api() -> None:
     assert "postgres-data" in compose["volumes"]
 
 
+def test_compose_runs_qdrant_with_health_gate_and_persistent_storage() -> None:
+    compose = yaml.safe_load(Path("compose.yaml").read_text(encoding="utf-8"))
+    services = compose["services"]
+
+    assert services["qdrant"]["image"] == "qdrant/qdrant:v1.18.3-unprivileged"
+    assert services["qdrant"]["ports"] == ["127.0.0.1:${QDRANT_PORT:-6333}:6333"]
+    assert services["qdrant"]["volumes"] == ["qdrant-data:/qdrant/storage"]
+    assert services["api"]["depends_on"]["qdrant"]["condition"] == "service_healthy"
+    assert services["api"]["environment"]["QDRANT_URL"] == "http://qdrant:6333"
+    assert "qdrant-data" in compose["volumes"]
+
+
 def test_dockerfile_uses_python_310_non_root_and_healthcheck() -> None:
     dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
 

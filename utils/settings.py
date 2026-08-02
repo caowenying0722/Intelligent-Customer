@@ -87,6 +87,8 @@ class Settings(BaseSettings):
     database_isolation_level: Literal[
         "READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE"
     ] = "READ COMMITTED"
+    qdrant_url: str | None = None
+    qdrant_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
 
     openai_api_key: SecretStr | None = None
     deepseek_api_key: SecretStr | None = None
@@ -153,6 +155,18 @@ class Settings(BaseSettings):
                 "DATABASE_URL must use postgresql, postgresql+psycopg, or sqlite"
             )
         return str(value).strip()
+
+    @field_validator("qdrant_url", mode="before")
+    @classmethod
+    def validate_qdrant_url(cls, value: object) -> str | None:
+        if value is None or not str(value).strip():
+            return None
+        parsed = urlparse(str(value).strip())
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("QDRANT_URL must be an http(s) URL")
+        if parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise ValueError("QDRANT_URL must not contain credentials or query data")
+        return str(value).strip().rstrip("/")
 
     @field_validator("otel_exporter_endpoint", mode="before")
     @classmethod

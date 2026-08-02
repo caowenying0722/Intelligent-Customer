@@ -137,7 +137,7 @@ stateDiagram-v2
 - PostgreSQL 保存 tenant、用户、会话、消息、运行、工具执行、审批与知识版本；Alembic 是唯一 schema 迁移方式。
 - LangGraph 使用与当前实际依赖兼容的 PostgreSQL checkpointer，`thread_id` 与 tenant/conversation 显式绑定。
 - Redis 用于分布式缓存、配额、限流和 Celery broker；缓存键必须包含 tenant、prompt/model/index version 等隔离维度。
-- Qdrant 查询在 repository/adapter 内强制 tenant 与 index version filter。Dense 和 Sparse 可独立运行，经参数化 RRF 融合，再由可关闭的 Cross-Encoder 重排。
+- Qdrant 1.18.3 查询在 adapter 内强制 tenant 与 index version filter，并支持 document version、product model、language 和 effective date；Dense/Sparse 命名向量经参数化 RRF 融合，再由可关闭且显式降级的 Cross-Encoder adapter 重排。Chroma/BM25 继续作为 baseline。
 - 文档入库由 Celery Worker 执行，输入校验、内容哈希、有限重试、可取消状态机和蓝绿 alias 切换均可独立测试。
 
 ### 模型网关

@@ -97,7 +97,7 @@ flowchart LR
 | FastAPI / API v1 / SSE | 已实现聊天、基础 SSE、内存会话和启动生命周期边界 | `src/app/main.py` 提供应用工厂，`src/app/server.py:build_server_app()` 在显式 server 启动时延迟构造 Agent，并提供 request ID、liveness/readiness、可注入 RAG 的 lifespan 单飞加载、`POST /api/v1/chat`、SSE、可注入的进程内 conversation repository 和资源关闭；`python -m src.app.server` 可启动真实组合根 |
 | PostgreSQL / Alembic | 已实现当前阶段 | Compose PostgreSQL 16、一次性 Alembic migration、会话/文档/job/审批 repository、readiness、重启恢复和真实容器集成均已验证；当前 schema head 为 `0012_add_ingestion_job_leases` |
 | Redis / Celery | 未实现 | 无依赖、worker 或任务状态机 |
-| Qdrant / hybrid filter | 未实现 | 当前仅本地 Chroma |
+| Qdrant / hybrid filter | 已实现当前阶段 | Compose Qdrant 1.18.3 healthy；真实 dense+sparse/RRF 查询强制 tenant/index 并覆盖 document/product/language/effective-date filter；Chroma/BM25 baseline 保留 |
 | LangGraph checkpoint | 已实现当前阶段 | `PostgresSaver` 由应用生命周期管理，tenant/conversation 映射为稳定 thread ID；持久化中断、审批恢复和重启恢复均有 fake/真实 PostgreSQL 测试 |
 | 用户/会话持久化 | 部分实现 | FastAPI 可选 SQLAlchemy 会话和入库 job 持久化；Streamlit 默认仍为进程内 session |
 | JWT / RBAC | 部分实现 | `JWTAuthenticator`、稳定 401/403、tenant 一致性和安全审计已测试；审批/完整角色策略仍有限 |
@@ -114,12 +114,12 @@ flowchart LR
 
 | 命令 | 实际结果 |
 |---|---|
-| `python -m pytest -q` | 通过：391 passed，4 skipped，26 subtests；skip 为需显式 PostgreSQL URL 的集成测试 |
-| PostgreSQL 集成测试 | 通过：4 passed | 使用运行中 PostgreSQL 16 容器和补充依赖路径，验证 checkpoint/审批重启及双 worker claim |
-| `python -m ruff format --check .` | 通过：256 个 Python 文件已格式化 |
+| `python -m pytest -q` | 通过：397 passed，6 skipped，26 subtests；skip 为需显式 PostgreSQL/Qdrant URL 或新依赖的集成测试 |
+| 容器集成测试 | 通过：5 passed | Python 3.10 API 镜像连接真实 PostgreSQL 16/Qdrant 1.18.3，验证恢复、并发 claim 和 hybrid 隔离 |
+| `python -m ruff format --check .` | 通过：262 个 Python 文件已格式化 |
 | `python -m ruff check .` | 通过 |
-| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：101 个源码文件 |
-| `python -m mypy tests` | 通过：112 个测试源码文件 |
+| `python -m mypy agent rag model evaluation utils scripts src/app app.py` | 通过：103 个源码文件 |
+| `python -m mypy tests` | 通过：115 个测试源码文件 |
 | `python scripts/scan_secrets.py` | 通过：Secret scan OK |
 | `python -m pip check` | 通过：No broken requirements found |
 | 外部调用 timeout 定向审计 | 通过：51 passed，6 subtests；未发现需立即补齐的生产 timeout 缺口 |
@@ -210,10 +210,10 @@ README 中的评测表能在本地未跟踪的旧产物找到同值，但产物�
 
 ## 测试、可观测性、部署和数据状态
 
-- 测试：当前 pytest 为 369 passed、26 subtests，覆盖 API/SSE/断开、配置/路径、RAG/Agent、SQLAlchemy/Alembic、入库恢复/关闭/删除竞态、持久化 rebuild idempotency/claim-before-worker、Blue/Green 验证超时、JWT/租户、OTel/Prometheus/Worker metrics、RAG retrieval metrics、Chat timeout/cancellation、REQUEST_TIMEOUT_SECONDS、提示词/模型错误脱敏、无泄漏重排、非流式/SSE Chat 历史、run 错误脱敏、Streamlit HTTP SSE/有界历史与 chunk forwarding、RAG readiness、server composition root/RAG 注入、Agent middleware sync/async runtime、VectorStore 状态、引用支持代理、评测逐样本耗时/错误门禁、redacted artifact、版本化 guardrail、红队和评测辅助；源码分支覆盖率为 63%。真实 provider、PostgreSQL 容器和生产负载仍未验证。
+- 测试：当前 pytest 为 397 passed、6 skipped、26 subtests，分支覆盖率 64%；另在 Python 3.10 API 镜像内对真实 PostgreSQL/Qdrant 执行 5 个集成测试。真实付费 provider 和生产负载未验证。
 - 可观测性：request ID、W3C traceparent、HTTP/Agent/LLM/RAG/工具/Worker span、有界 Prometheus JSON/text 指标、METRICS_TOKEN、OTLP HTTPS 配置和脱敏 JSON API access log 已实现；Collector/backend 端到端传输和业务日志全面脱敏仍有限制。
-- 部署：FastAPI 应用工厂、liveness/readiness、SSE、优雅关闭和 Compose observability profile 已有静态/隔离健康验证；API 镜像构建被 Docker daemon EOF/无法启动阻塞，完整生产栈未验收。
-- 持久化：Chroma 和 MD5 文件是本地运行状态；会话与 Agent 状态只在内存；CSV 是演示数据。没有事务、迁移、备份恢复或多副本一致性方案。
+- 部署：Compose PostgreSQL、Qdrant、migration 和精简 API 已真实 healthy；observability profile 仍需端到端 scrape/OTLP 验收，完整生产栈未完成。
+- 持久化：会话、Agent checkpoint、审批和入库任务已进入 PostgreSQL/Alembic；Qdrant 向量索引和 Chroma baseline 并存。备份恢复和多副本一致性仍未验证。
 
 ## 最可能被面试官质疑的问题
 

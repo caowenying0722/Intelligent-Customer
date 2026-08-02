@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from rag.retrieval_types import RetrievalResult
@@ -15,6 +17,16 @@ from rag.retrieval_types import RetrievalResult
 
 class VectorBackendError(RuntimeError):
     """A vector backend operation failed or returned an unusable response."""
+
+
+@dataclass(frozen=True, slots=True)
+class QdrantMetadataFilter:
+    """Optional business filters applied together with mandatory scope filters."""
+
+    document_version: str | None = None
+    product_model: str | None = None
+    language: str | None = None
+    effective_at: datetime | None = None
 
 
 class QdrantVectorBackend:
@@ -32,6 +44,11 @@ class QdrantVectorBackend:
         self.client = client
         self.collection_name = collection_name
         self.timeout_seconds = timeout_seconds
+
+    def close(self) -> None:
+        close = getattr(self.client, "close", None)
+        if callable(close):
+            close()
 
     def check_ready(self) -> bool:
         """Perform a bounded health request; readiness failures return false."""
@@ -114,6 +131,151 @@ class QdrantVectorBackend:
             index_version=index_version,
             limit=limit,
         )
+        results: list[RetrievalResult] = []
+        for rank, point in enumerate(points, start=1):
+            point_id = (
+                point.get("id")
+                if isinstance(point, dict)
+                else getattr(point, "id", None)
+            )
+            payload = (
+                point.get("payload", {})
+                if isinstance(point, dict)
+                else getattr(point, "payload", {})
+            )
+            score = (
+                point.get("score")
+                if isinstance(point, dict)
+                else getattr(point, "score", None)
+            )
+            if not isinstance(payload, dict):
+                raise VectorBackendError("Qdrant point payload is invalid")
+            if (
+                payload.get("tenant_id") != tenant_id
+                or payload.get("index_version") != index_version
+            ):
+                raise ValueError("Qdrant point is outside the requested scope")
+            chunk_id = str(payload.get("chunk_id") or point_id or "")
+            document_id = str(payload.get("document_id") or chunk_id)
+            results.append(
+                RetrievalResult(
+                    chunk_id=chunk_id,
+                    document_id=document_id,
+                    tenant_id=tenant_id,
+                    document_version=str(payload.get("document_version", "unknown")),
+                    index_version=index_version,
+                    source=str(payload.get("source", "qdrant")),
+                    fused_score=float(score)
+                    if isinstance(score, (int, float))
+                    else None,
+                    final_rank=rank,
+                    metadata=payload,
+                )
+            )
+        return results
+
+    def hybrid_search_results(
+        self,
+        dense_vector: list[float],
+        *,
+        sparse_indices: list[int],
+        sparse_values: list[float],
+        tenant_id: str,
+        index_version: str,
+        metadata_filter: QdrantMetadataFilter | None = None,
+        dense_vector_name: str = "dense",
+        sparse_vector_name: str = "sparse",
+        prefetch_limit: int = 20,
+        limit: int = 10,
+        rrf_k: int = 60,
+    ) -> list[RetrievalResult]:
+        """Run one tenant-scoped dense+sparse query with server-side RRF."""
+        if not tenant_id.strip() or not index_version.strip():
+            raise ValueError("tenant_id and index_version must not be empty")
+        if not dense_vector:
+            raise ValueError("dense_vector must not be empty")
+        if len(sparse_indices) != len(sparse_values) or not sparse_indices:
+            raise ValueError("sparse indices and values must be non-empty and aligned")
+        if prefetch_limit < limit or limit < 1 or prefetch_limit > 1000:
+            raise ValueError("prefetch_limit must be between limit and 1000")
+        if rrf_k < 1:
+            raise ValueError("rrf_k must be positive")
+
+        try:
+            from qdrant_client import models
+        except ImportError as exc:  # pragma: no cover - clean-install guard.
+            raise RuntimeError(
+                "qdrant-client is required for hybrid retrieval"
+            ) from exc
+
+        conditions: list[Any] = [
+            models.FieldCondition(
+                key="tenant_id", match=models.MatchValue(value=tenant_id)
+            ),
+            models.FieldCondition(
+                key="index_version", match=models.MatchValue(value=index_version)
+            ),
+        ]
+        optional = metadata_filter or QdrantMetadataFilter()
+        for key, value in (
+            ("document_version", optional.document_version),
+            ("product_model", optional.product_model),
+            ("language", optional.language),
+        ):
+            if value:
+                conditions.append(
+                    models.FieldCondition(key=key, match=models.MatchValue(value=value))
+                )
+        if optional.effective_at is not None:
+            conditions.extend(
+                [
+                    models.FieldCondition(
+                        key="effective_from",
+                        range=models.DatetimeRange(lte=optional.effective_at),
+                    ),
+                    models.FieldCondition(
+                        key="effective_to",
+                        range=models.DatetimeRange(gte=optional.effective_at),
+                    ),
+                ]
+            )
+
+        def call_backend() -> list[Any]:
+            response = self.client.query_points(
+                collection_name=self.collection_name,
+                prefetch=[
+                    models.Prefetch(
+                        query=dense_vector,
+                        using=dense_vector_name,
+                        limit=prefetch_limit,
+                    ),
+                    models.Prefetch(
+                        query=models.SparseVector(
+                            indices=sparse_indices, values=sparse_values
+                        ),
+                        using=sparse_vector_name,
+                        limit=prefetch_limit,
+                    ),
+                ],
+                query=models.RrfQuery(rrf=models.Rrf(k=rrf_k)),
+                query_filter=models.Filter(must=conditions),
+                with_payload=True,
+                limit=limit,
+                timeout=self.timeout_seconds,
+            )
+            return list(response.points)
+
+        points = self._run_bounded(call_backend, "hybrid search")
+        return self._normalize_results(
+            points,
+            tenant_id=tenant_id,
+            index_version=index_version,
+        )
+
+    @staticmethod
+    def _normalize_results(
+        points: Sequence[Any], *, tenant_id: str, index_version: str
+    ) -> list[RetrievalResult]:
         results: list[RetrievalResult] = []
         for rank, point in enumerate(points, start=1):
             point_id = (
@@ -256,3 +418,24 @@ class QdrantVectorBackend:
             self._run_bounded(call_backend, "collection cleanup")
             deleted.append(collection)
         return deleted
+
+
+def build_qdrant_backend(
+    url: str | None,
+    *,
+    collection_name: str = "knowledge-active",
+    timeout_seconds: float = 5.0,
+) -> QdrantVectorBackend | None:
+    """Build the optional production adapter without import-time network calls."""
+    if url is None:
+        return None
+    try:
+        from qdrant_client import QdrantClient
+    except ImportError as exc:  # pragma: no cover - clean-install guard.
+        raise RuntimeError("qdrant-client is required when QDRANT_URL is set") from exc
+    client = QdrantClient(url=url, timeout=timeout_seconds)
+    return QdrantVectorBackend(
+        client,
+        collection_name=collection_name,
+        timeout_seconds=timeout_seconds,
+    )
