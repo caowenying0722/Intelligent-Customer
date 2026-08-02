@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Protocol
 
 
@@ -42,7 +43,7 @@ class BlueGreenIndexCoordinator:
         future = executor.submit(operation)
         try:
             return future.result(timeout=self.timeout_seconds)
-        except TimeoutError as exc:
+        except (TimeoutError, FutureTimeoutError) as exc:
             future.cancel()
             raise IndexRebuildError(f"{label} exceeded configured timeout") from exc
         finally:

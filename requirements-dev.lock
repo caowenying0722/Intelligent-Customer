@@ -484,6 +484,8 @@ pyreadline3==3.5.6
     # via humanfriendly
 pytest==9.1.1
     # via -r requirements-dev.txt
+pytest-asyncio==1.4.0
+    # via -r requirements-dev.txt
 python-dateutil==2.9.0.post0
     # via
     #   kubernetes

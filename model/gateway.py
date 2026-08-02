@@ -7,6 +7,7 @@ import time
 from collections import deque
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any, Protocol
 
 from model.audit import request_fingerprint, start_trace
@@ -284,7 +285,7 @@ class ModelGateway:
                     result = future.result(timeout=self.timeout_seconds)
                     self._record_success()
                     return result
-                except TimeoutError as exc:
+                except (TimeoutError, FutureTimeoutError) as exc:
                     future.cancel()
                     if attempt > self.max_retries:
                         self._record_failure(provider)

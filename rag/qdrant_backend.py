@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -69,7 +70,7 @@ class QdrantVectorBackend:
         future = executor.submit(operation)
         try:
             return future.result(timeout=self.timeout_seconds)
-        except TimeoutError as exc:
+        except (TimeoutError, FutureTimeoutError) as exc:
             future.cancel()
             raise TimeoutError(
                 f"Qdrant {label} exceeded its configured timeout"
