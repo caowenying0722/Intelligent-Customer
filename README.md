@@ -104,17 +104,6 @@
 - 准备知识库文档与相关配置文件
 
 ---
-
-## 安装步骤
-
-- 克隆项目
-```bash
-
-git clone https://github.com/lhh737/LangChain-ReAct-Agent.git
-```
-- 安装依赖
-```bash
-pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 - 配置环境变量
 

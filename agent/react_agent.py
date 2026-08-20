@@ -1,4 +1,4 @@
-from langchain_core.messages import SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
 from model.factory import chat_model
@@ -30,8 +30,27 @@ class ReactAgent:
             messages = [SystemMessage(content=prompt)] + messages
 
         response = self.model_with_tools.invoke(messages)
-        logger.info(f"[model]调用模型，返回 {len(response.content)} 字符")
+        logger.info(f"[model]调用模型，返回 {len(self._content_to_text(response.content))} 字符")
         return {"messages": [response]}
+
+    @staticmethod
+    def _content_to_text(content) -> str:
+        """兼容 OpenAI 字符串内容和 Anthropic 内容块列表。"""
+        if isinstance(content, str):
+            return content
+
+        if isinstance(content, list):
+            text_parts = []
+            for block in content:
+                if isinstance(block, str):
+                    text_parts.append(block)
+                elif isinstance(block, dict) and block.get("type") == "text":
+                    text_parts.append(block.get("text", ""))
+                elif getattr(block, "type", None) == "text":
+                    text_parts.append(getattr(block, "text", ""))
+            return "".join(text_parts)
+
+        return str(content)
 
     def _build_graph(self):
         tool_node = ToolNode(self.tools)
@@ -54,8 +73,10 @@ class ReactAgent:
 
         for chunk in self.graph.stream(input_dict, stream_mode="values"):
             latest_message = chunk["messages"][-1]
-            if latest_message.content:
-                yield latest_message.content.strip() + "\n"
+            if isinstance(latest_message, AIMessage):
+                text = self._content_to_text(latest_message.content).strip()
+                if text:
+                    yield text + "\n"
 
 
 if __name__ == '__main__':
